@@ -15,18 +15,77 @@ PATH_PROC  = PATH_ROOT / "processed"
 PATH_PACK  = PATH_ROOT / "packaged"
 
 
-# TODO split file into true Illumina part and our own project/tasks part.
-# TODO see illumina's python task library on github maybe?
-#class ProjectData:
-#    """The subset of files for a Run and Alignment specific to one project.
-#    
-#    This references the data files within a specific run relevant to a single
-#    project, tracks the associated additional metadata provided via the
-#    "experiment" identified in the sample sheet, and handles post-processing.
-#    """
-#    # TODO pass in experiment metadata for relevant samples
-#    # track run/alignment_num/project_name at this point.
-#    # use symlink to track?
+class ProjectData:
+    """The subset of files for a Run and Alignment specific to one project.
+    
+    This references the data files within a specific run relevant to a single
+    project, tracks the associated additional metadata provided via the
+    "experiment" identified in the sample sheet, and handles post-processing.
+
+    The same project may span many separate runs, but a ProjectData object
+    refers only to a specific portion of a single Run.
+    """
+    # TODO pass in experiment metadata for relevant samples
+    # track run/alignment_num/project_name at this point.
+
+    def __init__(self, name, alignment=None):
+        self.name = name
+        self.alignment = alignment
+        self.processing_status = {"status": "none"}
+        self.status_fp = None
+        self.sample_paths = []
+        self.experiment_info = {
+                "Sample_Names": set(),
+                "Tasks": set(),
+                "Contacts": dict()
+                }
+
+    def process():
+        """Run all tasks."""
+        # TODO see illumina's python task library on github maybe?
+        pass
+
+    def load_processing_status(self, fp=None, dp_align=None):
+        if fp is None and dp_align is None:
+            raise ValueError
+        elif fp is None:
+            al = self.alignment
+            al_idx = str(al.run.alignments.index(al))
+            proj_file = slugify(self.name) + ".yml"
+            fp = Path(dp_align) / al.run.run_id / al_idx / proj_file
+        self.status_fp = fp
+        try:
+            with open(fp) as f:
+                data = yaml.safe_load(f)
+        except FileNotFoundError:
+            pass
+        else:
+            self.processing_status = data
+
+    def set_sample_paths(self, sample_paths):
+        self.sample_paths = []
+        for sample_name in self.experiment_info["Sample_Names"]:
+            self.sample_paths.append(sample_paths[sample_name])
+
+    def from_alignment(alignment):
+        """Make dict of ProjectData objects from alignment/experiment table."""
+        # Row by row, build up a dict for each unique project.  Even though
+        # we're reading it in as a spreadsheet we'll treat most of this as
+        # an unordered sets for each project.
+        exp_info = alignment.experiment_info
+        projects = {}
+        for row in exp_info:
+            name = row["Project"]
+            if not name in projects.keys():
+                projects[name] = ProjectData(name, alignment)
+            projects[name]._add_exp_row(row) 
+        return(projects)
+
+    def _add_exp_row(self, row):
+        self.experiment_info["Sample_Names"].add(row["Sample_Name"])
+        self.experiment_info["Contacts"].update(row["Contacts"])
+        self.experiment_info["Tasks"].update(set(row["Tasks"]))
+
 
 def _parse_contacts(text):
     """Create a dictionary of name/email pairs from contact text.
@@ -57,28 +116,6 @@ def load_experiment_info(path):
         row["Contacts"] = _parse_contacts(row["Contacts"])
     return(info)
 
-def _make_project_tree(exp_info):
-    """Make dict of per-project information from experiment table."""
-    projects = {}
-    for row in exp_info:
-        # Row by row, build up a dict for each unique project.  Even though
-        # we're reading it in as a spreadsheet we'll treat most of this as
-        # an unordered sets for each project.
-        proj = _project_stub(projects.get(row["Project"]))
-        proj["Name"] = row["Project"]
-        proj["Sample_Names"].add(row["Sample_Name"])
-        proj["Contacts"].update(row["Contacts"])
-        proj["Tasks"].update(set(row["Tasks"]))
-        projects[row["Project"]] = proj
-    return(projects)
-
-def _project_stub(proj):
-    proj = proj or {}
-    proj["Sample_Names"]  = proj.get("Sample_Names",  set())
-    proj["Tasks"]         = proj.get("Tasks",         set())
-    proj["Contacts"]      = proj.get("Contacts",      dict())
-    return(proj)
-
 def match_alignment_to_projects(al, dp_exp, dp_align):
     """Add Experiment and Project information to an Alignment."""
 
@@ -100,45 +137,27 @@ def match_alignment_to_projects(al, dp_exp, dp_align):
     # found or if it doesn't match the previous sample sheet, throw a
     # warning.
     path = Path(dp_exp) / al.experiment / "metadata.csv"
-    al.experiment_metadata = None
+    al.experiment_info = None
     al.projects = None
     try:
         # Load the spreadsheet of per-sample project information
-        al.experiment_metadata = load_experiment_info(path)
+        al.experiment_info = load_experiment_info(path)
     except FileNotFoundError:
         pass
     else:
         # If that was found, do some extra processing to link up sample and
         # project data.
-        al.projects = _make_project_tree(al.experiment_metadata)
+        al.projects = ProjectData.from_alignment(al)
         for proj_key in al.projects:
             proj = al.projects[proj_key]
-            # Link up with parent object
-            proj["Alignment"] = al
-            # Load project processing status
-            load_project_status(proj, dp_align)
-            # Load FASTQ file paths
-            proj["Sample_Paths"] = []
-            for sample_name in proj["Sample_Names"]:
-                proj["Sample_Paths"].append(sample_paths[sample_name])
+            proj.load_processing_status(dp_align = dp_align)
+            proj.set_sample_paths(sample_paths)
 
-def _slugify(text, mask="_"):
+def slugify(text, mask="_"):
     pat = "[^A-Za-z0-9-_]"
     safe_text = re.sub(pat, mask, text)
     return(safe_text)
 
-def load_project_status(proj, dp_align):
-    al = proj["Alignment"]
-    al_idx = str(al.run.alignments.index(al))
-    proj_file = _slugify(proj["Name"]) + ".yml"
-    fp = Path(dp_align) / al.run.run_id / al_idx / proj_file
-    try:
-        with open(fp) as f:
-            data = yaml.safe_load(f)
-    except FileNotFoundError:
-        data = {"status": "none"}
-    proj["Processing_Status"] = data
-    print(proj)
 
 def run_setup_with_checks(run_dir):
     """Create a Run object for the given path, or None if no run is found."""
@@ -173,39 +192,43 @@ def _fmt_report_entry(entry, N=60):
         entry2[key] = data
     return(entry2)
 
-def report_runs(runs, out_file=sys.stdout):
+def report_entries(runs, out_file=sys.stdout):
+    """Write summary of all project data per run to CSV."""
     fieldnames = [
-            "RunId",      # Illumina Run ID
-            "RunPath",    # Directory path
-            "Alignment",  # Alignment number in current set
-            "Experiment", # Name of experiment from sample sheet
-            "Project"]    # Name of project from extra metadata
+            "RunId",         # Illumina Run ID
+            "RunPath",       # Directory path
+            "Alignment",     # Alignment number in current set
+            "Experiment",    # Name of experiment from sample sheet
+            "Project",       # Name of project from extra metadata
+            "Status",        # Project data processing status
+            "NSamples",      # Num samples in project data
+            "NFiles"]        # Num files in project data
     writer = csv.DictWriter(out_file, fieldnames)
     writer.writeheader()
     for run in runs:
         entry = {"RunId": run.run_id,
-                 "RunPath": run.path,
-                 "Alignment": "NONE",
-                 "Experiment": "NONE",
-                 "Project": "NONE"}
+                 "RunPath": run.path}
         if run.alignments:
             for idx, al in zip(range(len(run.alignments)), run.alignments):
-                entry["Alignment"] = idx + 1
+                entry["Alignment"] = idx
                 entry["Experiment"] = al.experiment
                 if al.projects:
                     for proj_key in al.projects:
                         proj = al.projects[proj_key]
-                        entry["Project"] = proj["Name"]
+                        entry["Project"] = proj.name
+                        entry["Status"] = proj.processing_status["status"]
+                        entry["NSamples"] = len(proj.experiment_info["Sample_Names"])
+                        entry["NFiles"] = sum([len(x) for x in proj.sample_paths])
                         writer.writerow(_fmt_report_entry(entry))
                 else:
                     writer.writerow(_fmt_report_entry(entry))
         else:
             writer.writerow(_fmt_report_entry(entry))
 
-PATH_RUNS = Path("/seq/runs")
-runs = load_run_data(PATH_RUNS, PATH_EXP, PATH_ALIGN)
-
-#try:
-#    report_runs(runs)
-#except BrokenPipeError:
-#    pass
+if __name__ == "__main__":
+    PATH_RUNS = Path("/seq/runs")
+    runs = load_run_data(PATH_RUNS, PATH_EXP, PATH_ALIGN)
+    try:
+        report_entries(runs)
+    except BrokenPipeError:
+        pass
