@@ -1,6 +1,5 @@
-from pathlib import Path
 from .util import *
-from . import Alignment
+from .alignment import Alignment
 import warnings
 
 class Run:
