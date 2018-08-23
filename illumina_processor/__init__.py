@@ -5,11 +5,11 @@ import threading
 import time
 import signal
 
-from util import *
-from box_uploader import BoxUploader
-import illumina.run
-import experiment
-import project
+from .util import *
+from .box_uploader import BoxUploader
+from .illumina import run
+from . import experiment
+from . import project
 
 PATH_ROOT  = Path(__file__).parent / "testdata"
 PATH_RUNS  = PATH_ROOT / "runs"

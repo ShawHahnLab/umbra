@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # TODO fix this
 import sys
-sys.path.append('/home/jesse/dev/illumina-process')
+sys.path.append('/home/jesse/dev/illumina-process/illumina_processor')
 import unittest
 import warnings
 import datetime

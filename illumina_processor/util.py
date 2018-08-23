@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 import re
-import illumina
+from . import illumina
 
 def slugify(text, mask="_"):
     pat = "[^A-Za-z0-9-_]"
