@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 # TODO fix this
-import sys
-sys.path.append('/home/jesse/dev/illumina-process/illumina_processor')
 import unittest
 import warnings
 import datetime
-import illumina
-from illumina.run import Run
 from pathlib import Path
+import sys
+sys.path.append(str((Path(__file__).parent/"..").resolve()))
+from illumina.run import Run
 
 RUN_IDS = {
         "MiSeq": "180101_M00000_0000_000000000-XXXXX",
