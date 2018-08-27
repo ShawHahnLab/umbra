@@ -4,25 +4,35 @@ class Alignment:
     """An "Alignment" (FASTQ generation) within a run."""
 
     def __init__(self, path, run=None):
-        #
-        # TODO: Define finished versus unfinished alignments.  Use
-        # Checkpoint.txt?  I think that was the one that looked reliable (?)
-        #
         self.run = run
         path = Path(path).resolve()
         self.path = path
         try:
             # MiSeq, directly in Alignment folder
-            self.sample_sheet = load_sample_sheet(path/"SampleSheetUsed.csv")
-            self.fastq_path = (path / "..").resolve()
-            self.checkpoint = self.load_checkpoint(path/"Checkpoint.txt")
+            self.path_sample_sheet = (path/"SampleSheetUsed.csv").resolve(strict=True)
+            self.path_fastq = (path / "..").resolve()
+            self.path_checkpoint = path/"Checkpoint.txt"
         except FileNotFoundError:
             # MiniSeq, within timstamped subfolder
             filt = lambda p: re.match("[0-9]{8}_[0-9]{6}", p.name)
             dirs = [d for d in path.glob("*") if d.is_dir() and filt(d)]
-            self.fastq_path = (dirs[0] / "Fastq").resolve()
-            self.sample_sheet = load_sample_sheet(dirs[0]/"SampleSheetUsed.csv")
-            self.checkpoint = self.load_checkpoint(dirs[0]/"Checkpoint.txt")
+            # If there are no subdirectories this doesn't look like a MiniSeq alignment
+            if not dirs:
+                raise(ValueError('Not a recognized Illumina alignment: "%s"' % path))
+            try:
+                self.path_sample_sheet = (dirs[0]/"SampleSheetUsed.csv").resolve(strict=True)
+            # If both possible sample sheet paths threw FileNotFound, we won't
+            # consider this input path to be an alignment directory.
+            except FileNotFoundError:
+                raise(ValueError('Not a recognized Illumina alignment: "%s"' % path))
+            self.path_fastq = dirs[0] / "Fastq"
+            self.path_checkpoint = dirs[0]/"Checkpoint.txt"
+        self.sample_sheet = load_sample_sheet(self.path_sample_sheet)
+        self.checkpoint = self.load_checkpoint(self.path_checkpoint)
+
+    def refresh(self):
+        if not self.complete:
+            self.checkpoint = self.load_checkpoint(self.path_checkpoint)
 
     @property
     def complete(self):
@@ -50,7 +60,7 @@ class Alignment:
         filenames = self.sample_files(sample_num)
         fps = []
         for filename in filenames:
-            fp = (self.fastq_path / filename).resolve(strict = True)
+            fp = (self.path_fastq / filename).resolve(strict = True)
             fps.append(fp)
         return(fps)
 

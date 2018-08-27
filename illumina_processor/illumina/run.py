@@ -5,13 +5,85 @@ import warnings
 class Run:
     """A single Illumina sequencing run, based on a directory tree."""
 
+    def __init__(self, path):
+        # Setup run path
+        path = Path(path).resolve()
+        self.path = path
+
+        # RunInfo.xml is one of the first files to show up in a run directory,
+        # so we'll use that to define a Run (finished or not).
+        try:
+            self.run_info = load_xml(path/"RunInfo.xml")
+        except FileNotFoundError:
+            raise(ValueError('Not a recognized Illumina run: "%s"' % path))
+        info_run_id = self.run_info.find('Run').attrib["Id"]
+        if info_run_id != path.name:
+            warnings.warn('Run directory does not match Run ID: %s / %s' %
+                    (path.name, info_run_id))
+
+        # Load in RTA completion status and available alignment directories.
+        self.rta_complete = None
+        self.alignments = []
+        self.refresh()
+        # CompletedJobInfo.xml should be there if a workflow (job) completed,
+        # like GenerateFASTQ.  It looks like this file is just copied over at
+        # the end of the most recent job from the Alignment sub-folder.
+        try:
+            self.completed_job_info = load_xml(path/"CompletedJobInfo.xml")
+        except FileNotFoundError:
+            self.completed_job_info = None
+
+    def refresh(self):
+        """Check for run completion and any new or completed alignments.
+        
+        Aside from RTAComplete.txt and the Alignment directories, nothing else
+        is checked.  If other files may have changed, instatiate a new Run
+        object."""
+        if not self.rta_complete:
+            fp = self.path/"RTAComplete.txt"
+            self.rta_complete = self.load_rta_complete(fp)
+        self._refresh_alignments()
+
+    def _refresh_alignments(self):
+        # First refresh any existing alignments
+        [al.refresh() for al in self.alignments]
+        # Load from expected paths, using patterns for MiSeq and MiniSeq
+        al_loc1 = self.path.glob("Data/Intensities/BaseCalls/Alignment*")
+        al_loc2 = self.path.glob("Alignment*")
+        al_loc = list(al_loc1) + list(al_loc2)
+        # Filter out those already loaded and process new ones
+        al_loc_known = [al.path for al in self.alignments]
+        is_new = lambda d: not d in al_loc_known
+        al_loc = [d for d in al_loc if is_new(d)]
+        al = [self._alignment_setup(d) for d in al_loc]
+        # Filter out any blanks that failed to load
+        al = [a for a in al if a]
+        # Merge new ones into existing list
+        self.alignments += al
+
+    def _alignment_setup(self, path):
+        # Try loading an alignment directory, but just throw a warning and
+        # return None if it doesn't look like an Alignment.  This should handle
+        # not-yet-complete Alignment directories on disk.
+        try:
+            al = Alignment(path, self)
+        except ValueError as e:
+            warnings.warn("Alignment not recognized: %s" % path)
+            return(None)
+        else:
+            return(al)
+
     def load_rta_complete(self, path):
         """Parse an RTAComplete.txt file.
         
         Creates a dictionary with the Date and Illumina Real-Time Analysis
-        software version.
+        software version.  This file should exist if real-time analysis that
+        does basecalling and generates BCL files has finished.
         """
-        data = load_csv(path)[0]
+        try:
+            data = load_csv(path)[0]
+        except FileNotFoundError:
+            return(None)
         date_pad = lambda txt: "/".join([x.zfill(2) for x in txt.split("/")])
         time_pad = lambda txt: ":".join([x.zfill(2) for x in txt.split(":")])
         # MiniSeq (RTA 2x?)
@@ -33,44 +105,6 @@ class Run:
             date_obj = datetime.datetime.strptime(date_str, fmt)
             version = data[2]
         return({"Date": date_obj, "Version": version})
-
-    def __init__(self, path):
-        # Setup run path
-        path = Path(path).resolve()
-        self.path = path
-        # Top-level metadata
-
-        # RunInfo.xml is one of the first files to show up in a run directory,
-        # so we'll use that to define a Run (finished or not).
-        try:
-            self.run_info = load_xml(path/"RunInfo.xml")
-        except FileNotFoundError:
-            raise(ValueError('Not a recognized Illumina run: "%s"' % path))
-        info_run_id = self.run_info.find('Run').attrib["Id"]
-        if info_run_id != path.name:
-            warnings.warn('Run directory does not match Run ID: %s / %s' %
-                    (path.name, info_run_id))
-
-        # These ones might or might not exist depending on the run status.
-        # RTAComplete.txt should be there if real-time analysis that does
-        # basecalling and generates BCL files has finished.
-        try:
-            self.rta_complete = self.load_rta_complete(path/"RTAComplete.txt")
-        except FileNotFoundError:
-            self.rta_complete = None
-        # CompletedJobInfo.xml should be there if a workflow (job) completed,
-        # like GenerateFASTQ.  It looks like this file is just copied over at
-        # the end of the most recent job from the Alignment sub-folder.
-        try:
-            self.completed_job_info = load_xml(path/"CompletedJobInfo.xml")
-        except FileNotFoundError:
-            self.completed_job_info = None
-        # Alignment paths, using patterns for MiSeq and MiniSeq
-        al_loc1 = path.glob("Data/Intensities/BaseCalls/Alignment*")
-        al_loc2 = path.glob("Alignment*")
-        al = [Alignment(p, self) for p in al_loc1]
-        al = al + [Alignment(p, self) for p in al_loc2]
-        self.alignments = al
 
     @property
     def run_id(self):
