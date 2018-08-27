@@ -11,12 +11,12 @@ from .illumina import run
 from . import experiment
 from . import project
 
-PATH_ROOT  = Path(__file__).parent / "testdata"
-PATH_RUNS  = PATH_ROOT / "runs"
-PATH_EXP   = PATH_ROOT / "experiments"
-PATH_ALIGN = PATH_ROOT / "alignments"
-PATH_PROC  = PATH_ROOT / "processed"
-PATH_PACK  = PATH_ROOT / "packaged"
+#PATH_ROOT  = Path(__file__).parent / "testdata"
+#PATH_RUNS  = PATH_ROOT / "runs"
+#PATH_EXP   = PATH_ROOT / "experiments"
+#PATH_ALIGN = PATH_ROOT / "alignments"
+#PATH_PROC  = PATH_ROOT / "processed"
+#PATH_PACK  = PATH_ROOT / "packaged"
 
 class IlluminaProcessor:
 
@@ -24,10 +24,53 @@ class IlluminaProcessor:
         self.path_runs  = Path(path_runs)
         self.path_exp   = Path(path_exp)
         self.path_align = Path(path_align)
+        self.runs = []
         self._setup_queue()
 
+    def load_run_data(self):
+        """Match up Run directories with per-experiment data, from scratch."""
+        self.runs = [] # dump existing data
+        self.refresh() # load from scratch
 
-    def match_alignment_to_projects(self, al):
+    def refresh(self):
+        """Find new Run data.
+        
+        This will load new Run directories, load new Alignments and check
+        completion for existing Runs, and load completed Alignments for
+        previously-incomplete Alignments.  New entries found are merged with
+        existing ones.  This only loads data very selectively from disk; if any
+        other files may have changed, call load_run_data instead."""
+        # Process existing runs for RTA compltion, alignment completion, and
+        # new alignments.
+        for run in self.runs:
+            run.refresh()
+        # Find all run directories not already known
+        run_dirs_last = [run.path for run in self.runs]
+        run_dirs = [Path(d).resolve() for d in self.path_runs.glob("*") if d.is_dir()]
+        is_new = lambda d: not d in run_dirs_last
+        run_dirs = [d for d in run_dirs if is_new(d)]
+        runs = [self._run_setup_with_checks(run_dir) for run_dir in run_dirs]
+        # Ignore unrecognized (None) entries
+        runs = [run for run in runs if run]
+        for run in runs:
+            for al in run.alignments:
+                self._match_alignment_to_projects(al)
+        self.runs += runs
+
+    def _run_setup_with_checks(self, run_dir):
+        """Create a Run object for the given path, or None if no run is found."""
+        try:
+            run = illumina.run.Run(run_dir)
+        except Exception as e:
+            # ValueError for unrecognized directories
+            if type(e) is ValueError:
+                run = None
+            else:
+                sys.stderr.write("Error while loading run %s\n" % run_dir)
+                raise e
+        return(run)
+
+    def _match_alignment_to_projects(self, al):
         """Add Experiment and Project information to an Alignment."""
 
         al.experiment_info = None
@@ -49,7 +92,7 @@ class IlluminaProcessor:
             # projects not marked complete
             is_complete = lambda k: al.projects[k].status != project.ProjectData.COMPLETE
             incompletes = [al.projects[k] for k in al.projects if is_complete(k)]
-            # Are any of the projects for this run+alignmet not yet complete?
+            # Are any of the projects for this run+alignment not yet complete?
             if incompletes:
                 # And, is the alignment itself complete?  If not just skip all
                 # the FASTQ-handling parts here.  If we're missing files,
@@ -69,38 +112,13 @@ class IlluminaProcessor:
                     proj.load_metadata(dp_align = self.path_align)
                     proj.set_sample_paths(sample_paths)
 
-    def run_setup_with_checks(self, run_dir):
-        """Create a Run object for the given path, or None if no run is found."""
-        try:
-            run = illumina.run.Run(run_dir)
-        except Exception as e:
-            # ValueError for unrecognized directories
-            if type(e) is ValueError:
-                run = None
-            else:
-                sys.stderr.write("Error while loading run %s\n" % run_dir)
-                raise e
-        return(run)
-
-    def load_run_data(self):
-        """Match up Run directories with per-experiment metadata."""
-        run_dirs = [d for d in self.path_runs.glob("*") if d.is_dir()]
-        runs = [self.run_setup_with_checks(run_dir) for run_dir in run_dirs]
-        # Ignore unrecognized (None) entries
-        runs = [run for run in runs if run]
-        for run in runs:
-            for al in run.alignments:
-                self.match_alignment_to_projects(al)
-        self.runs = runs
-        return(runs)
-
     def watch_and_process(self, poll=5):
         """Regularly check for new data and enqueue projects for processing."""
         self._finish_up = False
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         while not self._finish_up:
-            # TODO self.refresh()
+            self.refresh()
             self.process()
             sys.stderr.write("Projects in queue: %d\n" % self._queue.qsize())
             time.sleep(poll)
