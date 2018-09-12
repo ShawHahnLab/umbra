@@ -1,0 +1,19 @@
+[Header]
+Local Run Manager Analysis Id,308308
+Date,8/3/2018
+Experiment Name,MiniSeqExperiment
+Workflow,GenerateFastQWorkflow
+Description,Auto generated sample sheet.  Used by workflow module to kick off Isis analysis
+Chemistry,Amplicon
+
+[Reads]
+151
+151
+
+[Data]
+Sample_ID,Sample_Name,index,I7_Index_ID,index2,I5_Index_ID
+TL3833_2_3-308308,TL3833_2_3,TAAGGCGA,N701,ATAGAGAG,N502
+TL3843_2_2-308308,TL3843_2_2,CGTACTAG,N702,ATAGAGAG,N502
+TL3843_2_4-308308,TL3843_2_4,AGGCAGAA,N703,ATAGAGAG,N502
+TL3870_2_1-308308,TL3870_2_1,TCCTGAGC,N704,ATAGAGAG,N502
+TL3870_2_2-308308,TL3870_2_2,GGACTCCT,N705,ATAGAGAG,N502

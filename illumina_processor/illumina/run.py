@@ -5,7 +5,7 @@ import warnings
 class Run:
     """A single Illumina sequencing run, based on a directory tree."""
 
-    def __init__(self, path):
+    def __init__(self, path, strict=True):
         # Setup run path
         path = Path(path).resolve()
         self.path = path
@@ -15,7 +15,12 @@ class Run:
         try:
             self.run_info = load_xml(path/"RunInfo.xml")
         except FileNotFoundError:
-            raise(ValueError('Not a recognized Illumina run: "%s"' % path))
+            msg = 'Not a recognized Illumina run: "%s"' % path
+            if strict:
+                raise(ValueError(msg))
+            else:
+                warnings.warn(msg)
+                return
         info_run_id = self.run_info.find('Run').attrib["Id"]
         if info_run_id != path.name:
             warnings.warn('Run directory does not match Run ID: %s / %s' %
@@ -33,6 +38,10 @@ class Run:
         except FileNotFoundError:
             self.completed_job_info = None
 
+    @property
+    def valid(self):
+        return(hasattr(self, "run_info"))
+
     def refresh(self):
         """Check for run completion and any new or completed alignments.
         
@@ -41,7 +50,7 @@ class Run:
         object."""
         if not self.rta_complete:
             fp = self.path/"RTAComplete.txt"
-            self.rta_complete = self.load_rta_complete(fp)
+            self.rta_complete = self._load_rta_complete(fp)
         self._refresh_alignments()
 
     def _refresh_alignments(self):
@@ -73,7 +82,7 @@ class Run:
         else:
             return(al)
 
-    def load_rta_complete(self, path):
+    def _load_rta_complete(self, path):
         """Parse an RTAComplete.txt file.
         
         Creates a dictionary with the Date and Illumina Real-Time Analysis
@@ -110,3 +119,7 @@ class Run:
     def run_id(self):
         return(self.run_info.find('Run').attrib["Id"])
 
+    @property
+    def complete(self):
+        """Is the run complete?"""
+        return(self.rta_complete is not None)

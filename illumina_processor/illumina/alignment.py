@@ -1,4 +1,5 @@
 from .util import *
+import gzip
 
 class Alignment:
     """An "Alignment" (FASTQ generation) within a run."""
@@ -28,46 +29,49 @@ class Alignment:
             self.path_fastq = dirs[0] / "Fastq"
             self.path_checkpoint = dirs[0]/"Checkpoint.txt"
         self.sample_sheet = load_sample_sheet(self.path_sample_sheet)
-        self.checkpoint = self.load_checkpoint(self.path_checkpoint)
+        self.checkpoint = self._load_checkpoint(self.path_checkpoint)
 
     def refresh(self):
+        """Reload alignment status from disk."""
         if not self.complete:
-            self.checkpoint = self.load_checkpoint(self.path_checkpoint)
+            self.checkpoint = self._load_checkpoint(self.path_checkpoint)
 
     @property
     def complete(self):
+        """Is the alignment complete?"""
         return(self.checkpoint == 3)
 
     @property
     def experiment(self):
+        """Experiment name given in sample sheet."""
         h = self.sample_sheet["Header"]
         # MiSeq vs MiniSeq
         exp = h.get("Experiment_Name") or h.get("Experiment Name")
         return(exp)
 
-    def sample_paths_by_name(self):
-        """Create dictionary mapping each sample name to list of file paths."""
-        sample_paths = {}
-        idxs = range(len(self.sample_sheet["Data"]))
-        for idx, row in zip(idxs, self.sample_sheet["Data"]):
-            sample_name = row["Sample_Name"]
-            sps = self.sample_paths(idx+1)
-            sample_paths[sample_name] = sps
-        return(sample_paths)
+    @property
+    def sample_numbers(self):
+        """Ordered list of all sample numbers (indexed from one)."""
+        num_range = range(len(self.sample_sheet["Data"]))
+        nums = [i+1 for i in num_range]
+        return(nums)
 
-    def sample_paths(self, sample_num):
-        """Locate files (absolute Paths) for the given sample number on disk."""
-        filenames = self.sample_files(sample_num)
-        fps = []
-        for filename in filenames:
-            fp = (self.path_fastq / filename).resolve(strict = True)
-            fps.append(fp)
-        return(fps)
+    @property
+    def sample_names(self):
+        """Ordered list of all sample names."""
+        names = [row["Sample_Name"] for row in self.sample_sheet["Data"]]
+        return(names)
 
-    def sample_files(self, sample_num,
+    @property
+    def samples(self):
+        data = self.sample_sheet["Data"]
+        newdata = [row.copy() for row in data]
+        return(newdata)
+
+    def sample_files_for_num(self, sample_num,
             fmt = "{sname}_S{snum}_L{lane:03d}_R{rp}_001.fastq.gz"):
         """Predict filenames (no paths) for the given sample number."""
-        samples = self.sample_sheet["Data"]
+        samples = self.samples
         try:
             sample = samples[int(sample_num)-1]
         except IndexError:
@@ -93,7 +97,34 @@ class Alignment:
             fps.append(fmt.format(**fields))
         return(fps)
 
-    def load_checkpoint(self, path):
+    def sample_paths_for_num(self, sample_num, strict = True):
+        """Locate files (absolute Paths) for the given sample number on disk."""
+        filenames = self.sample_files_for_num(sample_num)
+        fps = []
+        for filename in filenames:
+            fp = (self.path_fastq / filename).resolve(strict = strict)
+            fps.append(fp)
+        return(fps)
+
+    def sample_paths(self, strict = True):
+        """Create dictionary mapping each sample name to list of file paths."""
+        sample_paths = {}
+        for s_num, s_name in zip(self.sample_numbers, self.sample_names):
+            sps = self.sample_paths_for_num(s_num, strict)
+            sample_paths[s_name] = sps
+        return(sample_paths)
+
+    def _make_dummy_files(self):
+        """Create blank fastq.gz files in place of any missing ones."""
+        # This is used in building test directories.
+        s_paths = self.sample_paths(strict = False)
+        for paths in s_paths.values():
+            for path in paths:
+                if not path.exists():
+                    with gzip.open(path, "wb") as f:
+                        pass
+
+    def _load_checkpoint(self, path):
         """Load the number from a Checkpoint.txt file, or None if not found."""
         try:
             with open(path) as f:
