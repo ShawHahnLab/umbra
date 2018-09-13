@@ -1,5 +1,6 @@
 from .util import *
 import yaml
+import os
 
 class ProjectData:
     """The subset of files for a Run and Alignment specific to one project.
@@ -58,9 +59,14 @@ class ProjectData:
         self.save_metadata()
 
     def process(self):
-        """Run all tasks."""
+        """Run all tasks.
+        
+        This function will block until processing is complete."""
         # TODO see illumina's python task library on github maybe?
-        pass
+        self.status = ProjectData.PROCESSING
+        # TODO actual processing!
+        import time; time.sleep(0)
+        self.status = ProjectData.COMPLETE
 
     def load_metadata(self, fp=None, dp_align=None):
         if fp is None and dp_align is None:
@@ -80,6 +86,15 @@ class ProjectData:
             self.metadata.update(data)
 
     def save_metadata(self):
+        """Update project metadata on disk."""
+        # We need to be careful because other threads may be working in the
+        # exact same directory right now.  pathlib didn't handle this correctly
+        # until recently:
+        # https://bugs.python.org/issue29694
+        # I'll stick with the os module for now, since it seems to handle it
+        # just fine.
+        dp = Path(self.status_fp.parent)
+        os.makedirs(dp, exist_ok=True)
         with open(self.status_fp, "w") as f:
             f.write(yaml.dump(self.metadata))
 

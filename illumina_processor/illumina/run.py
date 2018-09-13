@@ -5,7 +5,7 @@ import warnings
 class Run:
     """A single Illumina sequencing run, based on a directory tree."""
 
-    def __init__(self, path, strict=True):
+    def __init__(self, path, strict=None):
         # Setup run path
         path = Path(path).resolve()
         self.path = path
@@ -16,15 +16,22 @@ class Run:
             self.run_info = load_xml(path/"RunInfo.xml")
         except FileNotFoundError:
             msg = 'Not a recognized Illumina run: "%s"' % path
-            if strict:
+            # strict behavior: raise an error
+            if strict or strict is None:
                 raise(ValueError(msg))
             else:
                 warnings.warn(msg)
                 return
         info_run_id = self.run_info.find('Run').attrib["Id"]
         if info_run_id != path.name:
-            warnings.warn('Run directory does not match Run ID: %s / %s' %
-                    (path.name, info_run_id))
+            msg = 'Run directory does not match Run ID: %s / %s' % (path.name, info_run_id)
+            # strict behavior: raise an error
+            if strict:
+                raise(ValueError(msg))
+            # default behavior: raise a warning
+            elif strict is None:
+                warnings.warn(msg)
+            # False behavior: ignore
 
         # Load in RTA completion status and available alignment directories.
         self.rta_complete = None

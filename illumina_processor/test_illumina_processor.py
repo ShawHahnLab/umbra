@@ -25,6 +25,8 @@ class TestIlluminaProcessor(unittest.TestCase):
         path_al = Path(self.tmpdir.name) / "alignments"
         # Create an IlluminaProcessor using the temp files
         self.proc = illumina_processor.IlluminaProcessor(path_runs, path_exp, path_al)
+        # ignoring one run that's a duplicate
+        self.num_runs = 4
 
     def tearDown(self):
         self.tmpdir.cleanup()
@@ -33,23 +35,24 @@ class TestIlluminaProcessor(unittest.TestCase):
         # Start with an empty list
         self.assertEqual(self.proc.runs, [])
         # One run dir in particular is named oddly
-        warn_msg = "Run directory does not match Run ID: "
-        warn_msg += "run-files-custom-name / "
-        warn_msg += "180102_M00000_0000_000000000-XXXXX"
-        with self.assertWarns(Warning) as cm:
-            ws = cm.warnings
-            self.proc.load_run_data()
-            self.assertEqual(len(ws), 1)
-            self.assertEqual(str(ws[0].message), warn_msg)
-        # Now we have three loaded runs
-        self.assertEqual(len(self.proc.runs), 3)
+        #warn_msg = "Run directory does not match Run ID: "
+        #warn_msg += "run-files-custom-name / "
+        #warn_msg += "180102_M00000_0000_000000000-XXXXX"
+        #with self.assertWarns(Warning) as cm:
+        #    ws = cm.warnings
+        #    self.proc.load_run_data()
+        #    self.assertEqual(len(ws), 1)
+        #    self.assertEqual(str(ws[0].message), warn_msg)
+        self.proc.load_run_data()
+        # Now we have loaded runs
+        self.assertEqual(len(self.proc.runs), self.num_runs)
         # This is different from refresh() because it will fully load in the
         # current data.  If a run directory is gone, for example, it won't be
         # in the list anymore.
-        path_run = Path(self.tmpdir.name)/"runs"/"run-files-custom-name"
+        path_run = Path(self.tmpdir.name)/"runs"/"180101_M00000_0000_000000000-XXXXX"
         remove_tree(str(path_run))
         self.proc.load_run_data()
-        self.assertEqual(len(self.proc.runs), 2)
+        self.assertEqual(len(self.proc.runs), self.num_runs-1)
 
     def test_refresh(self):
         """Basic scenario for refresh(): a new run directory appears."""
@@ -65,17 +68,18 @@ class TestIlluminaProcessor(unittest.TestCase):
             # Start with an empty list
             self.assertEqual(self.proc.runs, [])
             # Refresh loads two Runs
-            with self.assertWarns(Warning) as cm:
-                self.proc.refresh()
-            self.assertEqual(len(self.proc.runs), 2)
+            #with self.assertWarns(Warning) as cm:
+            #    self.proc.refresh()
+            self.proc.refresh()
+            self.assertEqual(len(self.proc.runs), self.num_runs-1)
             # Still just two Runs
             self.proc.refresh()
-            self.assertEqual(len(self.proc.runs), 2)
+            self.assertEqual(len(self.proc.runs), self.num_runs-1)
             # Copy run directory back
             copy_tree(run_stash, run_orig)
             # Now, we should load a new Run with refresh()
             self.proc.refresh()
-            self.assertEqual(len(self.proc.runs), 3)
+            self.assertEqual(len(self.proc.runs), self.num_runs)
 
     def test_refresh_new_alignment(self):
         """A new alignment directory appears for an existing Run.
@@ -84,16 +88,18 @@ class TestIlluminaProcessor(unittest.TestCase):
         make sure the loader can handle it."""
         run_id = "180102_M00000_0000_000000000-XXXXX"
         path_run = Path(self.tmpdir.name)/"runs"/run_id
+        get_run = lambda: [r for r in self.proc.runs if r.path.name == run_id][0]
+        get_al = lambda: get_run().alignments
         with TemporaryDirectory() as stash:
             align_orig = str(path_run/"Data"/"Intensities"/"BaseCalls"/"Alignment")
             align_stash = str(Path(stash)/"Alignment")
             copy_tree(align_orig, align_stash)
             remove_tree(align_orig)
-            # Refresh loads three Runs to start with.
-            with self.assertWarns(Warning) as cm:
-                self.proc.refresh()
-            self.assertEqual(len(self.proc.runs), 3)
-            get_al = lambda: self.proc.runs[2].alignments
+            # Refresh loads all Runs to start with.
+            #with self.assertWarns(Warning) as cm:
+            #    self.proc.refresh()
+            self.proc.refresh()
+            self.assertEqual(len(self.proc.runs), self.num_runs)
             # Third run has no alignments yet
             self.assertEqual(len(get_al()), 0)
             # Create empty Alignment directory, as if it's just starting off
@@ -116,6 +122,13 @@ class TestIlluminaProcessor(unittest.TestCase):
             self.proc.refresh()
             self.assertEqual(len(get_al()), 1)
             self.assertTrue(get_al()[0].complete)
+
+    def test_process(self):
+        """Enqueue projects to process and check the outcome."""
+        self.proc.refresh()
+        self.proc.process()
+        self.proc.wait_for_jobs()
+        self.fail("test not yet implemented")
 
 
 if __name__ == '__main__':

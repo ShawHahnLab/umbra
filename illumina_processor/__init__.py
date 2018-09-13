@@ -11,14 +11,11 @@ from .illumina import run
 from . import experiment
 from . import project
 
-#PATH_ROOT  = Path(__file__).parent / "testdata"
-#PATH_RUNS  = PATH_ROOT / "runs"
-#PATH_EXP   = PATH_ROOT / "experiments"
-#PATH_ALIGN = PATH_ROOT / "alignments"
-#PATH_PROC  = PATH_ROOT / "processed"
-#PATH_PACK  = PATH_ROOT / "packaged"
-
 class IlluminaProcessor:
+    """Manage processing for incoming Illumina runs.
+    
+    This class tracks Illumina runs and associated project data, schedules
+    processing in parallel, and packages finished project data directories."""
 
     def __init__(self, path_runs, path_exp, path_align):
         self.path_runs  = Path(path_runs)
@@ -26,6 +23,10 @@ class IlluminaProcessor:
         self.path_align = Path(path_align)
         self.runs = []
         self._setup_queue()
+
+    def __del__(self):
+        print('del')
+        self.wait_for_jobs()
 
     def load_run_data(self):
         """Match up Run directories with per-experiment data, from scratch."""
@@ -58,11 +59,14 @@ class IlluminaProcessor:
         self.runs += runs
 
     def _run_setup_with_checks(self, run_dir):
-        """Create a Run object for the given path, or None if no run is found."""
+        """Create a Run object for the given path, or None if no valid run is found.
+        
+        A valid Run here must have a directory name matching the Run ID inside
+        the run directory and throw no ValueError during initialization."""
         try:
-            run = illumina.run.Run(run_dir)
+            run = illumina.run.Run(run_dir, strict = True)
         except Exception as e:
-            # ValueError for unrecognized directories
+            # ValueError for unrecognized or mismatched directories
             if type(e) is ValueError:
                 run = None
             else:
@@ -100,7 +104,7 @@ class IlluminaProcessor:
                 sample_paths = None
                 if al.complete:
                     try:
-                        sample_paths = al.sample_paths_by_name()
+                        sample_paths = al.sample_paths()
                     except FileNotFoundError as e:
                         msg = "\nFASTQ file not found:\n"
                         msg += "Run:       %s\n" % al.run.path
@@ -144,6 +148,12 @@ class IlluminaProcessor:
                         if proj.status != project.ProjectData.COMPLETE:
                             self.process_project(proj)
 
+    def wait_for_jobs(self):
+        # If there's a queue, wait for all jobs to finish.
+        q = getattr(self, "_queue")
+        if q:
+            q.join()
+
     def process_project(self, proj):
         """Add project to queue if not already present."""
         if not proj in self._projects_enqueued:
@@ -168,8 +178,5 @@ class IlluminaProcessor:
         while True:
             proj = self._queue.get()
             sys.stderr.write("Process project: %s\n" % proj.name)
-            proj.status = project.ProjectData.PROCESSING
-            # TODO actual processing!
-            time.sleep(1)
-            proj.status = project.ProjectData.COMPLETE
+            proj.process()
             self._queue.task_done()
