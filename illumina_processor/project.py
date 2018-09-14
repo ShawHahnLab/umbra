@@ -65,42 +65,64 @@ class ProjectData:
         except FileNotFoundError:
             pass
         else:
-            for row in experiment_info:
-                name = row["Project"]
-                if not name in projects.keys():
-                    al_idx = str(alignment.index)
-                    run_id = alignment.run.run_id
-                    proj_file = slugify(name) + ".yml"
-                    fp = Path(dp_align) / run_id / al_idx / proj_file
-                    projects[name] = ProjectData(name, fp, alignment, exp_path)
-                projects[name]._add_exp_row(row) 
+            names = [row["Project"] for row in experiment_info]
+            run_id = alignment.run.run_id
+            al_idx = str(alignment.index)
+            for name in names:
+                proj_file = slugify(name) + ".yml"
+                fp = Path(dp_align) / run_id / al_idx / proj_file
+                projects[name] = ProjectData(name, fp, alignment,
+                        experiment_info,
+                        exp_path)
         return(projects)
 
-    def __init__(self, name, path, alignment, exp_path):
+    def __init__(self, name, path, alignment, exp_info_full, exp_path=None):
+
         self.name = name
         self.alignment = alignment
-        self.metadata = {"status": ProjectData.NONE}
         self.path = path
-        #self.sample_paths = None
+        self.metadata = {"status": ProjectData.NONE}
+        # TODO tidy up these keys and protect behind getters/setters with
+        # automatic file updating.
+        self.metadata["alignment_info"] = {}
+        self.metadata["experiment_info"] = self._setup_exp_info(exp_info_full)
+        self.metadata["experiment_info"]["path"] = str(exp_path or "")
+        self.metadata["run_info"] = {}
+        self.metadata["sample_paths"] = {}
+        self.metadata["task_status"] = self._setup_task_status()
+        if self.alignment:
+            self.metadata["alignment_info"]["path"] = str(self.alignment.path)
+            self.metadata["experiment_info"]["name"] = self.alignment.experiment
+        if self.alignment.run:
+            self.metadata["run_info"]["path"] = str(self.alignment.run.path)
+        self.load_metadata()
+        self.save_metadata()
+
+    def _setup_exp_info(self, exp_info_full):
         exp_info = {
                 "sample_names": [],
                 "tasks": [],
                 "contacts": dict()
                 }
-        self.metadata["alignment_info"] = {}
-        self.metadata["experiment_info"] = exp_info
-        self.metadata["run_info"] = {}
-        self.metadata["sample_paths"] = {}
-        self.metadata["tasks_pending"] = []
-        self.metadata["tasks_completed"] = []
-        self.metadata["current_task"] = ""
-        if self.alignment:
-            self.metadata["alignment_info"]["path"] = str(self.alignment.path)
-            self.metadata["experiment_info"]["path"] = exp_path
-            self.metadata["experiment_info"]["name"] = self.alignment.experiment
-        if self.alignment.run:
-            self.metadata["run_info"]["path"] = str(self.alignment.run.path)
-        self.load_metadata()
+        for row in exp_info_full:
+            if row["Project"] is self.name:
+                sample_name = row["Sample_Name"].strip()
+                if not sample_name in exp_info["sample_names"]:
+                    exp_info["sample_names"].append(sample_name)
+                exp_info["contacts"].update(row["Contacts"])
+                for task in row["Tasks"]:
+                    if not task in exp_info["tasks"]:
+                        exp_info["tasks"].append(task)
+        return(exp_info)
+
+    def _setup_task_status(self):
+        tasks = self.experiment_info["tasks"]
+        tasks = self.normalize_tasks(tasks)
+        task_status = {}
+        task_status["pending"] = tasks
+        task_status["completed"] = []
+        task_status["current"] = ""
+        return(task_status)
 
     @property
     def status(self):
@@ -119,23 +141,7 @@ class ProjectData:
 
     @property
     def tasks_pending(self):
-        return(self.metadata["tasks_pending"])
-
-    def process(self):
-        """Run all tasks.
-        
-        This function will block until processing is complete."""
-        # TODO see illumina's python task library on github maybe?
-        self.status = ProjectData.PROCESSING
-        # first match up tasks with the ordered list and include any
-        # dependencies.
-        tasks = self.experiment_info["tasks"]
-        tasks = self.normalize_tasks(tasks)
-        self.metadata["tasks_pending"] = tasks
-        self.save_metadata()
-        while self.tasks_pending:
-            self._process_task()
-        self.status = ProjectData.COMPLETE
+        return(self.metadata["task_status"]["pending"])
 
     def normalize_tasks(self, tasks):
         """Add default and dependency tasks and order as needed."""
@@ -154,14 +160,31 @@ class ProjectData:
         tasks = [t for _,t in sorted(zip(indexes, tasks))]
         return(tasks)
 
-    def _process_task(self):
+    def process(self):
+        """Run all tasks.
+        
+        This function will block until processing is complete."""
+        self.status = ProjectData.PROCESSING
+        task = self._task_next()
+        while task: 
+            self.process_task(task)
+            task = self._task_next()
+        self.status = ProjectData.COMPLETE
+
+    def process_task(self, task):
         """Process the next pending task."""
-        # TODO: pop task off of tasks_pending, marking it as current_task, and
-        # then put it on tasks_completed.  Make sure to save (make this
-        # transparent) at each step.
-        self.metadata["tasks_completed"] = self.metadata["tasks_pending"]
-        self.metadata["tasks_pending"] = []
-        self.metadata["current_task"] = ""
+        sys.stderr.write(task + "\n")
+
+    def _task_next(self):
+        """Mark the next task as current and update the task status."""
+        ts = self.metadata["task_status"]
+        if ts["current"]:
+            # TODO don't do this; move current to completed carefully, in
+            # process_task.
+            ts["completed"] = ts["current"]
+            ts["current"] = ts["pending"].pop(0)
+        self.save_metadata()
+        return(ts["current"])
 
     def load_metadata(self, fp=None):
         if fp:
@@ -206,16 +229,3 @@ class ProjectData:
                 self.metadata["sample_paths"][sample_name] = paths
         else:
             self.metadata["sample_paths"] = None
-
-    def _add_exp_row(self, row):
-        """Add data from given experiment data entry.
-        
-        Assumes the data is relevant for this project."""
-        exp_info = self.metadata["experiment_info"]
-        sample_name = row["Sample_Name"].strip()
-        if not sample_name in exp_info["sample_names"]:
-            exp_info["sample_names"].append(sample_name)
-        exp_info["contacts"].update(row["Contacts"])
-        for task in row["Tasks"]:
-            if not task in exp_info["tasks"]:
-                exp_info["tasks"].append(task)
