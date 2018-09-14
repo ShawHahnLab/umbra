@@ -10,26 +10,42 @@ from pathlib import Path
 import sys
 sys.path.append(str((Path(__file__).parent/"..").resolve()))
 import illumina_processor
+from illumina_processor import ProjectData
+from illumina_processor.illumina.run import Run
+from illumina_processor.illumina.alignment import Alignment
 
 PATH_ROOT = Path(__file__).parent / "testdata"
 
-class TestIlluminaProcessor(unittest.TestCase):
-    """Main tests for IlluminaProcessor."""
+class TestIlluminaProcessorBase(unittest.TestCase):
+    """Some setup/teardown shared with the real test classes."""
 
     def setUp(self):
+        self.setUpTmpdir()
+
+    def tearDown(self):
+        self.tearDownTmpdir()
+
+    def setUpTmpdir(self):
         # Make a full copy of the testdata to a temporary location
         self.tmpdir = TemporaryDirectory()
         copy_tree(PATH_ROOT, self.tmpdir.name)
-        path_runs = Path(self.tmpdir.name) / "runs"
-        path_exp = Path(self.tmpdir.name) / "experiments"
-        path_al = Path(self.tmpdir.name) / "alignments"
+        self.path_runs = Path(self.tmpdir.name) / "runs"
+        self.path_exp = Path(self.tmpdir.name) / "experiments"
+        self.path_al = Path(self.tmpdir.name) / "alignments"
+
+    def tearDownTmpdir(self):
+        self.tmpdir.cleanup()
+
+
+class TestIlluminaProcessor(TestIlluminaProcessorBase):
+    """Main tests for IlluminaProcessor."""
+
+    def setUp(self):
+        self.setUpTmpdir()
         # Create an IlluminaProcessor using the temp files
-        self.proc = illumina_processor.IlluminaProcessor(path_runs, path_exp, path_al)
+        self.proc = illumina_processor.IlluminaProcessor(self.path_runs, self.path_exp, self.path_al)
         # ignoring one run that's a duplicate
         self.num_runs = 4
-
-    def tearDown(self):
-        self.tmpdir.cleanup()
 
     def test_load_run_data(self):
         # Start with an empty list
@@ -130,6 +146,89 @@ class TestIlluminaProcessor(unittest.TestCase):
         self.proc.wait_for_jobs()
         self.fail("test not yet implemented")
 
+class TestProjectData(TestIlluminaProcessorBase):
+    """Main tests for ProjectData."""
+
+    def setUp(self):
+        self.setUpTmpdir()
+        self.run = Run(self.path_runs / "180101_M00000_0000_000000000-XXXXX")
+        self.alignment = self.run.alignments[0]
+        self.projs = ProjectData.from_alignment(self.alignment, self.path_exp, self.path_al)
+        self.exp_path = self.path_exp / "Partials_1_1_18" / "metadata.csv"
+        # Make sure we have what we expect before the real tests
+        self.assertEqual(len(self.projs), 2)
+        self.assertEqual(sorted(self.projs.keys()), ["STR", "Something Else"])
+
+    def test_attrs(self):
+        p_str = self.projs["STR"]
+        self.assertEqual(p_str.name, "STR")
+        self.assertEqual(p_str.alignment, self.alignment)
+        self.assertEqual(p_str.path, self.path_al / self.run.run_id / "0" / "STR.yml")
+        p_se = self.projs["Something Else"]
+        self.assertEqual(p_se.name, "Something Else")
+        self.assertEqual(p_se.alignment, self.alignment)
+        self.assertEqual(p_se.path, self.path_al / self.run.run_id / "0" / "Something_Else.yml")
+
+    def test_metadata(self):
+        """Test that the project metadata is set up as expected."""
+
+        md = {}
+        md["status"] = "none"
+        md["run_info"] = {"path": str(self.run.path)}
+        md["sample_paths"] = {}
+        md["tasks_pending"] = []
+        md["tasks_completed"] = []
+        md["current_task"] = ""
+        md["alignment_info"] = {"path": str(self.alignment.path)}
+        md["run_info"]["path"] = str(self.alignment.run.path)
+
+        md_str = dict(md)
+        md_se = dict(md)
+
+        exp_info_str = {
+                "name": "Partials_1_1_18",
+                "sample_names": ["1086S1_01", "1086S1_02"],
+                "tasks": ['trim'],
+                "contacts": {'Jesse': 'ancon@upenn.edu'},
+                "path": self.exp_path
+                }
+        exp_info_se = {
+                "name": "Partials_1_1_18",
+                "sample_names": ["1086S1_03", "1086S1_04"],
+                "tasks": [],
+                "contacts": dict(),
+                "contacts": {
+                    "Someone": "person@gmail.com",
+                    "Jesse Connell": "ancon@upenn.edu"
+                    },
+                "path": self.exp_path
+                }
+        md_str["experiment_info"] = exp_info_str
+        md_se["experiment_info"] = exp_info_se
+        md_str["status"] = "complete"
+
+        self.assertEqual(self.projs["STR"].metadata, md_str)
+        self.assertEqual(self.projs["Something Else"].metadata, md_se)
+
+    def test_status(self):
+        self.assertEqual(self.projs["STR"].status, "complete")
+        self.assertEqual(self.projs["Something Else"].status, "none")
+
+    def test_process(self):
+        # test processing all tasks
+        self.fail("test not yet implemented")
+
+    def test_normalize_tasks(self):
+        # to test:
+        #   invalid task triggers ValueError
+        #   task order is set correctly
+        #   dependencies get included
+        #   defaults are included
+        self.fail("test not yet implemented")
+
+    def test_process_task(self):
+        # test processing a single pending task
+        self.fail("test not yet implemented")
 
 if __name__ == '__main__':
     unittest.main()

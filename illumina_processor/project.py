@@ -1,4 +1,5 @@
 from .util import *
+from . import experiment
 import yaml
 import os
 
@@ -23,12 +24,63 @@ class ProjectData:
     COMPLETE      = "complete"
     STATUS = [NONE, PROCESSING, PACKAGE_READY, COMPLETE]
 
-    def __init__(self, name, alignment=None, run=None):
+    # Recognized tasks:
+    TASK_NOOP     = "noop"     # do nothing
+    TASK_PASS     = "pass"     # copy raw files
+    TASK_TRIM     = "trim"     # trip adapters
+    TASK_ASSEMBLE = "assemble" # contig assembly
+    TASK_PACKAGE  = "package"  # package in zip file
+    TASK_UPLOAD   = "upload"   # upload to Box
+
+    # Adding an explicit order and dependencies.
+    TASKS = [
+            TASK_NOOP,
+            TASK_PASS,
+            TASK_TRIM,
+            TASK_ASSEMBLE,
+            TASK_PACKAGE,
+            TASK_UPLOAD]
+
+    TASK_DEPS = {
+            TASK_UPLOAD: [TASK_PACKAGE],
+            TASK_ASSEMBLE: [TASK_TRIM],
+            }
+
+    # We'll always include these tasks:
+    TASK_DEFAULTS = [
+            TASK_UPLOAD
+            ]
+
+    def from_alignment(alignment, path_exp, dp_align):
+        """Make dict of ProjectData objects from alignment/experiment table."""
+        # Row by row, build up a dict for each unique project.  Even though
+        # we're reading it in as a spreadsheet we'll treat most of this as
+        # an unordered sets for each project.
+
+        exp_path = path_exp / alignment.experiment / "metadata.csv"
+        projects = {}
+        try:
+            # Load the spreadsheet of per-sample project information
+            experiment_info = experiment.load_metadata(exp_path)
+        except FileNotFoundError:
+            pass
+        else:
+            for row in experiment_info:
+                name = row["Project"]
+                if not name in projects.keys():
+                    al_idx = str(alignment.index)
+                    run_id = alignment.run.run_id
+                    proj_file = slugify(name) + ".yml"
+                    fp = Path(dp_align) / run_id / al_idx / proj_file
+                    projects[name] = ProjectData(name, fp, alignment, exp_path)
+                projects[name]._add_exp_row(row) 
+        return(projects)
+
+    def __init__(self, name, path, alignment, exp_path):
         self.name = name
         self.alignment = alignment
-        self.run = run
         self.metadata = {"status": ProjectData.NONE}
-        self.status_fp = None
+        self.path = path
         #self.sample_paths = None
         exp_info = {
                 "sample_names": [],
@@ -39,13 +91,16 @@ class ProjectData:
         self.metadata["experiment_info"] = exp_info
         self.metadata["run_info"] = {}
         self.metadata["sample_paths"] = {}
+        self.metadata["tasks_pending"] = []
+        self.metadata["tasks_completed"] = []
+        self.metadata["current_task"] = ""
         if self.alignment:
             self.metadata["alignment_info"]["path"] = str(self.alignment.path)
-            # TODO these don't always exist, even if alignment does.
-            self.metadata["experiment_info"]["path"] = str(self.alignment.experiment_path)
+            self.metadata["experiment_info"]["path"] = exp_path
             self.metadata["experiment_info"]["name"] = self.alignment.experiment
-        if self.run:
-            self.metadata["run_info"]["path"] = str(self.run.path)
+        if self.alignment.run:
+            self.metadata["run_info"]["path"] = str(self.alignment.run.path)
+        self.load_metadata()
 
     @property
     def status(self):
@@ -58,32 +113,67 @@ class ProjectData:
         self.metadata["status"] = value
         self.save_metadata()
 
+    @property
+    def experiment_info(self):
+        return(self.metadata["experiment_info"])
+
+    @property
+    def tasks_pending(self):
+        return(self.metadata["tasks_pending"])
+
     def process(self):
         """Run all tasks.
         
         This function will block until processing is complete."""
         # TODO see illumina's python task library on github maybe?
         self.status = ProjectData.PROCESSING
-        # TODO actual processing!
-        import time; time.sleep(0)
+        # first match up tasks with the ordered list and include any
+        # dependencies.
+        tasks = self.experiment_info["tasks"]
+        tasks = self.normalize_tasks(tasks)
+        self.metadata["tasks_pending"] = tasks
+        self.save_metadata()
+        while self.tasks_pending:
+            self._process_task()
         self.status = ProjectData.COMPLETE
 
-    def load_metadata(self, fp=None, dp_align=None):
-        if fp is None and dp_align is None:
-            raise ValueError
-        elif fp is None:
-            al = self.alignment
-            al_idx = str(al.run.alignments.index(al))
-            proj_file = slugify(self.name) + ".yml"
-            fp = Path(dp_align) / al.run.run_id / al_idx / proj_file
-        self.status_fp = fp
+    def normalize_tasks(self, tasks):
+        """Add default and dependency tasks and order as needed."""
+        # Add in any defaults.  If nothing is given, always include PASS.
+        if not tasks:
+            tasks = [ProjectData.TASK_PASS]
+        tasks += ProjectData.TASK_DEFAULTS
+        # Add in dependencies for any that exist.
+        deps = [ProjectData.TASK_DEPS.get(t, []) for t in tasks]
+        tasks = sum(deps, tasks)
+        # Keep unique only.
+        tasks = list(set(tasks))
+        # order and verify.  We'll get a ValueError from index() if any of
+        # these are not found.
+        indexes = [ProjectData.TASKS.index(t) for t in tasks]
+        tasks = [t for _,t in sorted(zip(indexes, tasks))]
+        return(tasks)
+
+    def _process_task(self):
+        """Process the next pending task."""
+        # TODO: pop task off of tasks_pending, marking it as current_task, and
+        # then put it on tasks_completed.  Make sure to save (make this
+        # transparent) at each step.
+        self.metadata["tasks_completed"] = self.metadata["tasks_pending"]
+        self.metadata["tasks_pending"] = []
+        self.metadata["current_task"] = ""
+
+    def load_metadata(self, fp=None):
+        if fp:
+            self.path = fp
         try:
-            with open(fp) as f:
+            with open(self.path) as f:
                 data = yaml.safe_load(f)
         except FileNotFoundError:
-            pass
+            data = None
         else:
             self.metadata.update(data)
+        return(data)
 
     def save_metadata(self):
         """Update project metadata on disk."""
@@ -93,9 +183,9 @@ class ProjectData:
         # https://bugs.python.org/issue29694
         # I'll stick with the os module for now, since it seems to handle it
         # just fine.
-        dp = Path(self.status_fp.parent)
+        dp = Path(self.path.parent)
         os.makedirs(dp, exist_ok=True)
-        with open(self.status_fp, "w") as f:
+        with open(self.path, "w") as f:
             f.write(yaml.dump(self.metadata))
 
     @property
@@ -117,20 +207,10 @@ class ProjectData:
         else:
             self.metadata["sample_paths"] = None
 
-    def from_alignment(alignment):
-        """Make dict of ProjectData objects from alignment/experiment table."""
-        # Row by row, build up a dict for each unique project.  Even though
-        # we're reading it in as a spreadsheet we'll treat most of this as
-        # an unordered sets for each project.
-        projects = {}
-        for row in alignment.experiment_info:
-            name = row["Project"]
-            if not name in projects.keys():
-                projects[name] = ProjectData(name, alignment, alignment.run)
-            projects[name]._add_exp_row(row) 
-        return(projects)
-
     def _add_exp_row(self, row):
+        """Add data from given experiment data entry.
+        
+        Assumes the data is relevant for this project."""
         exp_info = self.metadata["experiment_info"]
         sample_name = row["Sample_Name"].strip()
         if not sample_name in exp_info["sample_names"]:

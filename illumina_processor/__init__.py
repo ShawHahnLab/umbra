@@ -6,10 +6,9 @@ import time
 import signal
 
 from .util import *
+from .project import *
 from .box_uploader import BoxUploader
 from .illumina import run
-from . import experiment
-from . import project
 
 class IlluminaProcessor:
     """Manage processing for incoming Illumina runs.
@@ -25,7 +24,6 @@ class IlluminaProcessor:
         self._setup_queue()
 
     def __del__(self):
-        print('del')
         self.wait_for_jobs()
 
     def load_run_data(self):
@@ -75,24 +73,11 @@ class IlluminaProcessor:
         return(run)
 
     def _match_alignment_to_projects(self, al):
-        """Add Experiment and Project information to an Alignment."""
+        """Add Project information to an Alignment."""
 
-        al.experiment_info = None
-        al.projects = None
-        # TODO try loading the associated sample sheet too.  If it can't be
-        # found or if it doesn't match the previous sample sheet, throw a
-        # warning.
-        exp_path = self.path_exp / al.experiment / "metadata.csv"
-        al.experiment_path = exp_path
-        try:
-            # Load the spreadsheet of per-sample project information
-            al.experiment_info = experiment.load_metadata(exp_path)
-        except FileNotFoundError:
-            pass
-        else:
-            # If that was found, do some extra processing to link up sample and
-            # project data.
-            al.projects = project.ProjectData.from_alignment(al)
+        al.projects = project.ProjectData.from_alignment(al, self.path_exp,
+                self.path_align)
+        if al.projects:
             # projects not marked complete
             is_complete = lambda k: al.projects[k].status != project.ProjectData.COMPLETE
             incompletes = [al.projects[k] for k in al.projects if is_complete(k)]
@@ -113,7 +98,7 @@ class IlluminaProcessor:
                         warnings.warn(msg)
                 for proj_key in al.projects:
                     proj = al.projects[proj_key]
-                    proj.load_metadata(dp_align = self.path_align)
+                    #proj.load_metadata(dp_align = self.path_align)
                     proj.set_sample_paths(sample_paths)
 
     def watch_and_process(self, poll=5):
@@ -149,7 +134,7 @@ class IlluminaProcessor:
                             self.process_project(proj)
 
     def wait_for_jobs(self):
-        # If there's a queue, wait for all jobs to finish.
+        """Wait for running jobs to finish."""
         q = getattr(self, "_queue")
         if q:
             q.join()

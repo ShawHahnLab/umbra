@@ -178,6 +178,9 @@ class TestAlignment(unittest.TestCase):
         self.assertEqual(sorted(self.al.sample_sheet.keys()), keys_exp)
         self.assertEqual(self.al.checkpoint, 3)
 
+    def test_index(self):
+        self.fail("test not yet implemented")
+
     def test_complete(self):
         """Is an Alignment complete?"""
         # An alignment is complete if Checkpoint exists and is 3, is not

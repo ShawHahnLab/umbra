@@ -37,6 +37,13 @@ class Alignment:
             self.checkpoint = self._load_checkpoint(self.path_checkpoint)
 
     @property
+    def index(self):
+        """Zero-indexed position of this alignment in the Run's list"""
+        if self.run:
+            return(self.run.alignments.index(self))
+        return(None)
+
+    @property
     def complete(self):
         """Is the alignment complete?"""
         return(self.checkpoint == 3)
