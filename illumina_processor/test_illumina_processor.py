@@ -6,6 +6,7 @@ from distutils.dir_util import copy_tree, remove_tree, mkpath
 from distutils.file_util import copy_file
 from pathlib import Path
 import yaml
+import re
 
 # TODO fix this
 import sys
@@ -30,11 +31,13 @@ class TestIlluminaProcessorBase(unittest.TestCase):
         # Make a full copy of the testdata to a temporary location
         self.tmpdir = TemporaryDirectory()
         copy_tree(PATH_ROOT, self.tmpdir.name)
-        self.path_runs = Path(self.tmpdir.name) / "runs"
-        self.path_exp  = Path(self.tmpdir.name) / "experiments"
-        self.path_al   = Path(self.tmpdir.name) / "alignments"
-        self.path_proc = Path(self.tmpdir.name) / "processed"
-        self.path_pack = Path(self.tmpdir.name) / "packaged"
+        self.path = Path(self.tmpdir.name)
+        self.path_runs   = Path(self.tmpdir.name) / "runs"
+        self.path_exp    = Path(self.tmpdir.name) / "experiments"
+        self.path_status = Path(self.tmpdir.name) / "status"
+        self.path_proc   = Path(self.tmpdir.name) / "processed"
+        self.path_pack   = Path(self.tmpdir.name) / "packaged"
+        self.path_report = Path(self.tmpdir.name) / "report.csv"
 
     def tearDownTmpdir(self):
         self.tmpdir.cleanup()
@@ -46,62 +49,61 @@ class TestIlluminaProcessor(TestIlluminaProcessorBase):
     def setUp(self):
         self.setUpTmpdir()
         # Create an IlluminaProcessor using the temp files
-        self.proc = illumina_processor.IlluminaProcessor(self.path_runs,
-                self.path_exp,
-                self.path_al,
-                self.path_proc,
-                self.path_pack)
-        # ignoring one run that's a duplicate
+        self.proc = illumina_processor.IlluminaProcessor(self.path)
         self.num_runs = 4
 
-    def test_load_run_data(self):
-        # Start with an empty list
-        self.assertEqual(self.proc.runs, [])
-        # One run dir in particular is named oddly
-        #warn_msg = "Run directory does not match Run ID: "
-        #warn_msg += "run-files-custom-name / "
-        #warn_msg += "180102_M00000_0000_000000000-XXXXX"
-        #with self.assertWarns(Warning) as cm:
-        #    ws = cm.warnings
-        #    self.proc.load_run_data()
-        #    self.assertEqual(len(ws), 1)
-        #    self.assertEqual(str(ws[0].message), warn_msg)
-        self.proc.load_run_data()
+    def _proj_names(self, category):
+        return(sorted([p.name for p in self.proc.projects[category]]))
+
+    def test_load(self):
+        # Start with an empty set
+        self.assertEqual(self.proc.runs, set([]))
+        self.proc.load(wait=True)
         # Now we have loaded runs
         self.assertEqual(len(self.proc.runs), self.num_runs)
         # This is different from refresh() because it will fully load in the
         # current data.  If a run directory is gone, for example, it won't be
         # in the list anymore.
-        path_run = Path(self.tmpdir.name)/"runs"/"180101_M00000_0000_000000000-XXXXX"
-        remove_tree(str(path_run))
-        self.proc.load_run_data()
+        path_run = self.path_runs/"180101_M00000_0000_000000000-XXXXX"
+        remove_tree(str(path_run), verbose=True)
+        #print(self.path_runs.glob("*"))
+        self.proc.load(wait=True)
         self.assertEqual(len(self.proc.runs), self.num_runs-1)
 
     def test_refresh(self):
         """Basic scenario for refresh(): a new run directory appears."""
-        # Note, not running load_run_data manually but it should be handled
+        # Note, not running load manually but it should be handled
         # automatically
         # Start with one run missing, stashed elsewhere
         run_id = "180101_M00000_0000_000000000-XXXXX"
         with TemporaryDirectory() as stash:
-            run_orig = str(Path(self.tmpdir.name)/"runs"/run_id)
+            run_orig = str(self.path_runs/run_id)
             run_stash = str(Path(stash)/run_id)
             copy_tree(run_orig, run_stash)
             remove_tree(run_orig)
-            # Start with an empty list
-            self.assertEqual(self.proc.runs, [])
+            # Start with an empty set
+            self.assertEqual(self.proc.runs, set())
+            proj_exp = {"active": set(), "inactive": set(), "completed": set()}
+            self.assertEqual(self.proc.projects, proj_exp)
             # Refresh loads two Runs
-            #with self.assertWarns(Warning) as cm:
-            #    self.proc.refresh()
             self.proc.refresh()
             self.assertEqual(len(self.proc.runs), self.num_runs-1)
+            self.assertEqual(self.proc.projects, proj_exp)
             # Still just two Runs
             self.proc.refresh()
             self.assertEqual(len(self.proc.runs), self.num_runs-1)
+            self.assertEqual(self.proc.projects, proj_exp)
             # Copy run directory back
             copy_tree(run_stash, run_orig)
             # Now, we should load a new Run with refresh()
-            self.proc.refresh()
+            self.assertEqual(self.proc.projects, proj_exp)
+            self.proc.refresh(wait=True)
+            # Nothing remains to be processed.
+            self.assertEqual(len(self.proc.projects["active"]), 0)
+            # STR was already complete.
+            self.assertEqual(self._proj_names("inactive"), ["STR"])
+            # We should have one new completed projectdata now.
+            self.assertEqual(self._proj_names("completed"), ["Something Else"])
             self.assertEqual(len(self.proc.runs), self.num_runs)
 
     def test_refresh_new_alignment(self):
@@ -121,7 +123,7 @@ class TestIlluminaProcessor(TestIlluminaProcessorBase):
             # Refresh loads all Runs to start with.
             #with self.assertWarns(Warning) as cm:
             #    self.proc.refresh()
-            self.proc.refresh()
+            self.proc.refresh(wait=True)
             self.assertEqual(len(self.proc.runs), self.num_runs)
             # Third run has no alignments yet
             self.assertEqual(len(get_al()), 0)
@@ -136,22 +138,64 @@ class TestIlluminaProcessor(TestIlluminaProcessorBase):
             self.assertEqual(len(get_al()), 0)
             # OK, now there's a sample sheet so the alignment should load.
             copy_file(Path(align_stash)/"SampleSheetUsed.csv", align_orig)
-            self.proc.refresh()
+            self.proc.refresh(wait=True)
             # Now there's an incomplete alignment, right?
             self.assertEqual(len(get_al()), 1)
             self.assertTrue(not get_al()[0].complete)
             # Once Checkpoint.txt shows up, the alignment is presumed complete.
             copy_file(Path(align_stash)/"Checkpoint.txt", align_orig)
-            self.proc.refresh()
+            self.proc.refresh(wait=True)
             self.assertEqual(len(get_al()), 1)
             self.assertTrue(get_al()[0].complete)
 
-    def test_process(self):
-        """Enqueue projects to process and check the outcome."""
-        self.proc.refresh()
-        self.proc.process()
-        self.proc.wait_for_jobs()
-        self.fail("test not yet implemented")
+
+class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
+    """Test case for a second run directory for an existing Run."""
+
+    def setUp(self):
+        self.setUpTmpdir()
+        run_orig = str(self.path_runs/"180102_M00000_0000_000000000-XXXXX")
+        run_dup = str(self.path_runs/"run-files-custom-name")
+        copy_tree(run_orig, run_dup)
+        # Create an IlluminaProcessor using the temp files
+        self.proc = illumina_processor.IlluminaProcessor(self.path)
+        # including one run that's a duplicate, but it should not become active
+        # when the project data is loaded.
+        self.num_runs = 5
+        self.warn_msg = "Run directory does not match Run ID: "
+        self.warn_msg += "run-files-custom-name / "
+        self.warn_msg += "180102_M00000_0000_000000000-XXXXX"
+
+    def test_load(self):
+        # One run dir in particular is named oddly and is a duplicate of the
+        # original run.
+        with self.assertWarns(Warning) as cm:
+            ws = cm.warnings
+            self.proc.load(wait=True)
+            self.assertEqual(len(ws), 1)
+            self.assertEqual(str(ws[0].message), self.warn_msg)
+        # Now we have loaded runs
+        self.assertEqual(len(self.proc.runs), self.num_runs)
+
+    def test_refresh(self):
+        """Basic scenario for refresh(): a new run directory appears."""
+        with self.assertWarns(Warning) as cm:
+            super().test_refresh()
+            ws = cm.warnings
+            self.assertEqual(len(ws), 1)
+            self.assertEqual(str(ws[0].message), self.warn_msg)
+
+    def test_refresh_new_alignment(self):
+        """A new alignment directory appears for an existing Run (with duplicate).
+        
+        This should be the same situation as the regular version, but with an
+        extra warning about that mismatched run."""
+        with self.assertWarns(Warning) as cm:
+            super().test_refresh_new_alignment()
+            ws = cm.warnings
+            self.assertEqual(len(ws), 1)
+            self.assertEqual(str(ws[0].message), self.warn_msg)
+
 
 class TestProjectData(TestIlluminaProcessorBase):
     """Main tests for ProjectData."""
@@ -161,29 +205,40 @@ class TestProjectData(TestIlluminaProcessorBase):
         self.maxDiff = None
         self.run = Run(self.path_runs / "180101_M00000_0000_000000000-XXXXX")
         self.alignment = self.run.alignments[0]
-        self.projs = ProjectData.from_alignment(self.alignment, self.path_exp,
-                self.path_al,
+        self.projs = ProjectData.from_alignment(self.alignment,
+                self.path_exp,
+                self.path_status,
                 self.path_proc,
                 self.path_pack)
+        # switch to dictionary to make these easier to work with
+        self.projs = {p.name: p for p in self.projs}
         self.exp_path = str(self.path_exp / "Partials_1_1_18" / "metadata.csv")
         # Make sure we have what we expect before the real tests
         self.assertEqual(len(self.projs), 2)
         self.assertEqual(sorted(self.projs.keys()), ["STR", "Something Else"])
 
     def test_attrs(self):
-        p_str = self.projs["STR"]
-        self.assertEqual(p_str.name, "STR")
-        self.assertEqual(p_str.alignment, self.alignment)
-        self.assertEqual(p_str.path, self.path_al / self.run.run_id / "0" / "STR.yml")
-        p_se = self.projs["Something Else"]
-        self.assertEqual(p_se.name, "Something Else")
-        self.assertEqual(p_se.alignment, self.alignment)
-        self.assertEqual(p_se.path, self.path_al / self.run.run_id / "0" / "Something_Else.yml")
+        self.assertEqual(self.projs["STR"].name, "STR")
+        self.assertEqual(self.projs["STR"].alignment, self.alignment)
+        self.assertEqual(self.projs["STR"].path, self.path_status / self.run.run_id / "0" / "STR.yml")
+        self.assertEqual(self.projs["Something Else"].name, "Something Else")
+        self.assertEqual(self.projs["Something Else"].alignment, self.alignment)
+        self.assertEqual(self.projs["Something Else"].path, self.path_status / self.run.run_id / "0" / "Something_Else.yml")
 
     def test_work_dir(self):
         # make sure it gives "date-project-names"
         # test any edge cases that may come up for those components
-        self.fail("test not yet implemented")
+        works = {
+                # The date stamp is by completion date of the alignment, not
+                # start date of the run (i.e., the date encoded in the Run ID).
+                "STR": "2018-01-02-STR-Jesse",
+                # The names are organized in the order presented in the
+                # experiment metadata spreadsheet.  Any non-alphanumeric
+                # characters are converted to _.
+                "Something Else": "2018-01-02-Something_Else-Someone-Jesse"
+                }
+        for key in works.keys():
+            self.assertEqual(works[key], self.projs[key].work_dir)
 
     def test_metadata(self):
         """Test that the project metadata is set up as expected."""
@@ -222,7 +277,7 @@ class TestProjectData(TestIlluminaProcessorBase):
                 "completed": []
                 }
         ts_se = {
-                "pending": ['pass', 'package', 'upload'],
+                "pending": ['copy', 'package', 'upload'],
                 "current": "",
                 "completed": []
                 }
@@ -233,9 +288,28 @@ class TestProjectData(TestIlluminaProcessorBase):
         md_se["task_status"] = ts_se
         md_str["status"] = "complete"
 
-        #self.assertEqual(self.projs["STR"].metadata, md_str)
-        #self.assertEqual(self.projs["Something Else"].metadata, md_se)
-        self.assertEqual(self.projs['STR'].metadata["task_status"], ts_str)
+        fq = self.path_runs/"180101_M00000_0000_000000000-XXXXX/Data/Intensities/BaseCalls"
+        fps = {
+                "1086S1_01": [str(fq/"1086S1-01_S1_L001_R1_001.fastq.gz"),
+                              str(fq/"1086S1-01_S1_L001_R2_001.fastq.gz")],
+                "1086S1_02": [str(fq/"1086S1-02_S2_L001_R1_001.fastq.gz"),
+                              str(fq/"1086S1-02_S2_L001_R2_001.fastq.gz")]
+                }
+        md_str["sample_paths"] = fps
+        fps = {
+                "1086S1_03": [str(fq/"1086S1-03_S3_L001_R1_001.fastq.gz"),
+                              str(fq/"1086S1-03_S3_L001_R2_001.fastq.gz")],
+                "1086S1_04": [str(fq/"1086S1-04_S4_L001_R1_001.fastq.gz"),
+                              str(fq/"1086S1-04_S4_L001_R2_001.fastq.gz")]
+                }
+        md_se["sample_paths"] = fps
+
+        self.assertEqual(self.projs["STR"].metadata, md_str)
+        self.assertEqual(self.projs["Something Else"].metadata, md_se)
+
+    def test_readonly(self):
+        self.assertTrue(self.projs["STR"].readonly)
+        self.assertFalse(self.projs["Something Else"].readonly)
 
     def test_status(self):
         # Is the status what we expect from the initial metadata on disk?
@@ -245,8 +319,8 @@ class TestProjectData(TestIlluminaProcessorBase):
         with self.assertRaises(ValueError):
             self.projs["STR"].status = "invalid status"
         # is the setter magically keeping the data on disk up to date?
-        self.projs["STR"].status = "processing"
-        with open(self.projs["STR"].path) as f:
+        self.projs["Something Else"].status = "processing"
+        with open(self.projs["Something Else"].path) as f:
             data = yaml.safe_load(f)
             self.assertEqual(data["status"], "processing")
 

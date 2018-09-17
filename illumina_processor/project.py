@@ -10,7 +10,7 @@ class ProjectError(Exception):
     pass
 
 class ProjectData:
-    """The subset of files for a Run and Alignment specific to one project.
+    """The data for a Run and Alignment specific to one project.
     
     This references the data files within a specific run relevant to a single
     project, tracks the associated additional metadata provided via the
@@ -72,25 +72,37 @@ class ProjectData:
         # an unordered sets for each project.
 
         exp_path = path_exp / alignment.experiment / "metadata.csv"
-        projects = {}
+        projects = set()
         try:
             # Load the spreadsheet of per-sample project information
             experiment_info = experiment.load_metadata(exp_path)
         except FileNotFoundError:
             pass
         else:
-            names = [row["Project"] for row in experiment_info]
+            sample_paths = None
+            try:
+                sample_paths = alignment.sample_paths()
+            except FileNotFoundError as e:
+                msg = "\nFASTQ file not found:\n"
+                msg += "Run:       %s\n" % alignment.run.path
+                msg += "Alignment: %s\n" % alignment.path
+                msg += "File:      %s\n" % e.filename
+                warnings.warn(msg)
+            # Set of unique names in the experiment spreadsheet
+            names = {row["Project"] for row in experiment_info}
             run_id = alignment.run.run_id
             al_idx = str(alignment.index)
             for name in names:
                 proj_file = slugify(name) + ".yml"
                 fp = Path(dp_align) / run_id / al_idx / proj_file
-                projects[name] = ProjectData(name, fp,
+                proj = ProjectData(name, fp,
                         dp_proc,
                         dp_pack,
                         alignment,
                         experiment_info,
                         exp_path)
+                proj.set_sample_paths(sample_paths)
+                projects.add(proj)
         return(projects)
 
     def __init__(self, name, path, dp_proc, dp_pack, alignment, exp_info_full, exp_path=None):
@@ -99,6 +111,8 @@ class ProjectData:
         self.alignment = alignment
         self.path = path # YAML metadata path
         self.metadata = {"status": ProjectData.NONE}
+        self.readonly = self.path.exists()
+        self.load_metadata()
         # TODO tidy up these keys and protect behind getters/setters with
         # automatic file updating.
         self.metadata["alignment_info"] = {}
@@ -115,8 +129,8 @@ class ProjectData:
 
         self.path_proc = Path(dp_proc) / self.work_dir
         self.path_pack = Path(dp_pack) / (self.work_dir + ".zip")
-        self.load_metadata()
-        self.save_metadata()
+        if not self.readonly:
+            self.save_metadata()
 
     def _setup_exp_info(self, exp_info_full):
         exp_info = {
@@ -125,7 +139,7 @@ class ProjectData:
                 "contacts": dict()
                 }
         for row in exp_info_full:
-            if row["Project"] is self.name:
+            if row["Project"] == self.name:
                 sample_name = row["Sample_Name"].strip()
                 if not sample_name in exp_info["sample_names"]:
                     exp_info["sample_names"].append(sample_name)
@@ -136,7 +150,7 @@ class ProjectData:
         return(exp_info)
 
     def _setup_task_status(self):
-        tasks = self.experiment_info["tasks"]
+        tasks = self.experiment_info["tasks"][:]
         tasks = self.normalize_tasks(tasks)
         task_status = {}
         task_status["pending"] = tasks
@@ -153,7 +167,8 @@ class ProjectData:
         if not value in ProjectData.STATUS:
             raise ValueError
         self.metadata["status"] = value
-        self.save_metadata()
+        if not self.readonly:
+            self.save_metadata()
 
     @property
     def experiment_info(self):
@@ -211,7 +226,10 @@ class ProjectData:
     def process(self):
         """Run all tasks.
         
-        This function will block until processing is complete."""
+        This function will block until processing is complete.  Calling process
+        if readyonly=True raises ProjectError."""
+        if self.readonly:
+            raise ProjectError("ProjectData is read-only")
         self.status = ProjectData.PROCESSING
         ts = self.metadata["task_status"]
         while self.tasks_pending: 
@@ -286,9 +304,7 @@ class ProjectData:
             arcname = Path(self.path_proc.name) / ("." + str(filename.name))
             z.write(filename, arcname)
 
-    def load_metadata(self, fp=None):
-        if fp:
-            self.path = fp
+    def load_metadata(self):
         try:
             with open(self.path) as f:
                 data = yaml.safe_load(f)
@@ -300,6 +316,8 @@ class ProjectData:
 
     def save_metadata(self):
         """Update project metadata on disk."""
+        if self.readonly:
+            raise ProjectError("ProjectData is read-only")
         # We need to be careful because other threads may be working in the
         # exact same directory right now.  pathlib didn't handle this correctly
         # until recently:

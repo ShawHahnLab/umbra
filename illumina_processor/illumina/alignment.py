@@ -4,10 +4,11 @@ import gzip
 class Alignment:
     """An "Alignment" (FASTQ generation) within a run."""
 
-    def __init__(self, path, run=None):
+    def __init__(self, path, run=None, completion_callback=None):
         self.run = run
         path = Path(path).resolve()
         self.path = path
+        self.completion_callback = completion_callback
         try:
             # MiSeq, directly in Alignment folder
             self.path_sample_sheet = (path/"SampleSheetUsed.csv").resolve(strict=True)
@@ -31,29 +32,42 @@ class Alignment:
             self.path_checkpoint = dirs[0]/"Checkpoint.txt"
             self.path_job_info = dirs[0]/"CompletedJobInfo.xml"
         self.sample_sheet = load_sample_sheet(self.path_sample_sheet)
-        self.checkpoint = self._load_checkpoint(self.path_checkpoint)
         # TODO merge this logic with Run's own version
         try:
             self.completed_job_info = load_xml(self.path_job_info)
         except FileNotFoundError:
             self.completed_job_info = None
+        self.refresh()
 
     def refresh(self):
-        """Reload alignment status from disk."""
+        """Reload alignment status from disk.
+        
+        If the alignment has just completed, and a callback function was
+        provided during instantiation, call it."""
         if not self.complete:
             self.checkpoint = self._load_checkpoint(self.path_checkpoint)
+            if self.complete and self.completion_callback:
+                self.completion_callback(self)
 
     @property
     def index(self):
         """Zero-indexed position of this alignment in the Run's list"""
+        # Of course, if we use this during instantiation of this Alignment,
+        # this won't be in the list yet!  Assuming that each alignment is
+        # appended as soon as it's created, we should be able safely assume
+        # that this will be the next one in the list.
         if self.run:
-            return(self.run.alignments.index(self))
+            try:
+                idx = self.run.alignments.index(self)
+            except ValueError:
+                idx = len(self.run.alignments)
+            return(idx)
         return(None)
 
     @property
     def complete(self):
         """Is the alignment complete?"""
-        return(self.checkpoint == 3)
+        return(getattr(self, "checkpoint", None) == 3)
 
     @property
     def start_time(self):

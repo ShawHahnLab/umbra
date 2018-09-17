@@ -5,10 +5,11 @@ import warnings
 class Run:
     """A single Illumina sequencing run, based on a directory tree."""
 
-    def __init__(self, path, strict=None):
+    def __init__(self, path, strict=None, alignment_callback=None):
         # Setup run path
         path = Path(path).resolve()
         self.path = path
+        self.alignment_callback = alignment_callback
 
         # RunInfo.xml is one of the first files to show up in a run directory,
         # so we'll use that to define a Run (finished or not).
@@ -25,13 +26,14 @@ class Run:
         info_run_id = self.run_info.find('Run').attrib["Id"]
         if info_run_id != path.name:
             msg = 'Run directory does not match Run ID: %s / %s' % (path.name, info_run_id)
-            # strict behavior: raise an error
-            if strict:
-                raise(ValueError(msg))
-            # default behavior: raise a warning
-            elif strict is None:
-                warnings.warn(msg)
-            # False behavior: ignore
+            warnings.warn(msg)
+            ## strict behavior: raise an error
+            #if strict:
+            #    raise(ValueError(msg))
+            ## default behavior: raise a warning
+            #elif strict is None:
+            #    warnings.warn(msg)
+            ## False behavior: ignore
 
         # Load in RTA completion status and available alignment directories.
         self.rta_complete = None
@@ -82,7 +84,7 @@ class Run:
         # return None if it doesn't look like an Alignment.  This should handle
         # not-yet-complete Alignment directories on disk.
         try:
-            al = Alignment(path, self)
+            al = Alignment(path, self, self.alignment_callback)
         except ValueError as e:
             warnings.warn("Alignment not recognized: %s" % path)
             return(None)
