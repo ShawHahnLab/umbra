@@ -31,8 +31,10 @@ class TestIlluminaProcessorBase(unittest.TestCase):
         self.tmpdir = TemporaryDirectory()
         copy_tree(PATH_ROOT, self.tmpdir.name)
         self.path_runs = Path(self.tmpdir.name) / "runs"
-        self.path_exp = Path(self.tmpdir.name) / "experiments"
-        self.path_al = Path(self.tmpdir.name) / "alignments"
+        self.path_exp  = Path(self.tmpdir.name) / "experiments"
+        self.path_al   = Path(self.tmpdir.name) / "alignments"
+        self.path_proc = Path(self.tmpdir.name) / "processed"
+        self.path_pack = Path(self.tmpdir.name) / "packaged"
 
     def tearDownTmpdir(self):
         self.tmpdir.cleanup()
@@ -44,7 +46,11 @@ class TestIlluminaProcessor(TestIlluminaProcessorBase):
     def setUp(self):
         self.setUpTmpdir()
         # Create an IlluminaProcessor using the temp files
-        self.proc = illumina_processor.IlluminaProcessor(self.path_runs, self.path_exp, self.path_al)
+        self.proc = illumina_processor.IlluminaProcessor(self.path_runs,
+                self.path_exp,
+                self.path_al,
+                self.path_proc,
+                self.path_pack)
         # ignoring one run that's a duplicate
         self.num_runs = 4
 
@@ -155,7 +161,10 @@ class TestProjectData(TestIlluminaProcessorBase):
         self.maxDiff = None
         self.run = Run(self.path_runs / "180101_M00000_0000_000000000-XXXXX")
         self.alignment = self.run.alignments[0]
-        self.projs = ProjectData.from_alignment(self.alignment, self.path_exp, self.path_al)
+        self.projs = ProjectData.from_alignment(self.alignment, self.path_exp,
+                self.path_al,
+                self.path_proc,
+                self.path_pack)
         self.exp_path = str(self.path_exp / "Partials_1_1_18" / "metadata.csv")
         # Make sure we have what we expect before the real tests
         self.assertEqual(len(self.projs), 2)
@@ -170,6 +179,11 @@ class TestProjectData(TestIlluminaProcessorBase):
         self.assertEqual(p_se.name, "Something Else")
         self.assertEqual(p_se.alignment, self.alignment)
         self.assertEqual(p_se.path, self.path_al / self.run.run_id / "0" / "Something_Else.yml")
+
+    def test_work_dir(self):
+        # make sure it gives "date-project-names"
+        # test any edge cases that may come up for those components
+        self.fail("test not yet implemented")
 
     def test_metadata(self):
         """Test that the project metadata is set up as expected."""
@@ -244,13 +258,28 @@ class TestProjectData(TestIlluminaProcessorBase):
         #   defaults are included
         self.fail("test not yet implemented")
 
-    def test_process_task(self):
+    def test_run_task(self):
         # test processing a single pending task
         self.fail("test not yet implemented")
 
     def test_process(self):
         # test processing all tasks
+        # make sure exceptions are logged to metadata, too.
+        # so far we have STR marked as complete, and Something Else with no
+        # config yet.
         self.fail("test not yet implemented")
+
+class TestProjectDataBlank(TestIlluminaProcessorBase):
+
+    # TODO test the case of having a blank in the project column.  The run ID
+    # should be used instead.
+    pass
+
+class TestProjectDataAlreadyProcessing(TestIlluminaProcessorBase):
+
+    # TODO test the case of having a project whose existing metadata points to
+    # an already-running process.  We should abort in that case.
+    pass
 
 if __name__ == '__main__':
     unittest.main()

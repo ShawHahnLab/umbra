@@ -16,10 +16,13 @@ class IlluminaProcessor:
     This class tracks Illumina runs and associated project data, schedules
     processing in parallel, and packages finished project data directories."""
 
-    def __init__(self, path_runs, path_exp, path_align):
+    def __init__(self, path_runs, path_exp, path_align, path_proc, path_pack):
         self.path_runs  = Path(path_runs)
         self.path_exp   = Path(path_exp)
         self.path_align = Path(path_align)
+        self.path_proc  = Path(path_proc)
+        self.path_pack  = Path(path_pack)
+        self.nthreads = 1
         self.runs = []
         self._setup_queue()
 
@@ -75,8 +78,11 @@ class IlluminaProcessor:
     def _match_alignment_to_projects(self, al):
         """Add Project information to an Alignment."""
 
-        al.projects = project.ProjectData.from_alignment(al, self.path_exp,
-                self.path_align)
+        al.projects = project.ProjectData.from_alignment(al,
+                self.path_exp,
+                self.path_align,
+                self.path_proc,
+                self.path_pack)
         if al.projects:
             # projects not marked complete
             is_complete = lambda k: al.projects[k].status != project.ProjectData.COMPLETE
@@ -141,6 +147,7 @@ class IlluminaProcessor:
 
     def process_project(self, proj):
         """Add project to queue if not already present."""
+        print(proj.name)
         if not proj in self._projects_enqueued:
             sys.stderr.write("Enqueue project: %s\n" % proj.name)
             self._projects_enqueued.add(proj)
@@ -151,9 +158,8 @@ class IlluminaProcessor:
         # so to start with they'll all just be waiting for jobs to do.
         self._queue = queue.Queue()
         self._projects_enqueued = set()
-        nthreads = 4
         self.threads = []
-        for i in range(nthreads):
+        for i in range(self.nthreads):
             t = threading.Thread(target=self._processor, daemon=True)
             t.start()
             self.threads.append(t)
@@ -163,5 +169,9 @@ class IlluminaProcessor:
         while True:
             proj = self._queue.get()
             sys.stderr.write("Process project: %s\n" % proj.name)
-            proj.process()
+            try:
+                proj.process()
+            except Exception as e:
+                sys.stderr.write("Failed project: %s\n" % proj.name)
+                sys.stderr.write(traceback.format_exc())
             self._queue.task_done()

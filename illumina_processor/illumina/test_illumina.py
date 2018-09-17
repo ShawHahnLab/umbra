@@ -181,6 +181,12 @@ class TestAlignment(unittest.TestCase):
     def test_index(self):
         self.fail("test not yet implemented")
 
+    def test_start_time(self):
+        self.fail("test not yet implemented")
+
+    def test_completion_time(self):
+        self.fail("test not yet implemented")
+
     def test_complete(self):
         """Is an Alignment complete?"""
         # An alignment is complete if Checkpoint exists and is 3, is not

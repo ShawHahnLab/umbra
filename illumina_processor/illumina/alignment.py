@@ -13,6 +13,7 @@ class Alignment:
             self.path_sample_sheet = (path/"SampleSheetUsed.csv").resolve(strict=True)
             self.path_fastq = (path / "..").resolve()
             self.path_checkpoint = path/"Checkpoint.txt"
+            self.path_job_info = path/"CompletedJobInfo.xml"
         except FileNotFoundError:
             # MiniSeq, within timstamped subfolder
             filt = lambda p: re.match("[0-9]{8}_[0-9]{6}", p.name)
@@ -28,8 +29,14 @@ class Alignment:
                 raise(ValueError('Not a recognized Illumina alignment: "%s"' % path))
             self.path_fastq = dirs[0] / "Fastq"
             self.path_checkpoint = dirs[0]/"Checkpoint.txt"
+            self.path_job_info = dirs[0]/"CompletedJobInfo.xml"
         self.sample_sheet = load_sample_sheet(self.path_sample_sheet)
         self.checkpoint = self._load_checkpoint(self.path_checkpoint)
+        # TODO merge this logic with Run's own version
+        try:
+            self.completed_job_info = load_xml(self.path_job_info)
+        except FileNotFoundError:
+            self.completed_job_info = None
 
     def refresh(self):
         """Reload alignment status from disk."""
@@ -47,6 +54,26 @@ class Alignment:
     def complete(self):
         """Is the alignment complete?"""
         return(self.checkpoint == 3)
+
+    @property
+    def start_time(self):
+        return(self._pull_timestamp("StartTime"))
+
+    @property
+    def completion_time(self):
+        return(self._pull_timestamp("CompletionTime"))
+
+    def _pull_timestamp(self, tag):
+        if self.completed_job_info:
+            fmt = "%Y-%m-%dT%H:%M:%S.%f%z"
+            text = self.completed_job_info.find(tag).text
+            # There's colon separating portions of the UTC offset that python
+            # doesn't like.  We'll remove it.
+            text = re.sub("([0-9]{2}):([0-9]{2})$", "\\1\\2", text)
+            date_obj = datetime.datetime.strptime(text, fmt)
+        else:
+            date_obj = None
+        return(date_obj)
 
     @property
     def experiment(self):
