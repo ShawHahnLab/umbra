@@ -4,3 +4,10 @@
 # this stuff.
 
 from .util import *
+
+adapters = {
+        "Nextera": [
+            "CTGTCTCTTATACACATCTCCGAGCCCACGAGAC",
+            "CTGTCTCTTATACACATCTGACGCTGCCGACGA"
+            ]
+        }

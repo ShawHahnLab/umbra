@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import re
+import os
 from . import illumina
 from distutils.dir_util import copy_tree
 
@@ -11,3 +12,7 @@ def slugify(text, mask="_"):
 
 def datestamp(dateobj):
     return(dateobj.strftime("%Y-%m-%d"))
+
+def mkparent(path):
+    parent = Path(path).parent
+    os.makedirs(parent, exist_ok=True)

@@ -1,9 +1,9 @@
 from .util import *
 from . import experiment
 import yaml
-import os
 import traceback
 from zipfile import ZipFile
+import subprocess
 
 class ProjectError(Exception):
     """Any sort of project-related exception."""
@@ -35,6 +35,7 @@ class ProjectData:
     TASK_NOOP     = "noop"     # do nothing
     TASK_COPY     = "copy"     # copy raw files
     TASK_TRIM     = "trim"     # trip adapters
+    TASK_MERGE    = "merge"    # interleave trimmed R1/R2 reads
     TASK_ASSEMBLE = "assemble" # contig assembly
     TASK_PACKAGE  = "package"  # package in zip file
     TASK_UPLOAD   = "upload"   # upload to Box
@@ -44,6 +45,7 @@ class ProjectData:
             TASK_NOOP,
             TASK_COPY,
             TASK_TRIM,
+            TASK_MERGE,
             TASK_ASSEMBLE,
             TASK_PACKAGE,
             TASK_UPLOAD
@@ -51,7 +53,8 @@ class ProjectData:
 
     TASK_DEPS = {
             TASK_UPLOAD: [TASK_PACKAGE],
-            TASK_ASSEMBLE: [TASK_TRIM],
+            TASK_MERGE: [TASK_TRIM],
+            TASK_ASSEMBLE: [TASK_MERGE],
             }
 
     # We'll always include these tasks:
@@ -101,7 +104,7 @@ class ProjectData:
                         alignment,
                         experiment_info,
                         exp_path)
-                proj.set_sample_paths(sample_paths)
+                proj.sample_paths = sample_paths
                 projects.add(proj)
         return(projects)
 
@@ -131,32 +134,6 @@ class ProjectData:
         self.path_pack = Path(dp_pack) / (self.work_dir + ".zip")
         if not self.readonly:
             self.save_metadata()
-
-    def _setup_exp_info(self, exp_info_full):
-        exp_info = {
-                "sample_names": [],
-                "tasks": [],
-                "contacts": dict()
-                }
-        for row in exp_info_full:
-            if row["Project"] == self.name:
-                sample_name = row["Sample_Name"].strip()
-                if not sample_name in exp_info["sample_names"]:
-                    exp_info["sample_names"].append(sample_name)
-                exp_info["contacts"].update(row["Contacts"])
-                for task in row["Tasks"]:
-                    if not task in exp_info["tasks"]:
-                        exp_info["tasks"].append(task)
-        return(exp_info)
-
-    def _setup_task_status(self):
-        tasks = self.experiment_info["tasks"][:]
-        tasks = self.normalize_tasks(tasks)
-        task_status = {}
-        task_status["pending"] = tasks
-        task_status["completed"] = []
-        task_status["current"] = ""
-        return(task_status)
 
     @property
     def status(self):
@@ -188,6 +165,26 @@ class ProjectData:
         return(dirname)
 
     @property
+    def sample_paths(self):
+        paths = self.metadata["sample_paths"]
+        if not paths: 
+            return({})
+        paths2 = {}
+        for k in paths:
+            paths2[k] = [Path(p) for p in paths[k]]
+        return(paths2)
+
+    @sample_paths.setter
+    def sample_paths(self, sample_paths):
+        if sample_paths:
+            self.metadata["sample_paths"] = {}
+            for sample_name in self.metadata["experiment_info"]["sample_names"]:
+                paths = [str(p) for p in sample_paths[sample_name]]
+                self.metadata["sample_paths"][sample_name] = paths
+        else:
+            self.metadata["sample_paths"] = None
+
+    @property
     def tasks_pending(self):
         return(self.metadata["task_status"]["pending"])
 
@@ -204,24 +201,6 @@ class ProjectData:
         deps = ProjectData.TASK_DEPS.get(task, [])
         remaining = [d for d in deps if d not in self.tasks_completed]
         return(not remaining)
-
-    def normalize_tasks(self, tasks):
-        """Add default and dependency tasks and order as needed."""
-        # Add in any defaults.  If nothing is given, always include the
-        # default.
-        if not tasks:
-            tasks = ProjectData.TASK_NULL[:]
-        tasks += ProjectData.TASK_DEFAULTS
-        # Add in dependencies for any that exist.
-        deps = [ProjectData.TASK_DEPS.get(t, []) for t in tasks]
-        tasks = sum(deps, tasks)
-        # Keep unique only.
-        tasks = list(set(tasks))
-        # order and verify.  We'll get a ValueError from index() if any of
-        # these are not found.
-        indexes = [ProjectData.TASKS.index(t) for t in tasks]
-        tasks = [t for _,t in sorted(zip(indexes, tasks))]
-        return(tasks)
 
     def process(self):
         """Run all tasks.
@@ -240,69 +219,15 @@ class ProjectData:
                 raise ProjectError("not all dependencies for task completed")
             self.save_metadata()
             try:
-                self.run_task(ts["current"])
+                self._run_task(ts["current"])
             except Exception as e:
                 self.metadata["failure_exception"] = traceback.format_exc()
-                self.status = "failed"
+                self.status = ProjectData.FAILED
                 raise(e)
-            ts["completed"] = ts["current"]
+            ts["completed"].append(ts["current"])
             ts["current"] = ""
             self.save_metadata()
         self.status = ProjectData.COMPLETE
-
-    def run_task(self, task):
-        """Process the next pending task."""
-        
-        # No-op: do nothing!
-        if task == ProjectData.TASK_NOOP:
-            pass
-
-        # Copy run directory to within processing directory
-        elif task == ProjectData.TASK_COPY:
-            self.copy_run()
-
-        # Run cutadapt to trim the Illumina adapters
-        elif task == ProjectData.TASK_TRIM:
-            raise NotImplementedError(task)
-
-        # Run SPAdes to assemble contigs
-        elif task == ProjectData.TASK_ASSEMBLE:
-            raise NotImplementedError(task)
-
-        # Zip up all files in the processing directory
-        elif task == ProjectData.TASK_PACKAGE:
-            self.zip()
-
-        # Upload the zip archive to Box
-        elif task == ProjectData.TASK_UPLOAD:
-            raise NotImplementedError(task)
-
-        # This should never happen (so it probably will).
-        else:
-            raise ProjectError("task \"%s\" not recognized" % task)
-
-    def copy_run(self):
-        """Copy the run directory into the processing directory."""
-        src = str(self.alignment.run.path)
-        dest = str(self.path_proc / self.alignment.run.run_id)
-        copy_tree(src, dest)
-
-    def zip(self):
-        """Create zipfile of processing directory and metadata."""
-        with ZipFile(self.path_pack, "x") as z:
-            # Archive everything in the processing directory
-            for root, dirs, files in os.walk(self.path_proc):
-                for fn in files:
-                    # Archive the file but trim the name so it's relative to
-                    # the processing directory.
-                    filename = os.path.join(root, fn)
-                    arcname = Path(filename).relative_to(self.path_proc.parent)
-                    z.write(filename, arcname)
-            # Also add in a copy of the metadata YAML file as it currently
-            # stands.
-            filename = self.path
-            arcname = Path(self.path_proc.name) / ("." + str(filename.name))
-            z.write(filename, arcname)
 
     def load_metadata(self):
         try:
@@ -329,21 +254,144 @@ class ProjectData:
         with open(self.path, "w") as f:
             f.write(yaml.dump(self.metadata))
 
-    @property
-    def sample_paths(self):
-        paths = self.metadata["sample_paths"]
-        if not paths: 
-            return({})
-        paths2 = {}
-        for k in paths:
-            paths2[k] = [Path(p) for p in paths[k]]
-        return(paths2)
+    # Task-related methods
 
-    def set_sample_paths(self, sample_paths):
-        if sample_paths:
-            self.metadata["sample_paths"] = {}
-            for sample_name in self.metadata["experiment_info"]["sample_names"]:
-                paths = [str(p) for p in sample_paths[sample_name]]
-                self.metadata["sample_paths"][sample_name] = paths
+    def copy_run(self):
+        """Copy the run directory into the processing directory."""
+        src = str(self.alignment.run.path)
+        dest = str(self.path_proc / self.alignment.run.run_id)
+        copy_tree(src, dest)
+
+    def _trimmed_path(self, path_fastq):
+        name = re.sub("\\.fastq\\.gz$", "", path_fastq.name)
+        fastq_out = self.path_proc / "trimmed" / (name + ".trimmed.fastq")
+        mkparent(fastq_out)
+        return(fastq_out)
+
+    def _log_path(self, task):
+        path = self.path_proc / "logs" / ("log_" + str(task) + ".txt")
+        mkparent(path)
+        return(path)
+
+    def trim(self):
+        # For each sample, separately process the one or more associated files.
+        # TODO open trim log
+        with open(self._log_path("trim"), "w") as f:
+            for samp in self.sample_paths.keys():
+                paths = self.sample_paths[samp]
+                if len(paths) > 2:
+                    raise ProjectError("trimming can't handle >2 files per sample")
+                for i in range(len(paths)):
+                    adapter = illumina.adapters["Nextera"][i]
+                    fastq_in = str(paths[i])
+                    fastq_out = self._trimmed_path(paths[i])
+                    args = ["cutadapt", "-a", adapter, "-o", fastq_out, fastq_in]
+                    # Call cutadapt with each file.  If the exit status is
+                    # nonzero or if the expected output file is missing, raise
+                    # an exception.
+                    subprocess.run(args, stdout=f, stderr=f, check=True)
+                    if not Path(fastq_out).exists():
+                        msg = "missing output file %s" % fastq_out
+                        raise ProjectError(msg)
+
+    def assemble(self):
+        raise NotImplementedError("assemble")
+
+    def zip(self):
+        """Create zipfile of processing directory and metadata."""
+        with ZipFile(self.path_pack, "x") as z:
+            # Archive everything in the processing directory
+            for root, dirs, files in os.walk(self.path_proc):
+                for fn in files:
+                    # Archive the file but trim the name so it's relative to
+                    # the processing directory.
+                    filename = os.path.join(root, fn)
+                    arcname = Path(filename).relative_to(self.path_proc.parent)
+                    z.write(filename, arcname)
+            # Also add in a copy of the metadata YAML file as it currently
+            # stands.
+            filename = self.path
+            arcname = Path(self.path_proc.name) / ("." + str(filename.name))
+            z.write(filename, arcname)
+
+    # Implementation Details
+
+    def _setup_exp_info(self, exp_info_full):
+        exp_info = {
+                "sample_names": [],
+                "tasks": [],
+                "contacts": dict()
+                }
+        for row in exp_info_full:
+            if row["Project"] == self.name:
+                sample_name = row["Sample_Name"].strip()
+                if not sample_name in exp_info["sample_names"]:
+                    exp_info["sample_names"].append(sample_name)
+                exp_info["contacts"].update(row["Contacts"])
+                for task in row["Tasks"]:
+                    if not task in exp_info["tasks"]:
+                        exp_info["tasks"].append(task)
+        return(exp_info)
+
+    def _setup_task_status(self):
+        tasks = self.experiment_info["tasks"][:]
+        tasks = self._normalize_tasks(tasks)
+        task_status = {}
+        task_status["pending"] = tasks
+        task_status["completed"] = []
+        task_status["current"] = ""
+        return(task_status)
+
+    def _normalize_tasks(self, tasks):
+        """Add default and dependency tasks and order as needed."""
+        # Add in any defaults.  If nothing is given, always include the
+        # default.
+        if not tasks:
+            tasks = ProjectData.TASK_NULL[:]
+        tasks += ProjectData.TASK_DEFAULTS
+        # Add in dependencies for any that exist.
+        deps = [ProjectData.TASK_DEPS.get(t, []) for t in tasks]
+        tasks = sum(deps, tasks)
+        # Keep unique only.
+        tasks = list(set(tasks))
+        # order and verify.  We'll get a ValueError from index() if any of
+        # these are not found.
+        indexes = [ProjectData.TASKS.index(t) for t in tasks]
+        tasks = [t for _,t in sorted(zip(indexes, tasks))]
+        return(tasks)
+
+    def _run_task(self, task):
+        """Process the next pending task."""
+        
+        # No-op: do nothing!
+        if task == ProjectData.TASK_NOOP:
+            pass
+
+        # Copy run directory to within processing directory
+        elif task == ProjectData.TASK_COPY:
+            self.copy_run()
+
+        # Run cutadapt to trim the Illumina adapters
+        elif task == ProjectData.TASK_TRIM:
+            self.trim()
+
+        # Interleave the read pairs
+        elif task == ProjectData.TASK_MERGE:
+            self.merge()
+
+        # Run SPAdes to assemble contigs from the interleaved files
+        elif task == ProjectData.TASK_ASSEMBLE:
+            self.assemble()
+
+        # Zip up all files in the processing directory
+        elif task == ProjectData.TASK_PACKAGE:
+            self.zip()
+
+        # Upload the zip archive to Box
+        elif task == ProjectData.TASK_UPLOAD:
+            pass
+            #raise NotImplementedError(task)
+
+        # This should never happen (so it probably will).
         else:
-            self.metadata["sample_paths"] = None
+            raise ProjectError("task \"%s\" not recognized" % task)
