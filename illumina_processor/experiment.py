@@ -13,6 +13,8 @@ def _parse_contacts(text):
     chunks = re.split("[,;]+", text)
     contacts = {}
     for chunk in chunks:
+        if not chunk:
+            continue
         # There's a horrible rabbit hole to go down trying to figure out
         # parsing email addresses with regular expressions.  I don't care.
         # This is enough for us.

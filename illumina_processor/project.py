@@ -128,6 +128,7 @@ class ProjectData:
         # alignment data, since it depends on the software generating the
         # fastqs.
         self.phred_offset = 33 # FASTQ quality score encoding offset
+        self.contig_length_min = 255
 
         self.metadata = {"status": ProjectData.NONE}
         self.readonly = self.path.exists()
@@ -140,6 +141,7 @@ class ProjectData:
         self.metadata["run_info"] = {}
         self.metadata["sample_paths"] = {}
         self.metadata["task_status"] = self._setup_task_status()
+        self.metadata["task_output"] = {}
         if self.alignment:
             self.metadata["alignment_info"]["path"] = str(self.alignment.path)
             self.metadata["experiment_info"]["name"] = self.alignment.experiment
@@ -177,7 +179,12 @@ class ProjectData:
         who = [txt.split(" ")[0] for txt in who.keys()]
         who = "-".join(who)
         txt_name = slugify(who)
-        dirname = "%s-%s-%s" % (txt_date, txt_proj, txt_name)
+        fields = [txt_date, txt_proj, txt_name]
+        fields = [f for f in fields if f]
+        dirname = "-".join(fields)
+        # TODO better exception here
+        if not dirname:
+            raise Exception("empty work_dir")
         return(dirname)
 
     @property
@@ -272,7 +279,7 @@ class ProjectData:
         with open(self.path, "w") as f:
             f.write(yaml.dump(self.metadata))
 
-    # Task-related methods
+    ###### Task-related methods
 
     def copy_run(self):
         """Copy the run directory into the processing directory."""
@@ -280,9 +287,11 @@ class ProjectData:
         dest = str(self.path_proc / self.alignment.run.run_id)
         copy_tree(src, dest)
 
-    def _trimmed_path(self, path_fastq):
-        name = re.sub("\\.fastq\\.gz$", "", path_fastq.name)
-        fastq_out = self.path_proc / "trimmed" / (name + ".trimmed.fastq")
+    def task_path(self, readfile, subdir, suffix=""):
+        """Give readfile-related path, following the originals' name."""
+        pat = "(.*_L[0-9]+_)R[12](_001)\\.fastq\\.gz"
+        name = re.sub(pat, "\\1R\\2" + suffix, readfile.name)
+        fastq_out = self.path_proc / subdir / name
         mkparent(fastq_out)
         return(fastq_out)
 
@@ -302,7 +311,9 @@ class ProjectData:
                 for i in range(len(paths)):
                     adapter = illumina.adapters["Nextera"][i]
                     fastq_in = str(paths[i])
-                    fastq_out = self._trimmed_path(paths[i])
+                    fastq_out = self.task_path(paths[i],
+                            "trimmed",
+                            ".trimmed.fastq")
                     args = ["cutadapt", "-a", adapter, "-o", fastq_out, fastq_in]
                     # Call cutadapt with each file.  If the exit status is
                     # nonzero or if the expected output file is missing, raise
@@ -312,9 +323,11 @@ class ProjectData:
                         msg = "missing output file %s" % fastq_out
                         raise ProjectError(msg)
 
+    ### Merge
+
     def _merged_path(self, path_fastq):
         # Generalize R1/R2 to just "R" and replace extension with merged
-        # version.
+        # version.  This is more specialized than task_path() allows currently. 
         pat = "(.*_L[0-9]+_)R[12](_001)\\.fastq\\.gz"
         name = re.sub("\\.fastq\\.gz$", "", path_fastq.name)
         name = re.sub(pat, "\\1R\\2.merged.fastq", path_fastq.name)
@@ -339,7 +352,8 @@ class ProjectData:
                     paths = self.sample_paths[samp]
                     if len(paths) != 2:
                         raise ProjectError("merging needs 2 files per sample")
-                    fqs_in = [self._trimmed_path(p) for p in paths]
+                    tp = lambda p: self.task_path(p, "trimmed", ".trimmed.fastq")
+                    fqs_in = [tp(p) for p in paths]
                     fq_out = self._merged_path(paths[0])
                     self._merge_pair(fq_out, fqs_in)
                     # Merge each file pair. If the expected output file is missing,
@@ -352,7 +366,9 @@ class ProjectData:
                 f.write(msg + "\n")
                 raise e
 
-    def _assemble_reads(self, fqs_in, dir_out, f_log):
+    ### Assemble
+
+    def _assemble_reads(self, fq_in, dir_out, f_log):
         """Assemble a pair of read files with SPAdes.
         
         This runs spades.py on a single sample, saving the output to a given
@@ -362,13 +378,12 @@ class ProjectData:
         fp_out = dir_out / "contigs.fasta"
         # Spades always fails for empty input, so we'll explicitly skip that
         # case.  It might crash anyway, so we handle that below too.
-        if Path(fqs_in[0]).stat().st_size == 0:
-            s = tuple([str(s) for s in fqs_in])
-            f_log.write("Skipping assembly for empty files: %s, %s\n" % s)
+        if Path(fq_in).stat().st_size == 0:
+            f_log.write("Skipping assembly for empty file: %s\n" % str(fq_in))
             f_log.write("creating placeholder contig file.\n")
             touch(fp_out)
-            return
-        args = ["spades.py", "-1", fqs_in[0], "-2", fqs_in[1],
+            return(fp_out)
+        args = ["spades.py", "--12", fq_in,
                 "-o", dir_out,
                 "-t", self.threads,
                 "--phred-offset", self.phred_offset]
@@ -382,14 +397,34 @@ class ProjectData:
             f_log.write("spades exited with errors.\n")
             f_log.write("creating placeholder contig file.\n")
             touch(fp_out)
+        return(fp_out)
 
-    def _assembled_dir_path(self, path_fastq):
-        pat = "(.*_L[0-9]+_)R[12]?(_001)\\.fastq\\.gz"
-        name = re.sub("\\.fastq\\.gz$", "", path_fastq.name)
-        name = re.sub(pat, "\\1R\\2", path_fastq.name)
-        dir_out = self.path_proc / "assembled" / name
-        mkparent(dir_out)
-        return(dir_out)
+    def _prep_contigs_for_geneious(self, fa_in, fq_out):
+        """Filter and format contigs for use in Geneious.
+        
+        Keep contigs above a length threshold, and fake quality scores so we
+        can get a FASTQ file to combine with the reads in the next step.
+        Modify the sequence ID line to be: <sample>-contig_<contig_number>
+        """
+        m = re.match("(.*)\\.contigs\\.fastq$", fq_out.name)
+        sample_prefix = m.group(1)
+        with open(fq_out, "w") as f_out, open(fa_in, "r") as f_in:
+            for rec in SeqIO.parse(f_in, "fasta"):
+                if len(rec.seq) > self.contig_length_min:
+                    rec.letter_annotations["phred_quality"] = [40]*len(rec.seq)
+                    m = re.match("^NODE_([0-9])+_.*", rec.id)
+                    contig_num = m.group(1)
+                    rec.id = "%s-contig_%s" % (sample_prefix, contig_num)
+                    rec.description = ""
+                    SeqIO.write(rec, f_out, "fastq")
+
+    def _combine_contigs_for_geneious(self, fq_contigs, fq_reads, fq_out):
+        """Concatenate formatted contigs and merged reads for Geneious."""
+        with open(fq_contigs) as f_contigs, open(fq_reads) as f_reads, open(fq_out, "w") as f_out:
+            for line in f_contigs:
+                f_out.write(line)
+            for line in f_reads:
+                f_out.write(line)
 
     def assemble(self):
         """Assemble contigs from all samples.
@@ -399,18 +434,29 @@ class ProjectData:
         with open(self._log_path("assemble"), "w") as f:
             try:
                 for samp in self.sample_paths.keys():
+                    # Set up paths to use
                     paths = self.sample_paths[samp]
-                    fqs_in = [self._trimmed_path(p) for p in paths]
-                    dir_out = self._assembled_dir_path(paths[0])
-                    self._assemble_reads(fqs_in, dir_out, f)
-                    # TODO the remaining steps from the original script:
-                    # filter contigs > 255 bases long
-                    # save as fastq (?)
-                    # what else?
+                    r1 = paths[0]
+                    fq_merged = self._merged_path(r1)
+                    fq_contigs = self.task_path(r1,
+                            "ContigsGeneious",
+                            ".contigs.fastq")
+                    fq_combo = self.task_path(r1,
+                            "CombinedGeneious",
+                            ".contigs_reads.fastq")
+                    spades_dir = self.task_path(r1, "assembled")
+                    # Assemble and post-process: create FASTQ version for all
+                    # contigs above a given length, using altered sequence
+                    # descriptions, and then combine with the original reads.
+                    fa_contigs = self._assemble_reads(fq_merged, spades_dir, f)
+                    self._prep_contigs_for_geneious(fa_contigs, fq_contigs)
+                    self._combine_contigs_for_geneious(fq_contigs, fq_merged, fq_combo)
             except Exception as e:
                 msg = traceback.format_exc()
                 f.write(msg + "\n")
                 raise e
+
+    ### Zip
 
     def zip(self):
         """Create zipfile of processing directory and metadata."""
@@ -429,7 +475,7 @@ class ProjectData:
             arcname = Path(self.path_proc.name) / ("." + str(filename.name))
             z.write(filename, arcname)
 
-    # Implementation Details
+    ###### Implementation Details
 
     def _setup_exp_info(self, exp_info_full):
         exp_info = {
@@ -494,36 +540,42 @@ class ProjectData:
         
         # No-op: do nothing!
         if task == ProjectData.TASK_NOOP:
-            pass
+            self.metadata["task_output"][task] = {}
 
         # Copy run directory to within processing directory
         elif task == ProjectData.TASK_COPY:
             self.copy_run()
+            self.metadata["task_output"][task] = {}
 
         # Run cutadapt to trim the Illumina adapters
         elif task == ProjectData.TASK_TRIM:
             self.trim()
+            self.metadata["task_output"][task] = {}
 
         # Interleave the read pairs
         elif task == ProjectData.TASK_MERGE:
             self.merge()
+            self.metadata["task_output"][task] = {}
 
         # Run SPAdes to assemble contigs from the interleaved files
         elif task == ProjectData.TASK_ASSEMBLE:
             self.assemble()
+            self.metadata["task_output"][task] = {}
 
         # Zip up all files in the processing directory
         elif task == ProjectData.TASK_PACKAGE:
             self.zip()
+            self.metadata["task_output"][task] = {}
 
         # Upload the zip archive to Box
         elif task == ProjectData.TASK_UPLOAD:
-            pass
+            # TODO put URL in this dict
+            self.metadata["task_output"][task] = {}
             #raise NotImplementedError(task)
 
         # Email contacts with link to Box download
         elif task == ProjectData.TASK_EMAIL:
-            pass
+            self.metadata["task_output"][task] = {}
             #raise NotImplementedError(task)
 
         # This should never happen (so it probably will).

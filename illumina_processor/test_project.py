@@ -11,6 +11,7 @@ class TestProjectData(TestIlluminaProcessorBase):
     def setUp(self):
         self.setUpTmpdir()
         self.maxDiff = None
+        # TODO rename this!  TestCase already has a "run" attribute.
         self.run = Run(self.path_runs / "180101_M00000_0000_000000000-XXXXX")
         self.alignment = self.run.alignments[0]
         self.projs = ProjectData.from_alignment(self.alignment,
@@ -160,7 +161,9 @@ class TestProjectDataOneTask(TestIlluminaProcessorBase):
         self.maxDiff = None
         # Expected and shared attributes
         self.sample_names = ["1086S1_01", "1086S1_02", "1086S1_03", "1086S1_04"]
-        self.run = Run(self.path_runs / "180101_M00000_0000_000000000-XXXXX")
+        if not hasattr(self, "rundir"):
+            self.rundir = "180101_M00000_0000_000000000-XXXXX"
+        self.run = Run(self.path_runs / self.rundir)
         self.alignment = self.run.alignments[0]
         self.exp_path = str(self.path_exp / "Partials_1_1_18" / "metadata.csv")
         self.project_name = "TestProject"
@@ -195,6 +198,7 @@ class TestProjectDataOneTask(TestIlluminaProcessorBase):
 
     def fake_fastq(self, seq_pair, readlen=100):
         fastq_paths = self.alignment.sample_paths_for_num(1)
+        [p.chmod(0o644) for p in fastq_paths]
         adp = illumina.adapters["Nextera"]
         fills = ("G", "A")
         for path, seq, a, fill in zip(fastq_paths, seq_pair, adp, fills):
@@ -405,18 +409,32 @@ class TestProjectDataMerge(TestProjectDataOneTask):
         self.assertTrue(logpath.exists())
 
 class TestProjectDataMergeSingleEnded(TestProjectDataMerge):
-    # TODO test with tasks = merge for single-ended run
+    """ Test for single-task "merge" for a singled-ended Run.
+
+    What *should* happen here?  (What does the original trim script do?)
+    """
     pass
 
 
 class TestProjectDataAssemble(TestProjectDataOneTask):
-    """ Test for single-task "assemble"."""
+    """ Test for single-task "assemble".
+    
+    This will automatically run the trim and merge tasks, and then build
+    contigs de-novo from the reads with SPAdes.  The contigs will be filtered
+    to just those greater than a minimum length, renamed to match the sample
+    names, and converted to FASTQ for easy combining with the reads.  (This is
+    the ContigsGeneious subdirectory.)  Those modified contigs will also be
+    concatenated with the original merged reads (CombinedGeneious
+    subdirectory)."""
 
     def setUp(self):
         self.task = "assemble"
         # trim and merge are dependencies of assemble.
         self.tasks_run = ["trim", "merge", self.task,
                 "package", "upload", "email"]
+        # TODO remove this, it's a real run for a first attempt at a real-life
+        # test.
+        #self.rundir = "180919_M05588_0119_000000000-D4VL7"
         super().setUp()
 
     def test_process(self):
@@ -430,6 +448,7 @@ class TestProjectDataAssemble(TestProjectDataOneTask):
         # TODO
         # Next, check that we have the output we expect from spades.  Ideally
         # we should have a true test but right now we get no contigs built.
+        # Using a real run dir (see setUp above) to check it for now.
 
 
 class TestProjectDataPackage(TestProjectDataOneTask):
@@ -450,6 +469,13 @@ class TestProjectDataEmail(TestProjectDataOneTask):
     # TODO test with task = email
     # This should use some sort of mock-up to make sure the email function is
     # called as expected
+    pass
+
+
+class TestProjectDataEmailNocontacts(TestProjectDataOneTask):
+    # TODO test with task = email but empty contacts field
+    # work_dir should be correct
+    # contcts shoudl be correct (empty dict)
     pass
 
 
