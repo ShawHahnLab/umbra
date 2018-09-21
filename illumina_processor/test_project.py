@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 from test_util import *
+import hashlib
+import gzip
+import warnings
+import yaml
 
 class TestProjectData(TestIlluminaProcessorBase):
     """Main tests for ProjectData."""
@@ -126,7 +130,10 @@ class TestProjectData(TestIlluminaProcessorBase):
         # is the setter magically keeping the data on disk up to date?
         self.projs["Something Else"].status = "processing"
         with open(self.projs["Something Else"].path) as f:
-            data = yaml.safe_load(f)
+            # https://stackoverflow.com/a/1640777
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore",category=DeprecationWarning)
+                data = yaml.safe_load(f)
             self.assertEqual(data["status"], "processing")
 
     def test_process(self):
@@ -157,7 +164,8 @@ class TestProjectDataOneTask(TestIlluminaProcessorBase):
         self.alignment = self.run.alignments[0]
         self.exp_path = str(self.path_exp / "Partials_1_1_18" / "metadata.csv")
         self.project_name = "TestProject"
-        self.tasks_run = [self.task, "package", "upload"]
+        if not hasattr(self, "tasks_run"):
+            self.tasks_run = [self.task, "package", "upload", "email"]
         # modify project spreadsheet, then create ProjectData
         self.write_test_experiment()
         self.proj = ProjectData.from_alignment(self.alignment,
@@ -180,6 +188,22 @@ class TestProjectDataOneTask(TestIlluminaProcessorBase):
             for sample_name in self.sample_names:
                 writer.writerow((exp_row(sample_name)))
 
+    def fake_fastq_entry(self, seq, qual):
+        name = hashlib.md5(seq.encode("utf-8")).hexdigest()
+        txt = "@%s\n%s\n+\n%s\n" % (name, seq, qual)
+        return(txt)
+
+    def fake_fastq(self, seq_pair, readlen=100):
+        fastq_paths = self.alignment.sample_paths_for_num(1)
+        adp = illumina.adapters["Nextera"]
+        fills = ("G", "A")
+        for path, seq, a, fill in zip(fastq_paths, seq_pair, adp, fills):
+            read = (seq + a).ljust(readlen, fill)
+            read = read[0:min(readlen, len(read))]
+            qual = ("@" * len(seq)) + ("!" * (len(read)-len(seq)))
+            with gzip.open(path, "wt") as gz:
+                gz.write(self.fake_fastq_entry(read, qual))
+
     def test_attrs(self):
         s = self.path_status / self.run.run_id / "0"
         self.assertEqual(self.proj.name, self.project_name)
@@ -201,7 +225,9 @@ class TestProjectDataOneTask(TestIlluminaProcessorBase):
         # is the setter magically keeping the data on disk up to date?
         self.proj.status = "processing"
         with open(self.proj.path) as f:
-            data = yaml.safe_load(f)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore",category=DeprecationWarning)
+                data = yaml.safe_load(f)
             self.assertEqual(data["status"], "processing")
 
     # Test task properties, at start
@@ -247,20 +273,7 @@ class TestProjectDataCopy(TestProjectDataOneTask):
         self.task = "copy"
         super().setUp()
 
-    def _fake_fastq_entry(seq):
-        # TODO use this below.
-        pass
-
     def test_process(self):
-        # Let's set up a detailed example in one file pair, to make sure the
-        # trimming itself worked.
-
-        fastq_paths = self.alignment.sample_paths_for_num(1)
-        # TODO  set up a very simple fake fastq and write it to the first file
-        # pair.
-        #with gzip.open(fastq_paths[0], "wb") as gz:
-        #    gz.write()
-
         # The basic checks
         super().test_process()
         # Here we should have a copy of the raw run data inside of the work
@@ -300,6 +313,11 @@ class TestProjectDataTrim(TestProjectDataOneTask):
 
     def test_process(self):
         """Test that the trim task completed as expected."""
+        # Let's set up a detailed example in one file pair, to make sure the
+        # trimming itself worked.
+        seq_pair = ("ACTG" * 10, "CAGT" * 10)
+        self.fake_fastq(seq_pair)
+        # The basics
         super().test_process()
         # We should have a subdirectory with the trimmed files.
         dirpath = self.proj.path_proc / "trimmed"
@@ -320,19 +338,98 @@ class TestProjectDataTrim(TestProjectDataOneTask):
         files_all = [x.name for x in dirpath.glob("*")]
         files_all = sorted(files_all)
         self.assertEqual(files_all, fastq_exp)
+        # Did the specific read pair we created get trimmed as expected?
+        pat = str(dirpath / "1086S1-01_S1_L001_R%d_001.trimmed.fastq")
+        fps = [pat % d for d in (1,2)]
+        for fp, seq_exp in zip(fps, seq_pair):
+            with open(fp, "r") as f:
+                seq_obs = f.readlines()[1].strip()
+                self.assertEqual(seq_obs, seq_exp)
         # And a log file too.
         logpath = self.proj.path_proc / "logs" / "log_trim.txt"
         self.assertTrue(logpath.exists())
 
 
 class TestProjectDataMerge(TestProjectDataOneTask):
-    # TODO test with tasks = merge
+    """ Test for single-task "merge".
+
+    Here we should have a set of fastq files in a "PairedReads" subdirectory.
+    This will be the interleaved version of the separate trimmed R1/R2 files
+    from the trim task."""
+
+    def setUp(self):
+        self.task = "merge"
+        # trim is a dependency of merge.
+        self.tasks_run = ["trim", self.task, "package", "upload", "email"]
+        super().setUp()
+
+    def test_process(self):
+        """Test that the merge task completed as expected."""
+        # Let's set up a detailed example in one file pair, to make sure the
+        # merging itself worked (separately testing trimming above).
+        seq_pair = ["ACTG" * 10, "CAGT" * 10]
+        self.fake_fastq(seq_pair)
+        # The basics
+        super().test_process()
+        # We should have a subdirectory with the merged files.
+        dirpath = self.proj.path_proc / "PairedReads"
+        # What merged files did we observe?
+        fastq_obs = [x.name for x in dirpath.glob("*.merged.fastq")]
+        fastq_obs = sorted(fastq_obs)
+        # What merged files do we expect for the sample names we have?
+        paths = []
+        for sample in self.sample_names:
+            i = self.alignment.sample_names.index(sample)
+            p = self.alignment.sample_files_for_num(i+1) # (1-indexed)
+            paths.append(p[0])
+        paths = [re.sub("\\.fastq\\.gz$", ".merged.fastq", p) for p in paths]
+        paths = [re.sub("_R1_", "_R_", p) for p in paths]
+        fastq_exp = sorted(paths)
+        # Now, do they match?
+        self.assertEqual(fastq_obs, fastq_exp)
+        # Was anything else in there?  Shouldn't be.
+        files_all = [x.name for x in dirpath.glob("*")]
+        files_all = sorted(files_all)
+        self.assertEqual(files_all, fastq_exp)
+        # Did the specific read pair we created get merged as expected?
+        # (This isn't super thorough since in this case it's just the same as
+        # concatenating the two files.  Maybe add more to prove they're
+        # interleaved.)
+        fp = str(dirpath / "1086S1-01_S1_L001_R_001.merged.fastq")
+        with open(fp, "r") as f:
+            data = f.readlines()
+            seq_obs = [data[i].strip() for i in [1,5]]
+            self.assertEqual(seq_obs, seq_pair)
+        # And a log file too.
+        logpath = self.proj.path_proc / "logs" / "log_merge.txt"
+        self.assertTrue(logpath.exists())
+
+class TestProjectDataMergeSingleEnded(TestProjectDataMerge):
+    # TODO test with tasks = merge for single-ended run
     pass
 
 
 class TestProjectDataAssemble(TestProjectDataOneTask):
-    # TODO test with tasks = assemble
-    pass
+    """ Test for single-task "assemble"."""
+
+    def setUp(self):
+        self.task = "assemble"
+        # trim and merge are dependencies of assemble.
+        self.tasks_run = ["trim", "merge", self.task,
+                "package", "upload", "email"]
+        super().setUp()
+
+    def test_process(self):
+        """Test that the merge task completed as expected."""
+        # Let's set up a detailed example in one file pair, to make sure the
+        # merging itself worked (separately testing trimming above).
+        seq_pair = ["ACTG" * 10, "CAGT" * 10]
+        self.fake_fastq(seq_pair)
+        # The basics
+        super().test_process()
+        # TODO
+        # Next, check that we have the output we expect from spades.  Ideally
+        # we should have a true test but right now we get no contigs built.
 
 
 class TestProjectDataPackage(TestProjectDataOneTask):
@@ -346,6 +443,13 @@ class TestProjectDataUpload(TestProjectDataOneTask):
     # TODO test with tasks = upload 
     # how to reasonably test this...?  Monkey-patch the uploader part to trick
     # it?
+    pass
+
+
+class TestProjectDataEmail(TestProjectDataOneTask):
+    # TODO test with task = email
+    # This should use some sort of mock-up to make sure the email function is
+    # called as expected
     pass
 
 

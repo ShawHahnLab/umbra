@@ -3,7 +3,6 @@ from tempfile import TemporaryDirectory
 from distutils.dir_util import copy_tree, remove_tree, mkpath
 from distutils.file_util import copy_file
 from pathlib import Path
-import yaml
 import re
 import csv
 from zipfile import ZipFile
@@ -12,7 +11,7 @@ from zipfile import ZipFile
 import sys
 sys.path.append(str((Path(__file__).parent/"..").resolve()))
 import illumina_processor
-from illumina_processor import (ProjectData, ProjectError)
+from illumina_processor import (illumina, ProjectData, ProjectError)
 from illumina_processor.illumina.run import Run
 from illumina_processor.illumina.alignment import Alignment
 
