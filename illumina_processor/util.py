@@ -13,6 +13,10 @@ def slugify(text, mask="_"):
 def datestamp(dateobj):
     return(dateobj.strftime("%Y-%m-%d"))
 
+def touch(path):
+    mkparent(path)
+    Path(path).touch()
+
 def mkparent(path):
     parent = Path(path).parent
     os.makedirs(parent, exist_ok=True)

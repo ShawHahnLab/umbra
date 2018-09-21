@@ -4,6 +4,12 @@ import yaml
 import traceback
 from zipfile import ZipFile
 import subprocess
+from Bio import SeqIO
+import warnings
+from tempfile import TemporaryDirectory
+# requires on PATH:
+#  * cutadapt
+#  * spades.py
 
 class ProjectError(Exception):
     """Any sort of project-related exception."""
@@ -39,6 +45,7 @@ class ProjectData:
     TASK_ASSEMBLE = "assemble" # contig assembly
     TASK_PACKAGE  = "package"  # package in zip file
     TASK_UPLOAD   = "upload"   # upload to Box
+    TASK_EMAIL    = "email"    # email contacts
 
     # Adding an explicit order and dependencies.
     TASKS = [
@@ -48,10 +55,12 @@ class ProjectData:
             TASK_MERGE,
             TASK_ASSEMBLE,
             TASK_PACKAGE,
-            TASK_UPLOAD
+            TASK_UPLOAD,
+            TASK_EMAIL
             ]
 
     TASK_DEPS = {
+            TASK_EMAIL: [TASK_UPLOAD],
             TASK_UPLOAD: [TASK_PACKAGE],
             TASK_MERGE: [TASK_TRIM],
             TASK_ASSEMBLE: [TASK_MERGE],
@@ -59,8 +68,7 @@ class ProjectData:
 
     # We'll always include these tasks:
     TASK_DEFAULTS = [
-            TASK_PACKAGE,
-            TASK_UPLOAD
+            TASK_EMAIL
             ]
 
     # If nothing else is given, this will be added:
@@ -108,11 +116,19 @@ class ProjectData:
                 projects.add(proj)
         return(projects)
 
-    def __init__(self, name, path, dp_proc, dp_pack, alignment, exp_info_full, exp_path=None):
+    def __init__(self, name, path, dp_proc, dp_pack, alignment, exp_info_full,
+            exp_path=None,
+            threads=1):
 
         self.name = name
         self.alignment = alignment
         self.path = path # YAML metadata path
+        self.threads = threads # max threads to give tasks
+        # TODO phred score should really be a property of the Illumina
+        # alignment data, since it depends on the software generating the
+        # fastqs.
+        self.phred_offset = 33 # FASTQ quality score encoding offset
+
         self.metadata = {"status": ProjectData.NONE}
         self.readonly = self.path.exists()
         self.load_metadata()
@@ -232,7 +248,9 @@ class ProjectData:
     def load_metadata(self):
         try:
             with open(self.path) as f:
-                data = yaml.safe_load(f)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore",category=DeprecationWarning)
+                    data = yaml.safe_load(f)
         except FileNotFoundError:
             data = None
         else:
@@ -294,8 +312,105 @@ class ProjectData:
                         msg = "missing output file %s" % fastq_out
                         raise ProjectError(msg)
 
+    def _merged_path(self, path_fastq):
+        # Generalize R1/R2 to just "R" and replace extension with merged
+        # version.
+        pat = "(.*_L[0-9]+_)R[12](_001)\\.fastq\\.gz"
+        name = re.sub("\\.fastq\\.gz$", "", path_fastq.name)
+        name = re.sub(pat, "\\1R\\2.merged.fastq", path_fastq.name)
+        fastq_out = self.path_proc / "PairedReads" / name
+        mkparent(fastq_out)
+        return(fastq_out)
+
+    def _merge_pair(self, fq_out, fqs_in):
+        with open(fq_out, "w") as f_out, \
+                open(fqs_in[0], "r") as f_r1, \
+                open(fqs_in[1], "r") as f_r2:
+            r1 = SeqIO.parse(f_r1, "fastq")
+            r2 = SeqIO.parse(f_r2, "fastq")
+            for rec1, rec2 in zip(r1, r2):
+                SeqIO.write(rec1, f_out, "fastq")
+                SeqIO.write(rec2, f_out, "fastq")
+
+    def merge(self):
+        with open(self._log_path("merge"), "w") as f:
+            try:
+                for samp in self.sample_paths.keys():
+                    paths = self.sample_paths[samp]
+                    if len(paths) != 2:
+                        raise ProjectError("merging needs 2 files per sample")
+                    fqs_in = [self._trimmed_path(p) for p in paths]
+                    fq_out = self._merged_path(paths[0])
+                    self._merge_pair(fq_out, fqs_in)
+                    # Merge each file pair. If the expected output file is missing,
+                    # raise an exception.
+                    if not Path(fq_out).exists():
+                        msg = "missing output file %s" % fq_out
+                        raise ProjectError(msg)
+            except Exception as e:
+                msg = traceback.format_exc()
+                f.write(msg + "\n")
+                raise e
+
+    def _assemble_reads(self, fqs_in, dir_out, f_log):
+        """Assemble a pair of read files with SPAdes.
+        
+        This runs spades.py on a single sample, saving the output to a given
+        directory.  The contigs, if built, will be in contigs.fasta.  Spades
+        seems to crash a lot so if anything goes wrong we just create an empty
+        contigs.fasta in the directory and log the error."""
+        fp_out = dir_out / "contigs.fasta"
+        # Spades always fails for empty input, so we'll explicitly skip that
+        # case.  It might crash anyway, so we handle that below too.
+        if Path(fqs_in[0]).stat().st_size == 0:
+            s = tuple([str(s) for s in fqs_in])
+            f_log.write("Skipping assembly for empty files: %s, %s\n" % s)
+            f_log.write("creating placeholder contig file.\n")
+            touch(fp_out)
+            return
+        args = ["spades.py", "-1", fqs_in[0], "-2", fqs_in[1],
+                "-o", dir_out,
+                "-t", self.threads,
+                "--phred-offset", self.phred_offset]
+        args = [str(x) for x in args]
+        # spades tends to throw nonzero exit codes with short files, empty
+        # files, etc.   If something goes wrong during assembly we'll just make
+        # a stub file and move on.
+        try:
+            subprocess.run(args, stdout=f_log, stderr=f_log, check=True)
+        except subprocess.CalledProcessError:
+            f_log.write("spades exited with errors.\n")
+            f_log.write("creating placeholder contig file.\n")
+            touch(fp_out)
+
+    def _assembled_dir_path(self, path_fastq):
+        pat = "(.*_L[0-9]+_)R[12]?(_001)\\.fastq\\.gz"
+        name = re.sub("\\.fastq\\.gz$", "", path_fastq.name)
+        name = re.sub(pat, "\\1R\\2", path_fastq.name)
+        dir_out = self.path_proc / "assembled" / name
+        mkparent(dir_out)
+        return(dir_out)
+
     def assemble(self):
-        raise NotImplementedError("assemble")
+        """Assemble contigs from all samples.
+        
+        This handles de-novo assembly with Spades and some of our own
+        post-processing."""
+        with open(self._log_path("assemble"), "w") as f:
+            try:
+                for samp in self.sample_paths.keys():
+                    paths = self.sample_paths[samp]
+                    fqs_in = [self._trimmed_path(p) for p in paths]
+                    dir_out = self._assembled_dir_path(paths[0])
+                    self._assemble_reads(fqs_in, dir_out, f)
+                    # TODO the remaining steps from the original script:
+                    # filter contigs > 255 bases long
+                    # save as fastq (?)
+                    # what else?
+            except Exception as e:
+                msg = traceback.format_exc()
+                f.write(msg + "\n")
+                raise e
 
     def zip(self):
         """Create zipfile of processing directory and metadata."""
@@ -350,8 +465,10 @@ class ProjectData:
             tasks = ProjectData.TASK_NULL[:]
         tasks += ProjectData.TASK_DEFAULTS
         # Add in dependencies for any that exist.
-        deps = [ProjectData.TASK_DEPS.get(t, []) for t in tasks]
-        tasks = sum(deps, tasks)
+        deps = set()
+        for task in tasks:
+            deps.update(self._deps_for(task))
+        tasks += deps
         # Keep unique only.
         tasks = list(set(tasks))
         # order and verify.  We'll get a ValueError from index() if any of
@@ -359,6 +476,18 @@ class ProjectData:
         indexes = [ProjectData.TASKS.index(t) for t in tasks]
         tasks = [t for _,t in sorted(zip(indexes, tasks))]
         return(tasks)
+
+    def _deps_for(self, task, total=None):
+        """Get all dependent tasks (including indirect) for one task."""
+        # Set of all dependencies seen so far.
+        if not total:
+            total = set()
+        deps = ProjectData.TASK_DEPS.get(task, set())
+        for dep in deps:
+            if dep not in total:
+                total.update(self._deps_for(dep, total))
+            total.add(dep)
+        return(total)
 
     def _run_task(self, task):
         """Process the next pending task."""
@@ -389,6 +518,11 @@ class ProjectData:
 
         # Upload the zip archive to Box
         elif task == ProjectData.TASK_UPLOAD:
+            pass
+            #raise NotImplementedError(task)
+
+        # Email contacts with link to Box download
+        elif task == ProjectData.TASK_EMAIL:
             pass
             #raise NotImplementedError(task)
 
