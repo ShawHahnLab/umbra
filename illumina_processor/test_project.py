@@ -1,12 +1,25 @@
 #!/usr/bin/env python
-from test_util import *
-import hashlib
+"""
+Tests for ProjectData objects.
+
+These tests confirm that the portions of a run specific to a single project are
+processed as expected, including the trimming/merging/assembling tasks and
+calling external uploading/emailing functions (but not the outcome of those
+calls).  This does not handle anything to do with multithreading between
+multiple simultaneous projects, either; see test_illumina_processor.py for
+that.
+"""
+
+from test_common import *
 import gzip
 import warnings
 import yaml
 
 class TestProjectData(TestIlluminaProcessorBase):
-    """Main tests for ProjectData."""
+    """Main tests for ProjectData.
+    
+    This became unwieldy pretty fast.  Merge into TestProjectDataOneTask,
+    maybe."""
 
     def setUp(self):
         self.setUpTmpdir()
@@ -18,7 +31,8 @@ class TestProjectData(TestIlluminaProcessorBase):
                 self.path_exp,
                 self.path_status,
                 self.path_proc,
-                self.path_pack)
+                self.path_pack,
+                self.uploader)
         # switch to dictionary to make these easier to work with
         self.projs = {p.name: p for p in self.projs}
         self.exp_path = str(self.path_exp / "Partials_1_1_18" / "metadata.csv")
@@ -82,12 +96,12 @@ class TestProjectData(TestIlluminaProcessorBase):
                 "path": self.exp_path
                 }
         ts_str = {
-                "pending": ['trim', 'package', 'upload'],
+                "pending": ['trim', 'package', 'upload', 'email'],
                 "current": "",
                 "completed": []
                 }
         ts_se = {
-                "pending": ['copy', 'package', 'upload'],
+                "pending": ['copy', 'package', 'upload', 'email'],
                 "current": "",
                 "completed": []
                 }
@@ -97,6 +111,8 @@ class TestProjectData(TestIlluminaProcessorBase):
         md_str["task_status"] = ts_str
         md_se["task_status"] = ts_se
         md_str["status"] = "complete"
+        md_str["task_output"] = {}
+        md_se["task_output"] = {}
 
         fq = self.path_runs/"180101_M00000_0000_000000000-XXXXX/Data/Intensities/BaseCalls"
         fps = {
@@ -154,9 +170,13 @@ class TestProjectData(TestIlluminaProcessorBase):
 # Single-task ProjectData tests.
 
 class TestProjectDataOneTask(TestIlluminaProcessorBase):
-    """Base class for one-project-one-task tests."""
+    """Base class for one-project-one-task tests.
+    
+    This handles the noop case and can be subclassed for other cases."""
 
     def setUp(self):
+        if not hasattr(self, "task"):
+            self.task = "noop"
         self.setUpTmpdir()
         self.maxDiff = None
         # Expected and shared attributes
@@ -175,7 +195,8 @@ class TestProjectDataOneTask(TestIlluminaProcessorBase):
                 self.path_exp,
                 self.path_status,
                 self.path_proc,
-                self.path_pack).pop()
+                self.path_pack,
+                self.uploader).pop()
 
     def write_test_experiment(self):
         fieldnames = ["Sample_Name","Project","Contacts","Tasks"]
@@ -207,6 +228,42 @@ class TestProjectDataOneTask(TestIlluminaProcessorBase):
             qual = ("@" * len(seq)) + ("!" * (len(read)-len(seq)))
             with gzip.open(path, "wt") as gz:
                 gz.write(self.fake_fastq_entry(read, qual))
+
+    def expected_paths(self, suffix=".trimmed.fastq", r1only=False):
+        paths = []
+        for sample in self.sample_names:
+            i = self.alignment.sample_names.index(sample)
+            p = self.alignment.sample_files_for_num(i+1) # (1-indexed)
+            if r1only:
+                paths.append(re.sub("_R1_", "_R_", p[0]))
+            else:
+                paths.extend(p)
+        paths = [re.sub("\\.fastq\\.gz$", suffix, p) for p in paths]
+        paths = sorted(paths)
+        return(paths)
+
+    def check_log(self):
+        logpath = self.proj.path_proc / "logs" / ("log_"+self.task+".txt")
+        self.assertTrue(logpath.exists())
+
+    def check_zipfile(self, files_exp):
+        """Check that filenames are present in the zipfile.
+        
+        This will also check for the YAML metadata file in the expected hidden
+        location."""
+        # In the zipfile we should also find those same files.
+        with ZipFile(self.proj.path_pack, "r") as z:
+            info = z.infolist()
+            files = [i.filename for i in info]
+            for f in files_exp:
+                p = Path(self.proj.work_dir) / self.run.run_id / f
+                with self.subTest(p=p):
+                    self.assertIn(str(p), files)
+            # While we're at it let's check that a copy of the YAML metadata
+            # was put in the zip, too.  This is really more about task=package
+            # though.
+            p = Path(self.proj.work_dir) / ("." + self.proj.path.name)
+            self.assertIn(str(p), files)
 
     def test_attrs(self):
         s = self.path_status / self.run.run_id / "0"
@@ -257,16 +314,6 @@ class TestProjectDataOneTask(TestIlluminaProcessorBase):
         self.assertEqual(self.proj.task_current, "")
 
 
-class TestProjectDataNoop(TestProjectDataOneTask):
-    """ Test for single-task "noop".
-
-    Here nothing should happen except for the defaults."""
-
-    def setUp(self):
-        self.task = "noop"
-        super().setUp()
-
-
 class TestProjectDataCopy(TestProjectDataOneTask):
     """ Test for single-task "copy".
 
@@ -292,18 +339,7 @@ class TestProjectDataCopy(TestProjectDataOneTask):
         files_exp = sorted(files_in(self.run.path, "*"))
         files_obs = sorted(files_in(dirpath, "*/*"))
         self.assertEqual(files_obs, files_exp)
-        # In the zipfile we should also find those same files.
-        with ZipFile(self.proj.path_pack, "r") as z:
-            info = z.infolist()
-            files = [i.filename for i in info]
-            for f in files_exp:
-                p = Path(self.proj.work_dir) / self.run.run_id / f
-                self.assertIn(str(p), files)
-            # While we're at it let's check that a copy of the YAML metadata
-            # was put in the zip, too.  This is really more about task=package
-            # though.
-            p = Path(self.proj.work_dir) / ("." + self.proj.path.name)
-            self.assertIn(str(p), files)
+        self.check_zipfile(files_exp)
 
 
 class TestProjectDataTrim(TestProjectDataOneTask):
@@ -329,13 +365,7 @@ class TestProjectDataTrim(TestProjectDataOneTask):
         fastq_obs = [x.name for x in dirpath.glob("*.trimmed.fastq")]
         fastq_obs = sorted(fastq_obs)
         # What trimmed files do we expect for the sample names we have?
-        paths = []
-        for sample in self.sample_names:
-            i = self.alignment.sample_names.index(sample)
-            p = self.alignment.sample_files_for_num(i+1) # (1-indexed)
-            paths.extend(p)
-        paths = [re.sub("\\.fastq\\.gz$", ".trimmed.fastq", p) for p in paths]
-        fastq_exp = sorted(paths)
+        fastq_exp = self.expected_paths()
         # Now, do they match?
         self.assertEqual(fastq_obs, fastq_exp)
         # Was anything else in there?  Shouldn't be.
@@ -349,9 +379,7 @@ class TestProjectDataTrim(TestProjectDataOneTask):
             with open(fp, "r") as f:
                 seq_obs = f.readlines()[1].strip()
                 self.assertEqual(seq_obs, seq_exp)
-        # And a log file too.
-        logpath = self.proj.path_proc / "logs" / "log_trim.txt"
-        self.assertTrue(logpath.exists())
+        self.check_log()
 
 
 class TestProjectDataMerge(TestProjectDataOneTask):
@@ -381,14 +409,8 @@ class TestProjectDataMerge(TestProjectDataOneTask):
         fastq_obs = [x.name for x in dirpath.glob("*.merged.fastq")]
         fastq_obs = sorted(fastq_obs)
         # What merged files do we expect for the sample names we have?
-        paths = []
-        for sample in self.sample_names:
-            i = self.alignment.sample_names.index(sample)
-            p = self.alignment.sample_files_for_num(i+1) # (1-indexed)
-            paths.append(p[0])
-        paths = [re.sub("\\.fastq\\.gz$", ".merged.fastq", p) for p in paths]
-        paths = [re.sub("_R1_", "_R_", p) for p in paths]
-        fastq_exp = sorted(paths)
+        fastq_exp = self.expected_paths(".merged.fastq", r1only=True)
+        fastq_exp = [re.sub("_R1_", "_R_", p) for p in fastq_exp]
         # Now, do they match?
         self.assertEqual(fastq_obs, fastq_exp)
         # Was anything else in there?  Shouldn't be.
@@ -404,9 +426,8 @@ class TestProjectDataMerge(TestProjectDataOneTask):
             data = f.readlines()
             seq_obs = [data[i].strip() for i in [1,5]]
             self.assertEqual(seq_obs, seq_pair)
-        # And a log file too.
-        logpath = self.proj.path_proc / "logs" / "log_merge.txt"
-        self.assertTrue(logpath.exists())
+        self.check_log()
+
 
 class TestProjectDataMergeSingleEnded(TestProjectDataMerge):
     """ Test for single-task "merge" for a singled-ended Run.
@@ -450,19 +471,58 @@ class TestProjectDataAssemble(TestProjectDataOneTask):
         # we should have a true test but right now we get no contigs built.
         # Using a real run dir (see setUp above) to check it for now.
 
+        # We should have one file each in ContigsGeneious and CombinedGeneious
+        # per sample.
+        dirpath_contigs = self.proj.path_proc / "ContigsGeneious"
+        contigs_obs = [x.name for x in dirpath_contigs.glob("*.contigs.fastq")]
+        contigs_obs = sorted(contigs_obs)
+        dirpath_combo = self.proj.path_proc / "CombinedGeneious"
+        combo_obs = [x.name for x in dirpath_combo.glob("*.contigs_reads.fastq")]
+        combo_obs = sorted(combo_obs)
+        contigs_exp = self.expected_paths(".contigs.fastq", r1only=True)
+        combo_exp = self.expected_paths(".contigs_reads.fastq", r1only=True)
+        self.assertEqual(contigs_obs, contigs_exp)
+        self.assertEqual(combo_obs, combo_exp)
+        self.check_log()
+
 
 class TestProjectDataPackage(TestProjectDataOneTask):
-    # TODO test with tasks = package
-    # move in the YAML check from the Copy test.  This is a more appropriate
-    # location.
-    pass
+    """ Test for single-task "package".
+
+    This will barely do anything at all since only the project metadata file
+    will be included in the zip file. (TestProjectDataCopy actually makes for a
+    more thorough test.)
+    """
+
+    def setUp(self):
+        self.task = "package"
+        self.tasks_run = ["package", "upload", "email"]
+        super().setUp()
+
+    def test_process(self):
+        # The basic checks
+        super().test_process()
+        self.check_zipfile([])
 
 
 class TestProjectDataUpload(TestProjectDataOneTask):
-    # TODO test with tasks = upload 
-    # how to reasonably test this...?  Monkey-patch the uploader part to trick
-    # it?
-    pass
+    """ Test for single-task "upload".
+
+    The uploader here is a stub that just returns a fake URL, so this doesn't
+    test much, just that the URL is recorded as expected.
+    """
+
+    def setUp(self):
+        self.task = "upload"
+        self.tasks_run = ["package", "upload", "email"]
+        super().setUp()
+
+    def test_process(self):
+        # The basic checks
+        super().test_process()
+        # After processing, there should be a URL recorded for the upload task.
+        url_obs = self.proj.metadata["task_output"]["upload"]["url"]
+        self.assertEqual(url_obs[0:8], "https://")
 
 
 class TestProjectDataEmail(TestProjectDataOneTask):

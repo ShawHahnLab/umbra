@@ -76,7 +76,8 @@ class ProjectData:
             TASK_COPY
             ]
 
-    def from_alignment(alignment, path_exp, dp_align, dp_proc, dp_pack):
+    def from_alignment(alignment, path_exp, dp_align, dp_proc, dp_pack,
+            uploader):
         """Make dict of ProjectData objects from alignment/experiment table."""
         # Row by row, build up a dict for each unique project.  Even though
         # we're reading it in as a spreadsheet we'll treat most of this as
@@ -111,12 +112,14 @@ class ProjectData:
                         dp_pack,
                         alignment,
                         experiment_info,
+                        uploader,
                         exp_path)
                 proj.sample_paths = sample_paths
                 projects.add(proj)
         return(projects)
 
     def __init__(self, name, path, dp_proc, dp_pack, alignment, exp_info_full,
+            uploader,
             exp_path=None,
             threads=1):
 
@@ -124,6 +127,7 @@ class ProjectData:
         self.alignment = alignment
         self.path = path # YAML metadata path
         self.threads = threads # max threads to give tasks
+        self.uploader = uploader # callback to upload zip file
         # TODO phred score should really be a property of the Illumina
         # alignment data, since it depends on the software generating the
         # fastqs.
@@ -287,10 +291,13 @@ class ProjectData:
         dest = str(self.path_proc / self.alignment.run.run_id)
         copy_tree(src, dest)
 
-    def task_path(self, readfile, subdir, suffix=""):
+    def task_path(self, readfile, subdir, suffix="", r1only=True):
         """Give readfile-related path, following the originals' name."""
-        pat = "(.*_L[0-9]+_)R[12](_001)\\.fastq\\.gz"
-        name = re.sub(pat, "\\1R\\2" + suffix, readfile.name)
+        pat = "(.*_L[0-9]+_)R([12])(_001)\\.fastq\\.gz"
+        if r1only:
+            name = re.sub(pat, "\\1R\\3" + suffix, readfile.name)
+        else:
+            name = re.sub(pat, "\\1R\\2\\3" + suffix, readfile.name)
         fastq_out = self.path_proc / subdir / name
         mkparent(fastq_out)
         return(fastq_out)
@@ -313,7 +320,8 @@ class ProjectData:
                     fastq_in = str(paths[i])
                     fastq_out = self.task_path(paths[i],
                             "trimmed",
-                            ".trimmed.fastq")
+                            ".trimmed.fastq",
+                            r1only=False)
                     args = ["cutadapt", "-a", adapter, "-o", fastq_out, fastq_in]
                     # Call cutadapt with each file.  If the exit status is
                     # nonzero or if the expected output file is missing, raise
@@ -324,16 +332,6 @@ class ProjectData:
                         raise ProjectError(msg)
 
     ### Merge
-
-    def _merged_path(self, path_fastq):
-        # Generalize R1/R2 to just "R" and replace extension with merged
-        # version.  This is more specialized than task_path() allows currently. 
-        pat = "(.*_L[0-9]+_)R[12](_001)\\.fastq\\.gz"
-        name = re.sub("\\.fastq\\.gz$", "", path_fastq.name)
-        name = re.sub(pat, "\\1R\\2.merged.fastq", path_fastq.name)
-        fastq_out = self.path_proc / "PairedReads" / name
-        mkparent(fastq_out)
-        return(fastq_out)
 
     def _merge_pair(self, fq_out, fqs_in):
         with open(fq_out, "w") as f_out, \
@@ -352,9 +350,11 @@ class ProjectData:
                     paths = self.sample_paths[samp]
                     if len(paths) != 2:
                         raise ProjectError("merging needs 2 files per sample")
-                    tp = lambda p: self.task_path(p, "trimmed", ".trimmed.fastq")
+                    tp = lambda p: self.task_path(p, "trimmed", ".trimmed.fastq", r1only=False)
                     fqs_in = [tp(p) for p in paths]
-                    fq_out = self._merged_path(paths[0])
+                    fq_out = self.task_path(paths[0],
+                            "PairedReads",
+                            ".merged.fastq")
                     self._merge_pair(fq_out, fqs_in)
                     # Merge each file pair. If the expected output file is missing,
                     # raise an exception.
@@ -437,7 +437,9 @@ class ProjectData:
                     # Set up paths to use
                     paths = self.sample_paths[samp]
                     r1 = paths[0]
-                    fq_merged = self._merged_path(r1)
+                    fq_merged = self.task_path(r1,
+                            "PairedReads",
+                            ".merged.fastq")
                     fq_contigs = self.task_path(r1,
                             "ContigsGeneious",
                             ".contigs.fastq")
@@ -569,9 +571,8 @@ class ProjectData:
 
         # Upload the zip archive to Box
         elif task == ProjectData.TASK_UPLOAD:
-            # TODO put URL in this dict
-            self.metadata["task_output"][task] = {}
-            #raise NotImplementedError(task)
+            url = self.uploader(path = self.path_pack)
+            self.metadata["task_output"][task] = {"url": url}
 
         # Email contacts with link to Box download
         elif task == ProjectData.TASK_EMAIL:

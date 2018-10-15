@@ -1,3 +1,7 @@
+"""
+Common test code shared with the real tests.  Not much to see here.
+"""
+
 import unittest
 from tempfile import TemporaryDirectory
 from distutils.dir_util import copy_tree, remove_tree, mkpath
@@ -6,6 +10,7 @@ from pathlib import Path
 import re
 import csv
 from zipfile import ZipFile
+import hashlib
 
 # TODO fix this
 import sys
@@ -46,3 +51,16 @@ class TestIlluminaProcessorBase(unittest.TestCase):
 
     def tearDownTmpdir(self):
         self.tmpdir.cleanup()
+
+    def uploader(self, path):
+        """Mock of Box uploader function.
+        
+        This generates a Box-like URL for a supposedly-successful upload."""
+        prefix = "https://domain.box.com/shared/static/"
+        # Box uses 32 lowercase alphanumeric characters (a-z, 0-9).  Not sure
+        # what its method is but I'll just do an md5sum here.
+        checksum = "c9qce8ormkrma3yiy4t009ej9socz2xo"
+        checksum = hashlib.md5(Path(path).name.encode("utf-8")).hexdigest()
+        suffix = Path(path).suffix
+        url = prefix + checksum + suffix
+        return(url)

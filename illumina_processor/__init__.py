@@ -27,6 +27,14 @@ class IlluminaProcessor:
         self._init_data()
         self._init_job_queue()
         self._init_completion_queue()
+        # If a path to Box credentials was supplied, use a real uploader.
+        # Otherwise just use a stub.
+        path = config.get("box_credentials_path")
+        if path and Path(path).exists():
+            self.box = BoxUploader(path)
+            self.uploader = self.box.upload
+        else:
+            self.uploader = lambda path: "https://"+str(path)
 
     def __del__(self):
         self.wait_for_jobs()
@@ -158,7 +166,8 @@ class IlluminaProcessor:
                 self.path_exp,
                 self.path_status,
                 self.path_proc,
-                self.path_pack)
+                self.path_pack,
+                self.uploader)
         for proj in projs:
             if proj.readonly:
                 self.projects["inactive"].add(proj)

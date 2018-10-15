@@ -1,6 +1,13 @@
 #!/usr/bin/env python
+"""
+Tests for IlluminaProcessor objects.
 
-from test_util import *
+These tests confirm that an IlluminaProcessor handles newly-arriving run data
+correctly, dispatches processing to appropriate ProjectData objects, and
+coordinates simultaneous processing between multiple projects.
+"""
+
+from test_common import *
 
 class TestIlluminaProcessor(TestIlluminaProcessorBase):
     """Main tests for IlluminaProcessor."""
