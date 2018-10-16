@@ -29,7 +29,7 @@ class IlluminaProcessor:
         self._init_completion_queue()
         # If a path to Box credentials was supplied, use a real uploader.
         # Otherwise just use a stub.
-        path = config.get("box_credentials_path")
+        path = config.get("box", {}).get("credentials_path")
         if path and Path(path).exists():
             self.box = BoxUploader(path)
             self.uploader = self.box.upload

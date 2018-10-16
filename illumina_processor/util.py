@@ -3,6 +3,8 @@ from pathlib import Path
 import re
 import os
 import time
+import warnings
+import yaml
 from . import illumina
 from distutils.dir_util import copy_tree
 
@@ -26,3 +28,10 @@ def touch(path):
 def mkparent(path):
     parent = Path(path).parent
     os.makedirs(parent, exist_ok=True)
+
+def yaml_load(path):
+    with open(path) as f:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore",category=DeprecationWarning)
+            data = yaml.safe_load(f)
+    return(data)
