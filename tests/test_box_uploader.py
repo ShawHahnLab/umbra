@@ -10,7 +10,7 @@ from test_common import *
 import urllib.request
 from illumina_processor.box_uploader import BoxUploader
 
-config = test_config.get("box", {})
+config = CONFIG.get("box", {})
 
 class TestBoxUploader(unittest.TestCase):
 

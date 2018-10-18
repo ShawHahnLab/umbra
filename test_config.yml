@@ -1,4 +1,7 @@
 box:
+  skip: True
   credentials_path: "" # path to Box credentials YAML file
   folder_id: 0 # test folder to use
   strict_auth: True # don't hang on credentials setup
+mailer:
+  skip: True

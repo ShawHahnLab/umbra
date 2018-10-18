@@ -20,12 +20,14 @@ from illumina_processor import (illumina, ProjectData, ProjectError, util)
 from illumina_processor.illumina.run import Run
 from illumina_processor.illumina.alignment import Alignment
 
-PATH_ROOT = Path(__file__).parent/".."/"testdata"
+PATH_ROOT = Path(__file__).parent / ".."
+PATH_DATA = PATH_ROOT / "testdata"
+PATH_CONFIG = PATH_ROOT / "test_config.yml"
 
 # Wait for enter key before removing tempdir on each test?
 TMP_PAUSE = False
 
-test_config = util.yaml_load("test_config.yml")
+CONFIG = util.yaml_load(PATH_CONFIG)
 
 def md5(text):
     """MD5 Checksum of the given text."""
@@ -47,7 +49,7 @@ class TestBase(unittest.TestCase):
     def setUpTmpdir(self):
         # Make a full copy of the testdata to a temporary location
         self.tmpdir = TemporaryDirectory()
-        copy_tree(PATH_ROOT, self.tmpdir.name)
+        copy_tree(PATH_DATA, self.tmpdir.name)
         self.path = Path(self.tmpdir.name)
         self.path_runs   = Path(self.tmpdir.name) / "runs"
         self.path_exp    = Path(self.tmpdir.name) / "experiments"

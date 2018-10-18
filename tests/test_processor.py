@@ -15,7 +15,7 @@ class TestIlluminaProcessor(TestBase):
     def setUp(self):
         self.setUpTmpdir()
         # Create an IlluminaProcessor using the temp files
-        self.proc = illumina_processor.IlluminaProcessor(self.path)
+        self.proc = illumina_processor.IlluminaProcessor(self.path, CONFIG)
         self.num_runs = 4
 
     def _proj_names(self, category):
@@ -123,7 +123,7 @@ class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
         run_dup = str(self.path_runs/"run-files-custom-name")
         copy_tree(run_orig, run_dup)
         # Create an IlluminaProcessor using the temp files
-        self.proc = illumina_processor.IlluminaProcessor(self.path)
+        self.proc = illumina_processor.IlluminaProcessor(self.path, CONFIG)
         # including one run that's a duplicate, but it should not become active
         # when the project data is loaded.
         self.num_runs = 5

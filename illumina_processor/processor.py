@@ -35,21 +35,30 @@ class IlluminaProcessor:
             self.box = BoxUploader(path, config_box)
             self.uploader = self.box.upload
         else:
-            self.logger.warning("No Box configuration given; skipping uploads.")
+            msg = "No Box configuration given; skipping uploads."
+            if config_box.get("skip"):
+                self.logger.debug(msg)
+            else:
+                self.logger.warning(msg)
             self.uploader = lambda path: "https://"+str(path)
         # If mail-sending options were specified, use a real mailer.
         # Otherwise just use a stub.
         # Options can be listed as a separate credentials file or just inline.
-        path = config.get("mailer", {}).get("credentials_path")
+        config_mail = config.get("mailer", {})
+        path = config_mail.get("credentials_path")
         if path and Path(path).exists():
             creds = yaml_load(path)
             self.mailerobj = Mailer(**creds)
             self.mailer = self.mailerobj.mail
-        elif config.get("mailer"):
-            self.mailerobj = Mailer(**config.get("mailer"))
+        elif config_mail and not config_mail.get("skip"):
+            self.mailerobj = Mailer(**config_mail)
             self.mailer = self.mailerobj.mail
         else:
-            self.logger.warning("No Mailer configuration given; skipping emails.")
+            msg = "No Mailer configuration given; skipping emails."
+            if config_mail.get("skip"):
+                self.logger.debug(msg)
+            else:
+                self.logger.warning(msg)
             self.mailer = lambda *args, **kwargs: None
         self.logger.debug("IlluminaProcessor initialized.")
 
