@@ -12,7 +12,7 @@ import os
 import smtpd
 import asyncore
 import threading
-from illumina_processor import Mailer
+from illumina_processor.mailer import Mailer
 
 
 class StubSMTP(smtpd.SMTPServer):

@@ -128,6 +128,7 @@ class ProjectData:
             exp_path=None,
             threads=1):
 
+        self.logger = logging.getLogger(__name__)
         self.name = name
         self.alignment = alignment
         self.path = path # YAML metadata path
@@ -162,6 +163,7 @@ class ProjectData:
         self.path_pack = Path(dp_pack) / (self.work_dir + ".zip")
         if not self.readonly:
             self.save_metadata()
+        self.logger.info("ProjectData initialized: %s" % self.work_dir)
 
     @property
     def status(self):
@@ -240,6 +242,7 @@ class ProjectData:
         
         This function will block until processing is complete.  Calling process
         if readyonly=True raises ProjectError."""
+        self.logger.info("ProjectData processing: %s" % self.work_dir)
         if self.readonly:
             raise ProjectError("ProjectData is read-only")
         self.status = ProjectData.PROCESSING
@@ -578,6 +581,9 @@ class ProjectData:
 
     def _run_task(self, task):
         """Process the next pending task."""
+
+        msg = "ProjectData processing: %s, task: %s" % (self.work_dir, task)
+        self.logger.debug(msg)
 
         self.metadata["task_output"][task] = {}
         

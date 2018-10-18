@@ -8,7 +8,7 @@ live test will be run, over the Box API.  Otherwise Box tests are skipped.
 
 from test_common import *
 import urllib.request
-from illumina_processor import BoxUploader
+from illumina_processor.box_uploader import BoxUploader
 
 config = test_config.get("box", {})
 

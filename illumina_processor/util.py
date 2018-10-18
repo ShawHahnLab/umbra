@@ -4,9 +4,10 @@ import re
 import os
 import time
 import warnings
+import logging
 import yaml
-from . import illumina
 from distutils.dir_util import copy_tree
+from . import illumina
 
 def slugify(text, mask="_"):
     pat = "[^A-Za-z0-9-_]"
@@ -35,3 +36,11 @@ def yaml_load(path):
             warnings.filterwarnings("ignore",category=DeprecationWarning)
             data = yaml.safe_load(f)
     return(data)
+
+def config_load(path):
+    if not Path(path).exists():
+        raise ValueError("Configuration file not found: %s" % str(path))
+    config = yaml_load(path)
+    if not config.get("paths", {}).get("root"):
+        raise ValueError("Configuration requires a root path")
+    return(config)

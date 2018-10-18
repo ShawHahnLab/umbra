@@ -1,7 +1,6 @@
 from .util import *
 import datetime
 import subprocess
-import logging
 
 import boxsdk
 from boxsdk.exception import BoxAPIException
