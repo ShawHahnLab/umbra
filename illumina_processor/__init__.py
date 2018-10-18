@@ -8,6 +8,7 @@ import signal
 from .util import *
 from .project import *
 from .box_uploader import BoxUploader
+from .mailer import Mailer
 from .illumina import run
 
 class IlluminaProcessor:
