@@ -20,7 +20,7 @@ from illumina_processor import (illumina, ProjectData, ProjectError, util)
 from illumina_processor.illumina.run import Run
 from illumina_processor.illumina.alignment import Alignment
 
-PATH_ROOT = Path(__file__).parent / "testdata"
+PATH_ROOT = Path(__file__).parent/".."/"testdata"
 
 # Wait for enter key before removing tempdir on each test?
 TMP_PAUSE = False
