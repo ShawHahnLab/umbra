@@ -9,7 +9,7 @@ coordinates simultaneous processing between multiple projects.
 
 from test_common import *
 
-class TestIlluminaProcessor(TestIlluminaProcessorBase):
+class TestIlluminaProcessor(TestBase):
     """Main tests for IlluminaProcessor."""
 
     def setUp(self):

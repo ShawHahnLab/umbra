@@ -31,7 +31,7 @@ def md5(text):
     """MD5 Checksum of the given text."""
     return(hashlib.md5(text.encode("utf-8")).hexdigest())
 
-class TestIlluminaProcessorBase(unittest.TestCase):
+class TestBase(unittest.TestCase):
     """Some setup/teardown shared with the real test classes."""
 
     def setUp(self):

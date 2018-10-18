@@ -7,7 +7,6 @@ live test will be run, over the Box API.  Otherwise Box tests are skipped.
 """
 
 from test_common import *
-import logging
 import urllib.request
 from illumina_processor import BoxUploader
 
@@ -38,6 +37,7 @@ class TestBoxUploader(unittest.TestCase):
         with urllib.request.urlopen(url) as f:
             data_obs = f.read()
         self.assertEqual(data_obs, data_exp)
+
 
 if __name__ == '__main__':
     unittest.main()

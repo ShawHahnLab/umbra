@@ -43,6 +43,7 @@ class ProjectData:
     TASK_TRIM     = "trim"     # trip adapters
     TASK_MERGE    = "merge"    # interleave trimmed R1/R2 reads
     TASK_ASSEMBLE = "assemble" # contig assembly
+    TASK_MANUAL   = "manual"   # manual intervention step
     TASK_PACKAGE  = "package"  # package in zip file
     TASK_UPLOAD   = "upload"   # upload to Box
     TASK_EMAIL    = "email"    # email contacts
@@ -54,6 +55,7 @@ class ProjectData:
             TASK_TRIM,
             TASK_MERGE,
             TASK_ASSEMBLE,
+            TASK_MANUAL,
             TASK_PACKAGE,
             TASK_UPLOAD,
             TASK_EMAIL
@@ -241,6 +243,7 @@ class ProjectData:
         if self.readonly:
             raise ProjectError("ProjectData is read-only")
         self.status = ProjectData.PROCESSING
+        self.path_proc.mkdir(parents=True, exist_ok=True)
         ts = self.metadata["task_status"]
         while self.tasks_pending: 
             if self.task_current:
@@ -506,7 +509,7 @@ class ProjectData:
         html += "\n<a href='%s'>%s</a>\n" % (url, url)
         # Send
         kwargs = {
-                "to_addrs": self._format_contacts(contacts),
+                "to_addrs": contacts,
                 "subject": subject,
                 "msg_body": body,
                 "msg_html": html
@@ -575,35 +578,38 @@ class ProjectData:
 
     def _run_task(self, task):
         """Process the next pending task."""
+
+        self.metadata["task_output"][task] = {}
         
         # No-op: do nothing!
         if task == ProjectData.TASK_NOOP:
-            self.metadata["task_output"][task] = {}
+            pass
 
         # Copy run directory to within processing directory
         elif task == ProjectData.TASK_COPY:
             self.copy_run()
-            self.metadata["task_output"][task] = {}
 
         # Run cutadapt to trim the Illumina adapters
         elif task == ProjectData.TASK_TRIM:
             self.trim()
-            self.metadata["task_output"][task] = {}
 
         # Interleave the read pairs
         elif task == ProjectData.TASK_MERGE:
             self.merge()
-            self.metadata["task_output"][task] = {}
 
         # Run SPAdes to assemble contigs from the interleaved files
         elif task == ProjectData.TASK_ASSEMBLE:
             self.assemble()
-            self.metadata["task_output"][task] = {}
+
+        # Wait for a "Manual" subdirectory to appear in the processing
+        # directory.
+        elif task == ProjectData.TASK_MANUAL:
+            while not (self.path_proc / "Manual").exists():
+                time.sleep(1)
 
         # Zip up all files in the processing directory
         elif task == ProjectData.TASK_PACKAGE:
             self.zip()
-            self.metadata["task_output"][task] = {}
 
         # Upload the zip archive to Box
         elif task == ProjectData.TASK_UPLOAD:
@@ -612,7 +618,6 @@ class ProjectData:
 
         # Email contacts with link to Box download
         elif task == ProjectData.TASK_EMAIL:
-            self.metadata["task_output"][task] = {}
             self.send_email()
 
         # This should never happen (so it probably will).

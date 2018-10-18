@@ -14,8 +14,10 @@ from test_common import *
 import gzip
 import warnings
 import yaml
+import threading
+import time
 
-class TestProjectData(TestIlluminaProcessorBase):
+class TestProjectData(TestBase):
     """Main tests for ProjectData.
     
     This became unwieldy pretty fast.  Merge into TestProjectDataOneTask,
@@ -170,7 +172,7 @@ class TestProjectData(TestIlluminaProcessorBase):
 
 # Single-task ProjectData tests.
 
-class TestProjectDataOneTask(TestIlluminaProcessorBase):
+class TestProjectDataOneTask(TestBase):
     """Base class for one-project-one-task tests.
     
     This handles the noop case and can be subclassed for other cases."""
@@ -488,6 +490,28 @@ class TestProjectDataAssemble(TestProjectDataOneTask):
         self.check_log()
 
 
+class TestProjectDataManual(TestProjectDataOneTask):
+    """ Test for single-task "manual".
+
+    Test that a ProjectData with a manual task specified will wait until a
+    marker appears and then will continue processing.
+    """
+
+    def setUp(self):
+        self.task = "manual"
+        self.tasks_run = ["manual", "package", "upload", "email"]
+        super().setUp()
+
+    def finish_manual(self):
+        (self.proj.path_proc / "Manual").mkdir()
+
+    def test_process(self):
+        # It should finish as long as it finds the Manual directory
+        t = threading.Timer(1, self.finish_manual)
+        t.start()
+        super().test_process()
+
+
 class TestProjectDataPackage(TestProjectDataOneTask):
     """ Test for single-task "package".
 
@@ -576,20 +600,20 @@ class TestProjectDataBlank(TestProjectDataOneTask):
 
 # Other ProjectData test cases
 
-class TestProjectDataFailure(TestIlluminaProcessorBase):
+class TestProjectDataFailure(TestBase):
     # TODO test the case of a failure during processing.  An Exception should
     # be raised but also logged to the ProjectData object and updated on disk.
     pass
 
 
-class TestProjectDataBlank(TestIlluminaProcessorBase):
+class TestProjectDataBlank(TestBase):
 
     # TODO test the case of having a blank in the project column.  The run ID
     # should be used instead.
     pass
 
 
-class TestProjectDataAlreadyProcessing(TestIlluminaProcessorBase):
+class TestProjectDataAlreadyProcessing(TestBase):
 
     # TODO test the case of having a project whose existing metadata points to
     # an already-running process.  We should abort in that case.
