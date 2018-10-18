@@ -32,7 +32,8 @@ class TestProjectData(TestIlluminaProcessorBase):
                 self.path_status,
                 self.path_proc,
                 self.path_pack,
-                self.uploader)
+                self.uploader,
+                self.mailer)
         # switch to dictionary to make these easier to work with
         self.projs = {p.name: p for p in self.projs}
         self.exp_path = str(self.path_exp / "Partials_1_1_18" / "metadata.csv")
@@ -196,7 +197,8 @@ class TestProjectDataOneTask(TestIlluminaProcessorBase):
                 self.path_status,
                 self.path_proc,
                 self.path_pack,
-                self.uploader).pop()
+                self.uploader,
+                self.mailer).pop()
 
     def write_test_experiment(self):
         fieldnames = ["Sample_Name","Project","Contacts","Tasks"]
@@ -526,10 +528,36 @@ class TestProjectDataUpload(TestProjectDataOneTask):
 
 
 class TestProjectDataEmail(TestProjectDataOneTask):
-    # TODO test with task = email
-    # This should use some sort of mock-up to make sure the email function is
-    # called as expected
-    pass
+    """ Test for single-task "upload".
+
+    The mailer here is a stub that just records the email parameters given to
+    it, so this doesn't test much, just that the message was constructed as
+    expected.
+    """
+
+    def setUp(self):
+        self.task = "email"
+        self.tasks_run = ["package", "upload", "email"]
+        super().setUp()
+
+    def test_process(self):
+        # The basic checks
+        super().test_process()
+        # After processing, there should be an email "sent" with the expected
+        # attributes.  Using MD5 checksums on message text/html since it's a
+        # bit bulky.
+        email_obs = self.mails
+        self.assertEqual(len(email_obs), 1)
+        m = email_obs[0]
+        keys_exp = ["msg_body", "msg_html", "subject", "to_addrs"]
+        self.assertEqual(sorted(m.keys()), keys_exp)
+        subject_exp = "Illumina Run Processing Complete for %s" % \
+            self.proj.work_dir
+        to_addrs_exp = ["<Name Lastname> name@example.com"]
+        self.assertEqual(md5(m["msg_body"]), "59ef8e2e67ebe6f8d7e012c128fd22b6")
+        self.assertEqual(md5(m["msg_html"]), "01090f302424847ca0d47c4fefe83f0f")
+        self.assertEqual(m["subject"], subject_exp)
+        self.assertEqual(m["to_addrs"], to_addrs_exp)
 
 
 class TestProjectDataEmailNocontacts(TestProjectDataOneTask):

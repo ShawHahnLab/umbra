@@ -21,7 +21,7 @@ class Mailer:
     can be customized."""
     
     def __init__(self, host="localhost", port=25,
-            ssl=False, auth=False, user=None, password=None):
+            ssl=False, auth=False, user=None, password=None, from_addr=None):
         """Configure connection details for sending mail over SMTP."""
         self.host = host
         self.port = port
@@ -29,6 +29,7 @@ class Mailer:
         self.auth = auth
         self.__user = user
         self.__password = password
+        self.from_addr = from_addr
 
     def mail(self, to_addrs, subject, msg_body, msg_html=None, from_addr=None):
         """Send a message.
@@ -37,6 +38,9 @@ class Mailer:
         for the object), format and send a single message, and disconnect."""
         if isinstance(to_addrs, str):
             to_addrs = [to_addrs]
+        # From address can be set already or given here.  Either way, if it was
+        # not defined, construct a From address from user and network details.
+        from_addr = from_addr or self.from_addr
         if not from_addr:
             name = self.__user or get_username()
             if "@" in name:

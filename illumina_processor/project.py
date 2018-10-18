@@ -77,7 +77,8 @@ class ProjectData:
             ]
 
     def from_alignment(alignment, path_exp, dp_align, dp_proc, dp_pack,
-            uploader):
+            uploader,
+            mailer):
         """Make dict of ProjectData objects from alignment/experiment table."""
         # Row by row, build up a dict for each unique project.  Even though
         # we're reading it in as a spreadsheet we'll treat most of this as
@@ -113,6 +114,7 @@ class ProjectData:
                         alignment,
                         experiment_info,
                         uploader,
+                        mailer,
                         exp_path)
                 proj.sample_paths = sample_paths
                 projects.add(proj)
@@ -120,6 +122,7 @@ class ProjectData:
 
     def __init__(self, name, path, dp_proc, dp_pack, alignment, exp_info_full,
             uploader,
+            mailer,
             exp_path=None,
             threads=1):
 
@@ -128,6 +131,7 @@ class ProjectData:
         self.path = path # YAML metadata path
         self.threads = threads # max threads to give tasks
         self.uploader = uploader # callback to upload zip file
+        self.mailer = mailer # callback to send email
         # TODO phred score should really be a property of the Illumina
         # alignment data, since it depends on the software generating the
         # fastqs.
@@ -477,6 +481,38 @@ class ProjectData:
             arcname = Path(self.path_proc.name) / ("." + str(filename.name))
             z.write(filename, arcname)
 
+
+    ### Mail
+
+    def send_email(self):
+        """Send notfication email for a finished ProjectData."""
+        # Gather fields to fill in for the message
+        # (The name prefix is considered OK by RFC822, so we should be able to
+        # leave that intact for both the sending part and the "To:" field.)
+        contacts = self.metadata["experiment_info"]["contacts"]
+        contacts = ["<%s> %s" % (k, contacts[k]) for k in contacts]
+        url = self.metadata["task_output"].get("upload", {}).get("url", "")
+        subject = "Illumina Run Processing Complete for %s" % self.work_dir
+        # Build message text and html
+        body = "Hello,\n\n"
+        body += "Illumina run processing is complete for %s\n" % self.work_dir
+        body += "and a zip file with results can be downloaded from this url:\n"
+        body += "\n%s\n" % url
+        html = "Hello,\n"
+        html += "<br><br>\n\n"
+        html += "Illumina run processing is complete for %s\n" % self.work_dir
+        html += "and a zip file with results can be downloaded from this url:\n"
+        html += "<br><br>\n"
+        html += "\n<a href='%s'>%s</a>\n" % (url, url)
+        # Send
+        kwargs = {
+                "to_addrs": self._format_contacts(contacts),
+                "subject": subject,
+                "msg_body": body,
+                "msg_html": html
+                }
+        self.mailer(**kwargs)
+
     ###### Implementation Details
 
     def _setup_exp_info(self, exp_info_full):
@@ -577,7 +613,7 @@ class ProjectData:
         # Email contacts with link to Box download
         elif task == ProjectData.TASK_EMAIL:
             self.metadata["task_output"][task] = {}
-            #raise NotImplementedError(task)
+            self.send_email()
 
         # This should never happen (so it probably will).
         else:

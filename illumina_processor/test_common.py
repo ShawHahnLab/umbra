@@ -27,10 +27,15 @@ TMP_PAUSE = False
 
 test_config = util.yaml_load("test_config.yml")
 
+def md5(text):
+    """MD5 Checksum of the given text."""
+    return(hashlib.md5(text.encode("utf-8")).hexdigest())
+
 class TestIlluminaProcessorBase(unittest.TestCase):
     """Some setup/teardown shared with the real test classes."""
 
     def setUp(self):
+        self.mails = []
         self.setUpTmpdir()
 
     def tearDown(self):
@@ -62,7 +67,17 @@ class TestIlluminaProcessorBase(unittest.TestCase):
         # Box uses 32 lowercase alphanumeric characters (a-z, 0-9).  Not sure
         # what its method is but I'll just do an md5sum here.
         checksum = "c9qce8ormkrma3yiy4t009ej9socz2xo"
-        checksum = hashlib.md5(Path(path).name.encode("utf-8")).hexdigest()
+        #checksum = hashlib.md5(Path(path).name.encode("utf-8")).hexdigest()
+        checksum = md5(Path(path).name)
         suffix = Path(path).suffix
         url = prefix + checksum + suffix
         return(url)
+
+    def mailer(self, **kwargs):
+        """Mock of Mailer.mail function.
+        
+        This accepts email parameters and just stores them."""
+        if not hasattr(self, "mails"):
+            self.mails = []
+        self.mails.append(kwargs)
+        return(kwargs)

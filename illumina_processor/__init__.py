@@ -36,6 +36,19 @@ class IlluminaProcessor:
             self.uploader = self.box.upload
         else:
             self.uploader = lambda path: "https://"+str(path)
+        # If mail-sending options were specified, use a real mailer.
+        # Otherwise just use a stub.
+        # Options can be listed as a separate credentials file or just inline.
+        path = config.get("mailer", {}).get("credentials_path")
+        if path and Path(path).exists():
+            creds = yaml_load(path)
+            self.mailerobj = Mailer(**creds)
+            self.mailer = self.mailerobj.mail
+        elif config.get("mailer"):
+            self.mailerobj = Mailer(**config.get("mailer"))
+            self.mailer = self.mailerobj.mail
+        else:
+            self.mailer = lambda *args, **kwargs: None
 
     def __del__(self):
         self.wait_for_jobs()
@@ -168,7 +181,8 @@ class IlluminaProcessor:
                 self.path_status,
                 self.path_proc,
                 self.path_pack,
-                self.uploader)
+                self.uploader,
+                self.mailer)
         for proj in projs:
             if proj.readonly:
                 self.projects["inactive"].add(proj)
