@@ -4,6 +4,7 @@
 # this stuff.
 
 from .util import *
+from . import run
 
 adapters = {
         "Nextera": [

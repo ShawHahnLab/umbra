@@ -6,7 +6,7 @@ If a file with real Box API credentials are supplied via the configuration, a
 live test will be run, over the Box API.  Otherwise Box tests are skipped.
 """
 
-from test_common import *
+from .test_common import *
 import urllib.request
 from illumina_processor.box_uploader import BoxUploader
 

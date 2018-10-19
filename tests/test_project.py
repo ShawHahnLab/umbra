@@ -10,7 +10,7 @@ multiple simultaneous projects, either; see test_illumina_processor.py for
 that.
 """
 
-from test_common import *
+from .test_common import *
 import gzip
 import warnings
 import yaml
@@ -58,11 +58,11 @@ class TestProjectData(TestBase):
         works = {
                 # The date stamp is by completion date of the alignment, not
                 # start date of the run (i.e., the date encoded in the Run ID).
-                "STR": "2018-01-02-STR-Jesse",
+                "STR": "2018-01-01-STR-Jesse",
                 # The names are organized in the order presented in the
                 # experiment metadata spreadsheet.  Any non-alphanumeric
                 # characters are converted to _.
-                "Something Else": "2018-01-02-Something_Else-Someone-Jesse"
+                "Something Else": "2018-01-01-Something_Else-Someone-Jesse"
                 }
         for key in works.keys():
             self.assertEqual(works[key], self.projs[key].work_dir)
@@ -276,7 +276,7 @@ class TestProjectDataOneTask(TestBase):
         self.assertEqual(self.proj.path, s / (self.project_name + ".yml"))
 
     def test_work_dir(self):
-        self.assertEqual(self.proj.work_dir, "2018-01-02-TestProject-Name")
+        self.assertEqual(self.proj.work_dir, "2018-01-01-TestProject-Name")
 
     def test_readonly(self):
         self.assertFalse(self.proj.readonly)
@@ -578,8 +578,8 @@ class TestProjectDataEmail(TestProjectDataOneTask):
         subject_exp = "Illumina Run Processing Complete for %s" % \
             self.proj.work_dir
         to_addrs_exp = ["<Name Lastname> name@example.com"]
-        self.assertEqual(md5(m["msg_body"]), "59ef8e2e67ebe6f8d7e012c128fd22b6")
-        self.assertEqual(md5(m["msg_html"]), "01090f302424847ca0d47c4fefe83f0f")
+        self.assertEqual(md5(m["msg_body"]), "6a4ac9de2b9a60cf199533bb445698f7")
+        self.assertEqual(md5(m["msg_html"]), "60418f13707b73b32f0f7be4edd76fb4")
         self.assertEqual(m["subject"], subject_exp)
         self.assertEqual(m["to_addrs"], to_addrs_exp)
 

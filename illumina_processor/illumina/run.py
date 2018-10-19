@@ -11,6 +11,7 @@ class Run:
         self.path = path
         self.alignment_callback = alignment_callback
 
+        self.invalid = False
         # RunInfo.xml is one of the first files to show up in a run directory,
         # so we'll use that to define a Run (finished or not).
         try:
@@ -22,11 +23,14 @@ class Run:
                 raise(ValueError(msg))
             else:
                 warnings.warn(msg)
+                self.invalid = True
                 return
         info_run_id = self.run_info.find('Run').attrib["Id"]
         if info_run_id != path.name:
-            msg = 'Run directory does not match Run ID: %s / %s' % (path.name, info_run_id)
-            warnings.warn(msg)
+            if strict:
+                args = (path.name, info_run_id)
+                msg = 'Run directory does not match Run ID: %s / %s' % args
+                warnings.warn(msg)
             ## strict behavior: raise an error
             #if strict:
             #    raise(ValueError(msg))
@@ -41,7 +45,8 @@ class Run:
         self.refresh()
         # CompletedJobInfo.xml should be there if a workflow (job) completed,
         # like GenerateFASTQ.  It looks like this file is just copied over at
-        # the end of the most recent job from the Alignment sub-folder.
+        # the end of the most recent job from the Alignment sub-folder (or
+        # written there directly, for newer MiSeqs).
         try:
             self.completed_job_info = load_xml(path/"CompletedJobInfo.xml")
         except FileNotFoundError:

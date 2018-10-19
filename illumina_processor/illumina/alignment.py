@@ -1,5 +1,6 @@
 from .util import *
 import gzip
+import time
 
 class Alignment:
     """An "Alignment" (FASTQ generation) within a run."""
@@ -32,6 +33,9 @@ class Alignment:
             self.path_checkpoint = dirs[0]/"Checkpoint.txt"
             self.path_job_info = dirs[0]/"CompletedJobInfo.xml"
         self.sample_sheet = load_sample_sheet(self.path_sample_sheet)
+        # This doesn't always exist.  On our MiniSeq and one of two MiSeqs it's
+        # always written, but on a newer MiSeq we only have the copy saved to
+        # the root of the run directory for the most recent alignment.
         # TODO merge this logic with Run's own version
         try:
             self.completed_job_info = load_xml(self.path_job_info)
@@ -68,26 +72,6 @@ class Alignment:
     def complete(self):
         """Is the alignment complete?"""
         return(getattr(self, "checkpoint", None) == 3)
-
-    @property
-    def start_time(self):
-        return(self._pull_timestamp("StartTime"))
-
-    @property
-    def completion_time(self):
-        return(self._pull_timestamp("CompletionTime"))
-
-    def _pull_timestamp(self, tag):
-        if self.completed_job_info:
-            fmt = "%Y-%m-%dT%H:%M:%S.%f%z"
-            text = self.completed_job_info.find(tag).text
-            # There's colon separating portions of the UTC offset that python
-            # doesn't like.  We'll remove it.
-            text = re.sub("([0-9]{2}):([0-9]{2})$", "\\1\\2", text)
-            date_obj = datetime.datetime.strptime(text, fmt)
-        else:
-            date_obj = None
-        return(date_obj)
 
     @property
     def experiment(self):

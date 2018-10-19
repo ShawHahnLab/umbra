@@ -7,7 +7,7 @@ correctly, dispatches processing to appropriate ProjectData objects, and
 coordinates simultaneous processing between multiple projects.
 """
 
-from test_common import *
+from .test_common import *
 
 class TestIlluminaProcessor(TestBase):
     """Main tests for IlluminaProcessor."""

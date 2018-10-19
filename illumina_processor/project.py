@@ -184,7 +184,7 @@ class ProjectData:
     @property
     def work_dir(self):
         """Short name for working directory, without path"""
-        txt_date = datestamp(self.alignment.completion_time)
+        txt_date = datestamp(self.alignment.run.rta_complete["Date"])
         txt_proj = slugify(self.name)
         # first names of contacts given
         who = self.experiment_info["contacts"]

@@ -5,7 +5,7 @@ Tests for Mailer objects.
 This uses a temporary SMTP server to receive and check "sent" messages.
 """
 
-from test_common import *
+from .test_common import *
 import pwd
 import socket
 import os
