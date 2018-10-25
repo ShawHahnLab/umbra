@@ -80,7 +80,8 @@ class ProjectData:
 
     def from_alignment(alignment, path_exp, dp_align, dp_proc, dp_pack,
             uploader,
-            mailer):
+            mailer,
+            readonly=False):
         """Make dict of ProjectData objects from alignment/experiment table."""
         # Row by row, build up a dict for each unique project.  Even though
         # we're reading it in as a spreadsheet we'll treat most of this as
@@ -117,7 +118,8 @@ class ProjectData:
                         experiment_info,
                         uploader,
                         mailer,
-                        exp_path)
+                        exp_path,
+                        readonly = readonly)
                 proj.sample_paths = sample_paths
                 projects.add(proj)
         return(projects)
@@ -126,7 +128,8 @@ class ProjectData:
             uploader,
             mailer,
             exp_path=None,
-            threads=1):
+            threads=1,
+            readonly=False):
 
         self.logger = logging.getLogger(__name__)
         self.name = name
@@ -142,7 +145,7 @@ class ProjectData:
         self.contig_length_min = 255
 
         self.metadata = {"status": ProjectData.NONE}
-        self.readonly = self.path.exists()
+        self.readonly = self.path.exists() or readonly
         self.load_metadata()
         # TODO tidy up these keys and protect behind getters/setters with
         # automatic file updating.

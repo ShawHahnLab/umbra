@@ -17,8 +17,15 @@ class ConfigAction(argparse.Action):
         setattr(namespace, self.dest, config)
 
 
+def update_config(config, args):
+    """Modify a config dict using command-line arguments."""
+    if args.action == "report":
+        config["readonly"] = True
+    return(config)
+
 parser = argparse.ArgumentParser(description='Process Illumina runs.')
 parser.add_argument('config', action=ConfigAction, help='path to configuration file')
+parser.add_argument("-a", "--action", default="process", help="program action", choices=["process", "report"])
 parser.add_argument("-v", "--verbose", action="count", default=0, help="Increment log verbosity")
 parser.add_argument("-q", "--quiet", action="count", default=0, help="Decrement log verbosity")
 
@@ -33,8 +40,13 @@ def setup_log(verbose, quiet):
 def main(args_raw):
     args = parser.parse_args(args_raw)
     setup_log(args.verbose, args.quiet)
-    proc = IlluminaProcessor(args.config["paths"]["root"], args.config)
-    proc.watch_and_process()
+    config = update_config(args.config, args)
+    proc = IlluminaProcessor(config["paths"]["root"], config)
+    if args.action == "process":
+        proc.watch_and_process()
+    elif args.action == "report":
+        proc.load()
+        proc.report()
 
 if __name__ == '__main__':
     main(sys.argv[1:])

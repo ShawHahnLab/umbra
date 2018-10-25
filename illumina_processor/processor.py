@@ -3,12 +3,30 @@ import threading
 import time
 import signal
 import traceback
+import csv
 from .util import *
 from . import project
 from .box_uploader import BoxUploader
 from .mailer import Mailer
 
 class IlluminaProcessor:
+
+    REPORT_FIELDS = [
+                # Run attributes
+                "RunId",         # Illumina Run ID
+                "RunPath",       # Directory path
+                # Alignment attributes
+                "Alignment",     # Alignment number in current set
+                "Experiment",    # Name of experiment from sample sheet
+                "AlignComplete", # Is the alignment complete?
+                # Project attributes
+                "Project",       # Name of project from extra metadata
+                "Status",        # Project data processing status
+                "NSamples",      # Num samples in project data
+                "NFiles",        # Num files in project data
+                # Processor attributes
+                "Group"]
+
 
     def __init__(self, path, config=None):
         self.logger = logging.getLogger(__name__)
@@ -24,6 +42,7 @@ class IlluminaProcessor:
         self.path_pack = self._init_path(paths.get("packaged", "packaged"))
         self.path_report = self._init_path(paths.get("report", "report.csv"))
         self.nthreads = config.get("nthreads", 1)
+        self.readonly = config.get("readonly")
         self._init_data()
         self._init_job_queue()
         self._init_completion_queue()
@@ -36,7 +55,7 @@ class IlluminaProcessor:
             self.uploader = self.box.upload
         else:
             msg = "No Box configuration given; skipping uploads."
-            if config_box.get("skip"):
+            if self.readonly or config_box.get("skip"):
                 self.logger.debug(msg)
             else:
                 self.logger.warning(msg)
@@ -55,7 +74,7 @@ class IlluminaProcessor:
             self.mailer = self.mailerobj.mail
         else:
             msg = "No Mailer configuration given; skipping emails."
-            if config_mail.get("skip"):
+            if self.readonly or config_mail.get("skip"):
                 self.logger.debug(msg)
             else:
                 self.logger.warning(msg)
@@ -68,15 +87,18 @@ class IlluminaProcessor:
     def wait_for_jobs(self):
         """Wait for running jobs to finish."""
         self.logger.debug("wait_for_jobs started")
+        readonly = getattr(self, "readonly", None)
+        running = getattr(self, "running", None)
         q = getattr(self, "_queue_jobs", None)
-        if q:
+        if q and running and not readonly:
             q.join()
         self._update_queue_completion()
         self.logger.debug("wait_for_jobs completed")
 
     def load(self, wait=False):
         """Load all run and project data from scratch."""
-        self.wait_for_jobs()
+        if self.running:
+            self.wait_for_jobs()
         self._init_data()
         self.refresh(wait)
 
@@ -105,18 +127,87 @@ class IlluminaProcessor:
             self.wait_for_jobs()
         self.logger.debug("refresh completed")
 
+    def start(self):
+        """Start the worker threads."""
+        self.running = True
+        for t in self._threads:
+            try:
+                t.start()
+            except RuntimeError:
+                pass
+
     def watch_and_process(self, poll=5):
         # regularly refresh and process
         # catch signals:
         # exiting the loop: SIGINT/QUIT/KeyboardInterrupt
         # calling load(): USR1
         # debugging?: USR2
+        self.start()
         self._finish_up = False
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         while not self._finish_up:
             self.refresh()
             time.sleep(poll)
+
+    def create_report(self):
+        """ Create a nested data structure summarizing processing status.
+        
+        This will be an ordered list of dictionaries, one per project and at
+        least one per projectless alignment and run."""
+        # Create lookup tables of Alignment to ProjectData and ProjectData to
+        # processing Group first
+        alignment_to_projects = {}
+        project_to_group = {}
+        for key in self.projects.keys():
+            for proj in self.projects[key]:
+                if not proj.alignment in alignment_to_projects.keys():
+                    alignment_to_projects[proj.alignment] = []
+                alignment_to_projects[proj.alignment].append(proj)
+                project_to_group[proj] = key
+        # Now, go through all Runs and Alignments, and fill in project information
+        # where available.
+        entries = []
+        for run in self.runs:
+            entry = {f: "" for f in IlluminaProcessor.REPORT_FIELDS}
+            entry["RunId"] = run.run_id
+            entry["RunPath"] = run.path
+            if run.alignments:
+                for idx, al in zip(range(len(run.alignments)), run.alignments):
+                    entry_al = dict(entry)
+                    entry_al["Alignment"] = idx
+                    entry_al["Experiment"] = al.experiment
+                    entry_al["AlignComplete"] = al.complete
+                    projs = alignment_to_projects.get(al)
+                    if projs:
+                        for proj in projs:
+                            entry_proj = dict(entry_al)
+                            entry_proj["Project"] = proj.name
+                            entry_proj["Status"] = proj.status
+                            entry_proj["NSamples"] = len(proj.metadata["experiment_info"]["sample_names"])
+                            entry_proj["NFiles"] = sum([len(x) for x in proj.sample_paths.values()])
+                            entry_proj["Group"] = project_to_group[proj]
+                            entries.append(entry_proj)
+                    else:
+                        entries.append(entry_al)
+            else:
+                entries.append(entry)
+        entries.sort(key = lambda e: [e["RunId"], e["Alignment"], e["Project"]])
+        return(entries)
+
+    def report(self, out_file=sys.stdout, max_width=60):
+        """ Render a CSV-formatted report to the given file handle."""
+        entries = self.create_report()
+        writer = csv.DictWriter(out_file, IlluminaProcessor.REPORT_FIELDS)
+        writer.writeheader()
+        for entry in entries:
+            entry2 = entry
+            for key in entry2:
+                data = str(entry2[key])
+                if max_width > 0 and len(data) > max_width:
+                    data = data[0:(max_width-3)] + "..."
+                entry2[key] = data
+            writer.writerow(entry2)
 
     ### Implementation details
 
@@ -136,14 +227,15 @@ class IlluminaProcessor:
                 }
 
     def _init_job_queue(self):
-        # Start up processing threads. They'll block when the queue is empty,
-        # so to start with they'll all just be waiting for jobs to do.
+        # Set up the procesing threads and related info, but don't actually
+        # start them yet.
+        self.running = False
         self._queue_jobs = queue.Queue()
         self._threads = []
-        for i in range(self.nthreads):
-            t = threading.Thread(target=self._worker, daemon=True)
-            t.start()
-            self._threads.append(t)
+        if not self.readonly:
+            for i in range(self.nthreads):
+                t = threading.Thread(target=self._worker, daemon=True)
+                self._threads.append(t)
 
     def _init_completion_queue(self):
         self._queue_completion = queue.Queue()
@@ -154,14 +246,15 @@ class IlluminaProcessor:
         is_new_run_dir = lambda d: d.is_dir() and d not in old_dirs
         run_dirs = [d for d in run_dirs if is_new_run_dir(d)]
         runs = {self._run_setup(run_dir) for run_dir in run_dirs}
+        runs = {run for run in runs if run}
         self.runs |= runs
 
     def _run_setup(self, run_dir):
         try:
+            self.logger.debug("loading new run:.../%s" % Path(run_dir).name)
             run = illumina.run.Run(run_dir,
                     strict = True,
                     alignment_callback = self._proc_new_alignment)
-            self.logger.debug("loaded new run: %s" % run.run_id)
         except Exception as e:
             # ValueError for unrecognized or mismatched directories
             if type(e) is ValueError:
@@ -204,7 +297,8 @@ class IlluminaProcessor:
                 self.path_proc,
                 self.path_pack,
                 self.uploader,
-                self.mailer)
+                self.mailer,
+                self.readonly)
         for proj in projs:
             suffix = ""
             if proj.readonly:
