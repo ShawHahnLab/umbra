@@ -92,7 +92,9 @@ class IlluminaProcessor:
         q = getattr(self, "_queue_jobs", None)
         if q and running and not readonly:
             q.join()
-        self._update_queue_completion()
+        q = getattr(self, "_queue_completion", None)
+        if q:
+            self._update_queue_completion()
         self.logger.debug("wait_for_jobs completed")
 
     def load(self, wait=False):
