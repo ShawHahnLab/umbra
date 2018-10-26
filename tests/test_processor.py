@@ -11,16 +11,20 @@ from .test_common import *
 import copy
 import io
 import warnings
+import threading
 
 class TestIlluminaProcessor(TestBase):
     """Main tests for IlluminaProcessor."""
 
     def setUp(self):
-        if not hasattr(self, "config"):
-            self.config = CONFIG
         self.setUpTmpdir()
+        self.setUpConfig()
         self.setUpProcessor()
         self.setUpVars()
+
+    def setUpConfig(self):
+        if not hasattr(self, "config"):
+            self.config = CONFIG
 
     def setUpProcessor(self):
         self.proc = illumina_processor.IlluminaProcessor(self.path, self.config)
@@ -31,7 +35,11 @@ class TestIlluminaProcessor(TestBase):
         self.path_run = self.path_runs/self.run_id
         self.warn_msg = ""
         # MD5 sum of the report CSV text, minus the RunPath column.
+        # This is after fulling loading the default data, but before starting
+        # processing.
         self.report_md5 = "40c9bf2b0f99159c9cc061a58ca7bb91"
+        # Temporary path to use for a report
+        self.report_path = Path(self.tmpdir.name) / "report.csv"
         # The header entries we expect to see in the CSV report text.
         self.report_fields = [
                 "RunId",
@@ -96,14 +104,28 @@ class TestIlluminaProcessor(TestBase):
             self.assertEqual(self._proj_names("completed"), ["Something Else"])
             self.assertEqual(len(self.proc.runs), self.num_runs)
 
-    def test_create_report(self):
-        """Test that create_report() makes the expected list structure."""
+    def _load_maybe_warning(self):
         if self.warn_msg:
             with self.assertWarns(Warning) as cm:
                 self.proc.load(wait=True)
         else:
             with warnings.catch_warnings():
                 self.proc.load(wait=True)
+
+    def _watch_and_process_maybe_warning(self):
+        t = threading.Timer(1, self.proc.finish_up)
+        t.start()
+        if self.warn_msg:
+            with self.assertWarns(Warning) as cm:
+                self.proc.watch_and_process(poll=1, wait=True)
+        else:
+            with warnings.catch_warnings():
+                self.proc.watch_and_process(poll=1, wait=True)
+        self.proc.wait_for_jobs()
+
+    def test_create_report(self):
+        """Test that create_report() makes the expected list structure."""
+        self._load_maybe_warning()
         report = self.proc.create_report()
         # This is a clumsy way of producing a block of CSV text but should be
         # good enough for this simple case.  This should create the same string
@@ -118,18 +140,7 @@ class TestIlluminaProcessor(TestBase):
             print(txt)
             raise(e)
 
-    def test_report(self):
-        """Test that report() renders a report to CSV."""
-        if self.warn_msg:
-            with self.assertWarns(Warning) as cm:
-                self.proc.load(wait=True)
-        else:
-            with warnings.catch_warnings():
-                self.proc.load(wait=True)
-        # https://stackoverflow.com/a/9157370
-        txt = io.StringIO(newline=None)
-        self.proc.report(txt)
-        txt = txt.getvalue()
+    def _check_csv(self, txt):
         lines = txt.split("\n")
         fields_txt = ",".join(self.report_fields)
         header = lines.pop(0)
@@ -142,6 +153,29 @@ class TestIlluminaProcessor(TestBase):
         except AssertionError as e:
             print(txt)
             raise(e)
+
+    def test_report(self):
+        """Test that report() renders a report to CSV."""
+        self._load_maybe_warning()
+        # https://stackoverflow.com/a/9157370
+        txt = io.StringIO(newline=None)
+        self.proc.report(txt)
+        txt = txt.getvalue()
+        self._check_csv(txt)
+
+    def test_save_report(self):
+        """Test that save_report() renders a report to a CSV file."""
+        self._load_maybe_warning()
+        self.proc.save_report(self.report_path)
+        with open(self.report_path) as f:
+            txt = f.read()
+        self._check_csv(txt)
+
+    def test_watch_and_process(self):
+        self._watch_and_process_maybe_warning()
+        # By default no report is generated.  It needs to be configured
+        # explicitly.
+        self.assertFalse(Path(self.report_path).exists())
 
     def test_refresh_new_alignment(self):
         """A new alignment directory appears for an existing Run.
@@ -244,10 +278,9 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
     usual, but processing is never started on new ProjectData objects since the
     worker threads aren't run."""
 
-    def setUp(self):
+    def setUpConfig(self):
         self.config = copy.deepcopy(CONFIG)
         self.config["readonly"] = True
-        super().setUp()
 
     def setUpVars(self):
         super().setUpVars()
@@ -285,6 +318,27 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
             self.assertEqual(self._proj_names("completed"), [])
             self.assertEqual(self._proj_names("active"), [])
             self.assertEqual(len(self.proc.runs), self.num_runs)
+
+
+class TestIlluminaProcessorReportConfig(TestIlluminaProcessor):
+
+    def setUpConfig(self):
+        self.config = copy.deepcopy(CONFIG)
+        self.config["save_report"] = {}
+        path = Path(self.tmpdir.name) / "report.csv"
+        self.config["save_report"]["path"] = path
+        self.config["save_report"]["max_width"] = 60
+
+    def test_watch_and_process(self):
+        # watch_and_process will automatically call start(), and this wrapper
+        # will wait, so we'll get a completed ProjectData for one case.
+        # Need an MD5 for a slightly different report in that case
+        self.report_md5 = "703bbe9ffe7a3270a14a8a3718a4e07b"
+        self._watch_and_process_maybe_warning()
+        # If a report was configured, it should exist
+        with open(self.report_path) as f:
+            txt = f.read()
+        self._check_csv(txt)
 
 if __name__ == '__main__':
     unittest.main()

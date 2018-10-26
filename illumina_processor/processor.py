@@ -33,6 +33,7 @@ class IlluminaProcessor:
         self.logger.debug("IlluminaProcessor initializing...")
         if config is None:
             config = {}
+        self.config = config
         self.path = Path(path).resolve(strict = True)
         paths = config.get("paths", {})
         self.path_runs = self._init_path(paths.get("runs", "runs"))
@@ -138,7 +139,18 @@ class IlluminaProcessor:
             except RuntimeError:
                 pass
 
-    def watch_and_process(self, poll=5):
+    def finish_up(self):
+        """Stop refreshing data from disk.
+        
+        This will not interrupt jobs or stop processing from the queue, but
+        will stop a watch_and_process loop."""
+        self._finish_up = True
+
+    def watch_and_process(self, poll=5, wait=False):
+        """Refresh continually, optionally waiting for completion each cycle.
+        
+        If a report was configured at intialization time, an updated report
+        file will be generated each cycle as well."""
         # regularly refresh and process
         # catch signals:
         # exiting the loop: SIGINT/QUIT/KeyboardInterrupt
@@ -149,7 +161,10 @@ class IlluminaProcessor:
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         while not self._finish_up:
-            self.refresh()
+            self.refresh(wait)
+            report_args = self.config.get("save_report")
+            if report_args:
+                self.save_report(**report_args)
             time.sleep(poll)
 
     def create_report(self):
@@ -210,6 +225,12 @@ class IlluminaProcessor:
                     data = data[0:(max_width-3)] + "..."
                 entry2[key] = data
             writer.writerow(entry2)
+
+    def save_report(self, path, max_width=60):
+        """ Render a CSV-formatted report to the given file path."""
+        mkparent(path)
+        with open(path, "w") as f:
+            self.report(f, max_width)
 
     ### Implementation details
 
