@@ -1,6 +1,6 @@
 # Umbra
 
-A Python package and exectuable for Linux to help manage Illumina sequencing
+A Python package and executable for Linux to help manage Illumina sequencing
 runs.  *The below and included Python docstrings are a start, but this draft
 version requires much more documentation and testing.*
 
