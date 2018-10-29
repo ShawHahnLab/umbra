@@ -1,5 +1,5 @@
+from .util import *
 import ssl
-import os
 import pwd
 import collections.abc
 import socket
@@ -21,8 +21,10 @@ class Mailer:
     can be customized."""
     
     def __init__(self, host="localhost", port=25,
-            ssl=False, auth=False, user=None, password=None, from_addr=None):
+            ssl=False, auth=False, user=None, password=None, from_addr=None,
+            cc_addrs=None):
         """Configure connection details for sending mail over SMTP."""
+        self.logger = logging.getLogger(__name__)
         self.host = host
         self.port = port
         self.ssl = ssl
@@ -30,12 +32,19 @@ class Mailer:
         self.__user = user
         self.__password = password
         self.from_addr = from_addr
+        if isinstance(cc_addrs, str):
+            cc_addrs = [cc_addrs]
+        if not cc_addrs:
+            cc_addrs = []
+        self.cc_addrs = cc_addrs
+        self.logger.debug("Mailer initialized.")
 
     def mail(self, to_addrs, subject, msg_body, msg_html=None, from_addr=None):
         """Send a message.
         
         This will connect to the SMTP server (with authentication if enabled
         for the object), format and send a single message, and disconnect."""
+        self.logger.debug("Preparing message: %s" % subject)
         if isinstance(to_addrs, str):
             to_addrs = [to_addrs]
         # From address can be set already or given here.  Either way, if it was
@@ -51,6 +60,7 @@ class Mailer:
                     srv = socket.getfqdn()
                 from_addr = name + "@" + srv
         # Connect
+        self.logger.debug("Connecting over SMTP for message: %s" % subject)
         smtp = smtplib.SMTP(self.host, port=self.port)
         if self.ssl:
             context = ssl.create_default_context()
@@ -62,6 +72,9 @@ class Mailer:
         msg["Subject"] = subject
         msg["From"] = from_addr
         msg["To"] = ", ".join(to_addrs)
+        self.logger.debug("Connecting over SMTP for message: %s" % subject)
+        if self.cc_addrs:
+            msg["CC"] = ", ".join(self.cc_addrs)
         if msg_html:
             msg.set_type("multipart/alternative")
             msg1 = EmailMessage()
@@ -74,5 +87,9 @@ class Mailer:
         else:
             msg.set_payload(msg_body)
         # Send and quit
-        smtp.sendmail(from_addr, to_addrs, msg.as_string())
+        recipients = to_addrs + self.cc_addrs
+        self.logger.debug("Sending message: %s" % subject)
+        smtp.sendmail(from_addr, recipients, msg.as_string())
+        self.logger.debug("Qutting SMTP from message: %s" % subject)
         smtp.quit()
+        self.logger.info("Message sent: %s" % subject)

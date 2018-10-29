@@ -19,10 +19,6 @@ class StubSMTP(smtpd.SMTPServer):
 
     """Fake SMTP server to receive test messages."""
 
-    def __init__(self, *args, **kwargs):
-        self.received = False
-        super().__init__(*args, **kwargs)
-
     @property
     def message_parsed(self):
         data = self.message.decode("UTF-8")
@@ -69,6 +65,7 @@ class StubSMTP(smtpd.SMTPServer):
 
     def process_message(self, peer, mailfrom, rcpttos, data, **kwargs):
         self.message = data
+        self.rcpttos = rcpttos
 
 
 class TestMailer(unittest.TestCase):
@@ -78,7 +75,9 @@ class TestMailer(unittest.TestCase):
     def setUp(self):
         self.setUpSMTP()
         self.mailer = Mailer(self.host, self.port)
-        # message attributes
+        self.setUpVars()
+
+    def setUpVars(self):
         self.kwargs = {
                 "from_addr": "user1@example.com",
                 "to_addrs": "user2@example.com",
@@ -87,12 +86,16 @@ class TestMailer(unittest.TestCase):
                 "msg_html": "<b><i>Ooooh HTML</i></b>"
                 }
         self.expected = dict(self.kwargs)
+        self.expected["to_addrs"] = [self.expected["to_addrs"]]
 
     def tearDown(self):
         # we need to explicitly clean up the socket or we'll get OSError:
         # [Errno 98] Address already in use
-        self.smtpd.close()
-        self.thread.join()
+        asyncore.close_all()
+        if hasattr(self, "smtpd"):
+            self.smtpd.close()
+        if hasattr(self, "thread"):
+            self.thread.join()
 
     def setUpSMTP(self):
         self.host = "127.0.0.1"
@@ -108,15 +111,26 @@ class TestMailer(unittest.TestCase):
 
     def test_mail(self):
         self.mailer.mail(**self.kwargs)
+        # Test recipients
+        # This should be a list of the To addresses and CC addresses (if
+        # present)
+        exp = self.expected
+        to = exp.get("to_addrs", [])
+        cc = exp.get("cc_addrs", [])
+        recipients = to + cc
+        self.assertEqual(self.smtpd.rcpttos, recipients)
+        # Test message attributes
         m = self.smtpd.message_parsed
-        self.assertEqual(m["header"]["To"], self.expected["to_addrs"])
-        self.assertEqual(m["header"]["Subject"], self.expected["subject"])
-        self.assertEqual(m["header"]["From"], self.expected["from_addr"])
+        self.assertEqual(m["header"]["To"],      ", ".join(exp["to_addrs"]))
+        self.assertEqual(m["header"]["Subject"], exp["subject"])
+        self.assertEqual(m["header"]["From"],    exp["from_addr"])
+        if cc:
+            self.assertEqual(m["header"].get("CC"),  ", ".join(cc))
         if "msg_html" in self.kwargs:
-            self.assertEqual(m["body"][0]["body"][0], self.expected["msg_body"])
-            self.assertEqual(m["body"][1]["body"][0], self.expected["msg_html"])
+            self.assertEqual(m["body"][0]["body"][0], exp["msg_body"])
+            self.assertEqual(m["body"][1]["body"][0], exp["msg_html"])
         else:
-            self.assertEqual(m["body"][0], self.expected["msg_body"])
+            self.assertEqual(m["body"][0], exp["msg_body"])
             self.assertEqual(len(m["body"]), 1)
 
 
@@ -156,8 +170,31 @@ class TestMailerMultipleRecipients(TestMailer):
     def setUp(self):
         super().setUp()
         self.kwargs["to_addrs"] = ["user2@example.com", "user3@example.com"]
-        self.expected["to_addrs"] = ", ".join(self.kwargs["to_addrs"])
+        self.expected["to_addrs"] = self.kwargs["to_addrs"]
 
+
+class TestMailerCCAddrs(TestMailer):
+
+    """ Test Mailer giving a single address for cc_addrs."""
+
+    def setUp(self):
+        self.setUpSMTP()
+        cc = "admin@example.com"
+        self.mailer = Mailer(self.host, self.port, cc_addrs=cc)
+        self.setUpVars()
+        self.expected["cc_addrs"] = [cc]
+
+
+class TestMailerCCAddrsMulti(TestMailer):
+
+    """ Test Mailer giving multiple addresses for cc_addrs."""
+
+    def setUp(self):
+        self.setUpSMTP()
+        cc = ["admin@example.com", "office@example.com"]
+        self.mailer = Mailer(self.host, self.port, cc_addrs=cc)
+        self.setUpVars()
+        self.expected["cc_addrs"] = cc
 
 if __name__ == '__main__':
     unittest.main()
