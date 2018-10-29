@@ -13,6 +13,7 @@ setuptools.setup(
     install_requires=[
         "biopython",
         "boxsdk",
+        "cutadapt",
         "pyyaml"
         ],
     packages=setuptools.find_packages(exclude=["test_*"]),

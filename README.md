@@ -17,7 +17,8 @@ functionality.
 
 Requirements:
 
- * Python libraries: Biopython, BoxSDK, PyYAML
+ * Python packages: Biopython, BoxSDK, PyYAML, cutadapt
+ * Other programs: [SPAdes]
  * Box API credentials for automated uploads (optional)
  * Access to an SMTP mail server for sending mail, for example, a local postfix
    installation (optional)
@@ -28,3 +29,4 @@ Limitations/assumptions:
  * Assumes the GenerateFASTQ workflow is enabled on the sequencer
 
 [Box]: https://www.box.com/
+[SPAdes]: http://cab.spbu.ru/software/spades/
