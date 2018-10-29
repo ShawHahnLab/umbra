@@ -17,7 +17,7 @@ functionality.
 
 Requirements:
 
- * Python packages: Biopython, BoxSDK, PyYAML, cutadapt
+ * Python 3.6+ with packages: Biopython, BoxSDK, PyYAML, cutadapt
  * Other programs: [SPAdes]
  * Box API credentials for automated uploads (optional)
  * Access to an SMTP mail server for sending mail, for example, a local postfix
