@@ -16,7 +16,8 @@ import hashlib
 import sys
 sys.path.append(str((Path(__file__).parent/"..").resolve()))
 import umbra
-from umbra import (illumina, ProjectData, ProjectError, util)
+from umbra import (illumina,  util)
+from umbra.project import (ProjectData, ProjectError)
 from umbra.illumina.run import Run
 from umbra.illumina.alignment import Alignment
 

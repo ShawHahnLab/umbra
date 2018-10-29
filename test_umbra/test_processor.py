@@ -12,6 +12,7 @@ import copy
 import io
 import warnings
 import threading
+from umbra.processor import IlluminaProcessor
 
 class TestIlluminaProcessor(TestBase):
     """Main tests for IlluminaProcessor."""
@@ -27,7 +28,7 @@ class TestIlluminaProcessor(TestBase):
             self.config = CONFIG
 
     def setUpProcessor(self):
-        self.proc = umbra.IlluminaProcessor(self.path, self.config)
+        self.proc = IlluminaProcessor(self.path, self.config)
 
     def setUpVars(self):
         self.num_runs = 4
@@ -229,7 +230,7 @@ class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
         run_orig = str(self.path_runs/"180102_M00000_0000_000000000-XXXXX")
         run_dup = str(self.path_runs/"run-files-custom-name")
         copy_tree(run_orig, run_dup)
-        self.proc = umbra.IlluminaProcessor(self.path, self.config)
+        self.proc = IlluminaProcessor(self.path, self.config)
 
     def setUpVars(self):
         super().setUpVars()
