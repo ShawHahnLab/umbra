@@ -6,7 +6,7 @@ Executable interface for use as a script.
 
 import sys
 from pathlib import Path
-from . import IlluminaProcessor
+from .processor import IlluminaProcessor
 from .util import *
 import argparse
 
