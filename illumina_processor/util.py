@@ -43,4 +43,5 @@ def config_load(path):
     config = yaml_load(path)
     if not config.get("paths", {}).get("root"):
         raise ValueError("Configuration requires a root path")
+    config["config_path"] = path
     return(config)
