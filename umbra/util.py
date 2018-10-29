@@ -27,6 +27,12 @@ def touch(path):
     Path(path).touch()
 
 def mkparent(path):
+    # We need to be careful because other threads may be working in the exact
+    # same directory right now.  pathlib didn't handle this correctly until
+    # recently:
+    # https://bugs.python.org/issue29694
+    # I'll stick with the os module for now, since it seems to handle it just
+    # fine.
     parent = Path(path).parent
     os.makedirs(parent, exist_ok=True)
 
