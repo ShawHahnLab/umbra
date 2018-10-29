@@ -1,8 +1,9 @@
 language: python
+# According to https://docs.travis-ci.com/user/languages/python/ 3.7 does not
+# currently work on Travis.  3.5 does but this package would need
+# modifications.
 python:
-  - "3.5"
   - "3.6"
-  - "3.7"
 # Based on:
 # https://conda.io/docs/user-guide/tasks/use-conda-with-travis-ci.html
 install:
@@ -12,7 +13,7 @@ install:
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
-  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION
+  - conda create -q -n test-environment python=${TRAVIS_PYTHON_VERSION%-dev}
   - source activate test-environment
   - conda install -c bioconda spades
   - python setup.py install
