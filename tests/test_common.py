@@ -15,10 +15,10 @@ import hashlib
 # TODO fix this
 import sys
 sys.path.append(str((Path(__file__).parent/"..").resolve()))
-import illumina_processor
-from illumina_processor import (illumina, ProjectData, ProjectError, util)
-from illumina_processor.illumina.run import Run
-from illumina_processor.illumina.alignment import Alignment
+import umbra
+from umbra import (illumina, ProjectData, ProjectError, util)
+from umbra.illumina.run import Run
+from umbra.illumina.alignment import Alignment
 
 PATH_ROOT = Path(__file__).parent / ".."
 PATH_DATA = PATH_ROOT / "testdata"

@@ -5,7 +5,7 @@ from shutil import move
 import os
 from ..test_common import *
 
-from illumina_processor.illumina.run import Run, Alignment
+from umbra.illumina.run import Run, Alignment
 
 RUN_IDS = {
         "MiSeq":       "180101_M00000_0000_000000000-XXXXX",

@@ -6,7 +6,7 @@ These tests confirm that the portions of a run specific to a single project are
 processed as expected, including the trimming/merging/assembling tasks and
 calling external uploading/emailing functions (but not the outcome of those
 calls).  This does not handle anything to do with multithreading between
-multiple simultaneous projects, either; see test_illumina_processor.py for
+multiple simultaneous projects, either; see test_umbra.py for
 that.
 """
 
