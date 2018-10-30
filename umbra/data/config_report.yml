@@ -1,0 +1,3 @@
+# Additional configuration for the "report" action.  The processor will be
+# read-only unless overridden explicitly after this.
+readonly: true

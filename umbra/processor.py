@@ -41,7 +41,6 @@ class IlluminaProcessor:
         self.path_status = self._init_path(paths.get("status", "status"))
         self.path_proc = self._init_path(paths.get("processed", "processed"))
         self.path_pack = self._init_path(paths.get("packaged", "packaged"))
-        self.path_report = self._init_path(paths.get("report", "report.csv"))
         self.nthreads = config.get("nthreads", 1)
         self.readonly = config.get("readonly")
         self._init_data()
@@ -67,10 +66,15 @@ class IlluminaProcessor:
         config_mail = config.get("mailer", {})
         path = config_mail.get("credentials_path")
         if path and Path(path).exists():
+            # TODO also include any other config that exists directly in
+            # config_mail!
             creds = yaml_load(path)
             self.mailerobj = Mailer(**creds)
             self.mailer = self.mailerobj.mail
         elif config_mail and not config_mail.get("skip"):
+            #args = dict(config_mail)
+            #if "skip" in config_mail.keys():
+            #    del config_mail["skip"]
             self.mailerobj = Mailer(**config_mail)
             self.mailer = self.mailerobj.mail
         else:

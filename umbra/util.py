@@ -42,12 +42,3 @@ def yaml_load(path):
             warnings.filterwarnings("ignore",category=DeprecationWarning)
             data = yaml.safe_load(f)
     return(data)
-
-def config_load(path):
-    if not Path(path).exists():
-        raise ValueError("Configuration file not found: %s" % str(path))
-    config = yaml_load(path)
-    if not config.get("paths", {}).get("root"):
-        raise ValueError("Configuration requires a root path")
-    config["config_path"] = path
-    return(config)

@@ -17,6 +17,7 @@ setuptools.setup(
         "pyyaml"
         ],
     packages=setuptools.find_packages(exclude=["test_*"]),
+    include_package_data=True,
     entry_points={'console_scripts': [
         'umbra=umbra.__main__:main',
     ]},

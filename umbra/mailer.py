@@ -22,7 +22,7 @@ class Mailer:
     
     def __init__(self, host="localhost", port=25,
             ssl=False, auth=False, user=None, password=None, from_addr=None,
-            cc_addrs=None):
+            cc_addrs=None, **kwargs):
         """Configure connection details for sending mail over SMTP."""
         self.logger = logging.getLogger(__name__)
         self.host = host

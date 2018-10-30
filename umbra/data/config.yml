@@ -1,0 +1,94 @@
+# Default run-time configuration options.
+
+##############################################################################
+# Basics 
+# TODO configure loglevel here.
+# Should processing be completed and new files written?  If readonly is set to
+# true these will be skipped.  Calling with the "report" action will set this
+# to true.
+readonly: false
+# How many worker threads should be run in parallel?  This sets an upper limit
+# on how many projects will be processed at a time.
+nthreads: 1
+
+##############################################################################
+# Basic file and directory path setup for processing tasks.
+paths:
+  # This is used as a parent directory for any relative paths given below in
+  # this section.
+  root: "/seq"
+  # These are interpreted as subdirectories of the root path unless they are
+  # absolute paths.
+  runs: "runs"
+  experiments: "experiments"
+  status: "status"
+  processed: "processed"
+  packaged: "packaged"
+
+##############################################################################
+# Options for the report displayed during the "report" action.
+report:
+  max_width: 60
+
+##############################################################################
+# Options for the "process" action.
+process:
+  # Seconds to wait between refreshing data from disk.
+  poll: 5
+  # Should processing wait for all queued jobs to be dispatched before
+  # continuing to the next cycle?
+  wait: False
+
+##############################################################################
+# Options for the report saved during processing.  Set this to an empty string
+# or null to disable.
+save_report:
+  path: "/var/log/umbra/report.csv"
+  # Maximum width in characters of any one column in the report.  0 means
+  # unlimited.
+  max_width: 0
+
+##############################################################################
+# Configuration and authentication details for uploading finished zip files to
+# Box.com.
+box:
+  # If enabled, box uploads are skipped during processing.
+  skip: false
+  # Set this to an existent YAML file to store credentials separately from the
+  # main configuration.  This is required for Box since we need to refresh
+  # credentials automatically and update the file.  If this file is not
+  # present, skip is set to true.
+  credentials_path: "/var/lib/umbra/boxcreds.yml"
+  # The Box folder to upload to, by ID nubmer, not name.  The ID can be found
+  # at the end of a URL, like "box.com/folder/0".  Folder 0 is the root folder.
+  folder_id: 0
+  # If strict_auth is enabled, an authentication failure during the initial
+  # connection will stop the program.  Otherwise, a URL is logged to help get
+  # credentials interactively from Box.
+  strict_auth: false
+
+##############################################################################
+# Configuration and authentication details for sending alert emails.
+mailer:
+  # If enabled, email alerts are skipped during processing.
+  skip: false
+  # Set this to an existent YAML file to store credentials separately from the
+  # main configuration. (Any of the below options can be placed in this file
+  # instead.)
+  credentials_path: "/var/lib/umbra/mailcreds.yml"
+  # Authentication details: server, port, enable SSL, and enable
+  # authentication.  For sending via a local mail server on the usual port
+  # with no authentication requirements these should be fine.
+  host: localhost
+  port: 25
+  ssl: false
+  auth: false
+  # Username and password (if authentication is enabled)
+  user: null
+  password: null
+  # The "From" field to use in outgoing mail.  If unspecified, the address
+  # will be username @ hostname.  Setting the hostname part to something else
+  # may look fishy to receiving mail servers.
+  from_addr: null
+  # Any addressses that should be CC'd on sent emails.
+  cc_addrs: null
