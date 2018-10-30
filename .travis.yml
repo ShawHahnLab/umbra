@@ -20,6 +20,8 @@ install:
 script:
   # Python unit tests
   - python -m unittest
+  # Ensure the package execution via __main__.py works.
+  - python -m umbra -h
   # Ensure the installation process created a viable script for the entry
   # point.  Still should actually do a test run using it, though.
   - umbra -h
