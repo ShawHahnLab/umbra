@@ -163,8 +163,14 @@ def _setup_systemd(service_path, path_exec, uid, gid):
 def _setup_paths(config, uid, gid):
     logger.info("creating directory paths")
     # Detect necessary directory paths from live configuration
-    # First set up the basic directory paths.
     created = set()
+    # Configure log path to be writable for syslog
+    # https://serverfault.com/a/527088
+    log_path = Path("/var/log/umbra")
+    log_gid = grp.getgrnam("syslog").gr_gid
+    _install_dir(log_path, uid, log_gid, 0o775)
+    created.add(log_path)
+    # First set up the basic directory paths.
     r = Path(config["paths"]["root"])
     p = config["paths"]
     path_entries = [
@@ -191,11 +197,6 @@ def _setup_paths(config, uid, gid):
             _install_dir(dir_path, uid, gid, mode)
         created.add(dir_path)
 
-    # Configure log path to be writable for syslog
-    log_path = Path("/var/log/umbra")
-    log_gid = grp.getgrnam("syslog").gr_gid
-    _install_dir(log_path, uid, log_gid, 0o775)
-
 def _setup_config(config_path):
     logger.info("Installing config file")
     if not config_path or not Path(config_path).exists():
@@ -207,7 +208,6 @@ def _setup_rsyslog():
     path_conf = Path(__file__).parent / "data" / "10-umbra.conf"
     path_dir = Path("/etc/rsyslog.d")
     if path_dir.exists():
-        logger.info("Installing rsyslog config file")
         _install_file(path_conf, path_dir)
         # TODO logger.info("Restarting rsyslog")
 
