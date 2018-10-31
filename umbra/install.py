@@ -73,7 +73,8 @@ def _install_dir(path, uid=-1, gid=-1, mode=None):
 def _setup_systemd_exec(path_exec):
     """Find or create executable script for service launch."""
     # First off, do we even have systemd?
-    result = subprocess.run(["systemctl", "--version"], capture_output=True, text=True)
+    result = subprocess.run(["systemctl", "--version"], stdout=subprocess.PIPE,
+            universal_newlines=True)
     if result.returncode:
         msg = '"systemctl" command failed.  Is systemd not available?'
         logger.warn(msg)
