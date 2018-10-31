@@ -15,9 +15,11 @@ logger = logging.getLogger(__name__)
 
 def _install_file(path_src, path_dst, uid=-1, gid=-1, mode=None):
     """Copy a file with the given ownership and permissions."""
-    dirs = (path_src, path_dst)
+    if Path(path_dst).is_dir():
+        path_dst = str(Path(path_dst) / Path(path_src).name)
+    args = (path_src, path_dst)
     if Path(path_src).resolve() == Path(path_dst).resolve():
-        logger.info("Installing %s to %s skipped, src and dst same" %  dirs)
+        logger.info("Installing %s to %s skipped, src and dst same" %  args)
         return
     if mode:
         args = (path_src, path_dst, uid, gid, oct(mode))
@@ -45,6 +47,8 @@ def _install_file(path_src, path_dst, uid=-1, gid=-1, mode=None):
     # 3: set ownership
     os.chown(tmp_dst, uid, gid)
     # 4: os.link()
+    if Path(path_dst).exists():
+        os.unlink(path_dst)
     os.link(tmp_dst, path_dst)
     # 5: remove tmp
     os.close(fd)
@@ -142,7 +146,8 @@ def _setup_systemd(service_path, path_exec, uid, gid):
             "ExecStart": cmd,
             "TimeoutStopSec": stop_timeout,
             "StandardOutput": "syslog",
-            "StandardError": "syslog"
+            "StandardError": "syslog",
+            "SyslogIdentifier": "umbra"
             }
     service["Install"] = {
             "WantedBy": "multi-user.target"
@@ -185,9 +190,11 @@ def _setup_paths(config, uid, gid):
         if not dir_path in created:
             _install_dir(dir_path, uid, gid, mode)
         created.add(dir_path)
+
+    # Configure log path to be writable for syslog
     log_path = Path("/var/log/umbra")
-    if not log_path in created:
-        _install_dir(log_path, uid, gid, 0o755)
+    log_gid = grp.getgrnam("syslog").gr_gid
+    _install_dir(log_path, uid, log_gid, 0o775)
 
 def _setup_config(config_path):
     logger.info("Installing config file")
@@ -195,6 +202,14 @@ def _setup_config(config_path):
         logger.info("no existing config file; using package default.")
         config_path = path_for_config()
     _install_file(config_path, "/etc/umbra.yml", mode=0o644)
+
+def _setup_rsyslog():
+    path_conf = Path(__file__).parent / "data" / "10-umbra.conf"
+    path_dir = Path("/etc/rsyslog.d")
+    if path_dir.exists():
+        logger.info("Installing rsyslog config file")
+        _install_file(path_conf, path_dir)
+        # TODO logger.info("Restarting rsyslog")
 
 def install(config, config_path):
     """Set up filesystem paths and a systemd service.
@@ -209,4 +224,5 @@ def install(config, config_path):
     gid = info.st_gid
     _setup_config(config_path)
     _setup_paths(config, uid, gid)
+    _setup_rsyslog()
     _setup_systemd("/etc/systemd/system/umbra.service", path_exec, uid, gid)
