@@ -29,3 +29,5 @@ script:
   - sudo -E $(which umbra) --action install --dry-run
   # Try a live installation.
   - sudo -E $(which umbra) --action install
+  - sudo systemctl start umbra
+  - sudo systemctl status umbra
