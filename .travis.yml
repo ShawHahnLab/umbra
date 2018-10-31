@@ -25,3 +25,5 @@ script:
   # Ensure the installation process created a viable script for the entry
   # point.  Still should actually do a test run using it, though.
   - umbra -h
+  # Try a dry run installation.
+  - sudo -E $(which umbra) --action install --dry-run

@@ -36,18 +36,21 @@ def layer_configs(paths):
         else:
             logger.info("Configuration file not found at %s" % path)
             c = {}
-        x = update_tree(config, c)
-        #config.update(c)
+        update_tree(config, c)
     return(config)
+
+def path_for_config(suffix=None):
+    if suffix:
+        name = "config_%s.yml" % suffix
+    else:
+        name = "config.yml"
+    path = Path(__file__).parent / "data" / name
+    return(path)
 
 def update_config(config_path, args):
     """Load a config file layered with package defaults."""
-    # First load package defaults including action-specific if available
-    root = Path(__file__).parent / "data"
-    path_config = root / "config.yml"
-    path_action = root / ("config_" + args.action + ".yml")
-    paths = [path_config, path_action, config_path]
-    # Add in the supplied config
+    # In order, load package defaults (including action-specific if available)
+    # and then layer in the supplied config.
+    paths = [path_for_config(), path_for_config(args.action), config_path]
     config = layer_configs(paths)
-    #c.update(config)
     return(config)
