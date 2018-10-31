@@ -94,7 +94,7 @@ def _setup_systemd_exec(path_exec):
         activate = Path(conda_exe).parent / "activate"
         wrapper = '#!/usr/bin/env bash\n'
         wrapper += 'source "%s" "%s"\n' % (activate, conda_env)
-        wrapper += 'umbra "$@"\n'
+        wrapper += 'exec umbra "$@"\n'
         path_wrapper = "/var/lib/umbra/umbra-wrapper.sh"
         logger.info("Writing wrapper script: %s" % path_wrapper)
         if not DRYRUN:
