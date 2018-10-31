@@ -8,6 +8,7 @@ import configparser
 import tempfile
 import pwd
 import grp
+import subprocess
 
 DRYRUN = False
 
@@ -71,6 +72,15 @@ def _install_dir(path, uid=-1, gid=-1, mode=None):
 
 def _setup_systemd_exec(path_exec):
     """Find or create executable script for service launch."""
+    # First off, do we even have systemd?
+    result = subprocess.run(["systemctl", "--version"], capture_output=True, text=True)
+    if result.returncode:
+        msg = '"systemctl" command failed.  Is systemd not available?'
+        logger.warn(msg)
+    else:
+        version = result.stdout.split('\n')[0]
+        msg = 'Version line from systemctl: "%s"' % version
+        logger.info(msg)
     # Get current executable path and permissions
     # Watch out!  In theory this could be the __main__.py file and not the
     # exeutable entry point, depending on how this was launched.
