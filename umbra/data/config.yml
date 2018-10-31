@@ -35,8 +35,8 @@ report:
 process:
   # Seconds to wait between refreshing data from disk.
   poll: 5
-  # Should processing wait for all queued jobs to be dispatched before
-  # continuing to the next cycle?
+  # Should processing wait for all queued jobs to be finished processing before
+  # continuing to the next cycle each time?
   wait: False
 
 ##############################################################################

@@ -19,7 +19,12 @@ def _install_file(path_src, path_dst, uid=-1, gid=-1, mode=None):
     if Path(path_src).resolve() == Path(path_dst).resolve():
         logger.info("Installing %s to %s skipped, src and dst same" %  dirs)
         return
-    logger.info("Installing %s to %s" % dirs)
+    if mode:
+        args = (path_src, path_dst, uid, gid, oct(mode))
+        logger.info("Installing %s to %s (uid %s, gid %s, mode %s)" % args)
+    else:
+        args = (path_src, path_dst, uid, gid)
+        logger.info("Installing %s to %s (uid %s, gid %s)" % args)
     if DRYRUN:
         return
     # Installing via a tempfile to make sure permissions and ownership are
@@ -47,7 +52,12 @@ def _install_file(path_src, path_dst, uid=-1, gid=-1, mode=None):
 
 def _install_dir(path, uid=-1, gid=-1, mode=None):
     """Create a directory with the given ownership and permissions."""
-    logger.info("Setting up directory %s" % path)
+    if mode:
+        args = (path, uid, gid, oct(mode))
+        logger.info("Setting up directory %s (uid %s, gid %s, mode %s)" % args)
+    else:
+        args = (path, uid, gid)
+        logger.info("Setting up directory %s (uid %s, gid %s)" % args)
     if DRYRUN:
         return
     os.makedirs(path, exist_ok=True)
@@ -98,7 +108,7 @@ def _setup_systemd_exec(path_exec):
 # Adapted from:
 # https://stackoverflow.com/a/30189540
 def _setup_systemd(service_path, path_exec, uid, gid):
-    logger.info("systemd: configuring service")
+    logger.info("configuring systemd service")
 
     # Check executable and create wrapper script if needed
     path_exec = _setup_systemd_exec(path_exec)
@@ -106,6 +116,11 @@ def _setup_systemd(service_path, path_exec, uid, gid):
     homedir = pwd.getpwuid(uid).pw_dir
     user = pwd.getpwuid(uid).pw_name
     group = grp.getgrgid(gid).gr_name
+
+    logger.info("detecting user details")
+    logger.info("username: %s" % user)
+    logger.info("groupname: %s" % group)
+    logger.info("homedir: %s" % homedir)
 
     service = configparser.ConfigParser()
     # By default it transforms to all lowercase, but we don't want that for
@@ -128,7 +143,7 @@ def _setup_systemd(service_path, path_exec, uid, gid):
             "WantedBy": "multi-user.target"
             }
 
-    logger.info("systemd: writing configuration to %s" % service_path)
+    logger.info("writing systemd configuration to %s" % service_path)
     if not DRYRUN:
         mkparent(service_path)
         with open(service_path, "w") as f:
@@ -139,18 +154,19 @@ def _setup_paths(config, uid, gid):
     logger.info("creating directory paths")
     # Detect necessary directory paths from live configuration
     # First set up the basic directory paths.
-    paths = []
     r = Path(config["paths"]["root"])
     p = config["paths"]
-    for key, val in config["paths"].items():
-        if key == "root":
-            continue
-        if Path(val).is_absolute():
-            paths.append(val)
-        else:
-            paths.append(r / val)
-    for path in paths:
-        _install_dir(path, uid, gid, 0o755)
+    path_entries = [
+      (p["runs"], -1, -1, None),
+      (p["experiments"], -1, -1, None),
+      (p["status"], uid, gid, 0o755),
+      (p["processed"], uid, gid, 0o755),
+      (p["packaged"], uid, gid, 0o755)
+      ]
+    for path, uid, gid, mode in path_entries:
+        if not Path(path).is_absolute():
+            path = r / path
+        _install_dir(path, uid, gid, mode)
     # Set up the parents of these file entries with appropriate permissions.
     others = [
               ("save_report", "path", 0o755),
