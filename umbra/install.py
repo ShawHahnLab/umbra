@@ -117,6 +117,9 @@ def _setup_systemd(service_path, path_exec, uid, gid):
     user = pwd.getpwuid(uid).pw_name
     group = grp.getgrgid(gid).gr_name
     cmd = "%s --action process -v" % str(path_exec)
+    # If the service is stopped, it will wait for up to 30 minutes after
+    # sending the terminate signal before sending the kill signal.
+    stop_timeout = 30*60
 
     logger.info("detecting user details")
     logger.info("username: %s" % user)
@@ -137,6 +140,7 @@ def _setup_systemd(service_path, path_exec, uid, gid):
             "Group": group,
             "WorkingDirectory": homedir,
             "ExecStart": cmd,
+            "TimeoutStopSec": stop_timeout,
             "StandardOutput": "syslog",
             "StandardError": "syslog"
             }
@@ -155,6 +159,7 @@ def _setup_paths(config, uid, gid):
     logger.info("creating directory paths")
     # Detect necessary directory paths from live configuration
     # First set up the basic directory paths.
+    created = set()
     r = Path(config["paths"]["root"])
     p = config["paths"]
     path_entries = [
@@ -168,15 +173,21 @@ def _setup_paths(config, uid, gid):
         if not Path(path).is_absolute():
             path = r / path
         _install_dir(path, uid, gid, mode)
+        created.add(path)
     # Set up the parents of these file entries with appropriate permissions.
     others = [
               ("save_report", "path", 0o755),
               ("box", "credentials_path", 0o700),
               ("mailer", "credentials_path", 0o700)
             ]
-    for entry in others:
-        dir_path = Path(config[entry[0]][entry[1]]).parent
-        _install_dir(dir_path, uid, gid, entry[2])
+    for section, key, mode in others:
+        dir_path = Path(config[section][key]).parent
+        if not dir_path in created:
+            _install_dir(dir_path, uid, gid, mode)
+        created.add(dir_path)
+    log_path = Path("/var/log/umbra")
+    if not log_path in created:
+        _install_dir(log_path, uid, gid, 0o755)
 
 def _setup_config(config_path):
     logger.info("Installing config file")
