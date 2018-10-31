@@ -116,6 +116,7 @@ def _setup_systemd(service_path, path_exec, uid, gid):
     homedir = pwd.getpwuid(uid).pw_dir
     user = pwd.getpwuid(uid).pw_name
     group = grp.getgrgid(gid).gr_name
+    cmd = "%s --action process -v" % str(path_exec)
 
     logger.info("detecting user details")
     logger.info("username: %s" % user)
@@ -135,7 +136,7 @@ def _setup_systemd(service_path, path_exec, uid, gid):
             "User": user, 
             "Group": group,
             "WorkingDirectory": homedir,
-            "ExecStart": path_exec,
+            "ExecStart": cmd,
             "StandardOutput": "syslog",
             "StandardError": "syslog"
             }
