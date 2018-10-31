@@ -96,6 +96,9 @@ class IlluminaProcessor:
         running = getattr(self, "running", None)
         q = getattr(self, "_queue_jobs", None)
         if q and running and not readonly:
+            # join blocks until all tasks are done, as defined by task_done()
+            # getting called.  So this will wait until everything placed on the
+            # queue is both taken by a worker and finished processing.
             q.join()
         q = getattr(self, "_queue_completion", None)
         if q:
@@ -156,16 +159,19 @@ class IlluminaProcessor:
         If a report was configured at intialization time, an updated report
         file will be generated each cycle as well."""
         # regularly refresh and process
-        # catch signals:
-        # exiting the loop: SIGINT/QUIT/KeyboardInterrupt
-        # calling load(): USR1
-        # debugging?: USR2
+        # TODO accept SIGUSR2 to increment verbosity.
         self.start()
         self._finish_up = False
+        self._reload = False
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGUSR1, self._signal_handler)
         while not self._finish_up:
-            self.refresh(wait)
+            if self._reload:
+                self.load(wait)
+                self._reload = False
+            else:
+                self.refresh(wait)
             report_args = self.config.get("save_report")
             if report_args:
                 self.save_report(**report_args)
@@ -302,14 +308,25 @@ class IlluminaProcessor:
             pass
 
     def _signal_handler(self, sig, frame):
-        if not self._finish_up:
-            msg = "Signal caught (%s), finishing up" % sig
+        """Receive and process OS signals.
+        
+        This will just toggle variables to inform watch_and_process of what it
+        needs to do next.  But, if two INT/TERM signals are sent in a row, the
+        program will exit without waiting."""
+        if sig in [signal.SIGINT, signal.SIGTERM]:
+            if not self._finish_up:
+                msg = "Signal caught (%s), finishing up" % sig
+                self.logger.warning(msg)
+                self._finish_up = True
+            else:
+                msg = "Second signal caught (%s), stopping now" % sig
+                self.logger.error(msg)
+                sys.exit(1)
+        elif sig in [signal.SIGUSR1]:
+            msg = "Signal caught (%s),"
+            msg += " re-loading all data after current tasks finish." % sig
             self.logger.warning(msg)
-            self._finish_up = True
-        else:
-            msg = "Second signal caught (%s), stopping now" % sig
-            self.logger.error(msg)
-            sys.exit(1)
+            self._reload = True
 
     def _proc_new_alignment(self, al):
         """Match a newly-completed Alignment to Project information.
