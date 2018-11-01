@@ -42,13 +42,15 @@ parser.add_argument("-q", "--quiet", action="count", default=0,
 parser.add_argument("-n", "--dry-run", action="store_true",
         help="Only pretend during an install action")
 
+logger = logging.getLogger()
+
 def setup_log(verbose, quiet):
     # Handle warnings via logging
     logging.captureWarnings(True)
     # Configure the root logger
     # each -v or -q decreases or increases the log level by 10, starting from
     # WARNING by default.
-    lvl_current = logging.getLogger().getEffectiveLevel()
+    lvl_current = logger.getEffectiveLevel()
     lvl_subtract = (verbose - quiet) * 10
     verbosity = max(0, lvl_current - lvl_subtract)
     logging.basicConfig(stream=sys.stderr, level = verbosity)
@@ -61,6 +63,13 @@ def main(args_raw=None):
             args = parser.parse_args()
         setup_log(args.verbose, args.quiet)
         config = update_config(args.config, args)
+        # If specific in the config, modify the log level.  Call setup_log
+        # again so that the command-line flags are applied after the new level
+        # is set.
+        newlevel = config.get("loglevel")
+        if not newlevel is None: # (since 0 is distinct from not set)
+            logger.setLevel(newlevel)
+            setup_log(args.verbose, args.quiet)
         action_args = config.get(args.action, {})
         if args.action == "process":
             proc = IlluminaProcessor(config["paths"]["root"], config)
@@ -71,7 +80,6 @@ def main(args_raw=None):
             proc.report(**action_args)
         elif args.action == "install":
             # Set logger one increment more verbose
-            logger = logging.getLogger()
             lvl_current = logger.getEffectiveLevel()
             logger.setLevel(max(0, lvl_current - 10))
             if args.dry_run:

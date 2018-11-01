@@ -24,7 +24,6 @@ def layer_configs(paths):
     The later paths take priority."""
     config = {}
     logger = logging.getLogger()
-    logger.debug('start')
     for path in paths:
         if Path(path).exists():
             try:

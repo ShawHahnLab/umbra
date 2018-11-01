@@ -2,7 +2,12 @@
 
 ##############################################################################
 # Basics 
-# TODO configure loglevel here.
+# Set an explicit logging level.  This follows the default Python numeric
+# logging levels (0 to 50 in increments of 10, with lower numbers yielding more
+# verbose output).  If unset it will be left at the run-time default (currently
+# 30, "WARNING").  Each command-line argument of "-v" and "-q" will decrement
+# and increment this value by 10, also.
+loglevel: null
 # Should processing be completed and new files written?  If readonly is set to
 # true these will be skipped.  Calling with the "report" action will set this
 # to true.
