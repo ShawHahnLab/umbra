@@ -70,17 +70,30 @@ def _install_dir(path, uid=-1, gid=-1, mode=None):
     if not mode is None:
         os.chmod(path, mode)
 
+def _cmd(args):
+    """Simple wrapper to call an external command."""
+    msg = "command: %s" % str(args)
+    if DRYRUN:
+        msg += " (skipped)"
+        logger.debug(msg)
+        return
+    logger.debug(msg)
+    try:
+        result = subprocess.run(args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True)
+    except FileNotFoundError:
+        msg = '"%s" command not found.' % args[0]
+        logger.warn(msg)
+    else:
+        return(result)
+
 def _setup_systemd_exec(path_exec):
     """Find or create executable script for service launch."""
     # First off, do we even have systemd?
-    try:
-        result = subprocess.run(["systemctl", "--version"],
-                stdout=subprocess.PIPE,
-                universal_newlines=True)
-    except FileNotFoundError:
-        msg = '"systemctl" command not found.  Is systemd not available?'
-        logger.warn(msg)
-    else:
+    result = _cmd(["systemctl", "--version"])
+    if result:
         if result.returncode:
             msg = '"systemctl" command failed.  Is systemd not available?'
             logger.warn(msg)
@@ -175,7 +188,7 @@ def _setup_systemd(service_path, path_exec, uid, gid):
         mkparent(service_path)
         with open(service_path, "w") as f:
             service.write(f, space_around_delimiters=False)
-    # TODO need to daemon-reload or something if there's a new service file?
+    _cmd(["systemctl", "daemon-reload"])
 
 def _setup_paths(config, uid, gid):
     logger.info("creating directory paths")
@@ -226,7 +239,8 @@ def _setup_rsyslog():
     path_dir = Path("/etc/rsyslog.d")
     if path_dir.exists():
         _install_file(path_conf, path_dir)
-        # TODO logger.info("Restarting rsyslog")
+        logger.info("Restarting rsyslog")
+        _cmd(["systemctl", "restart", "rsyslog"])
 
 def install(config, config_path):
     """Set up filesystem paths and a systemd service.

@@ -68,7 +68,10 @@ class TestProjectData(TestBase):
             self.assertEqual(works[key], self.projs[key].work_dir)
 
     def test_metadata(self):
-        """Test that the project metadata is set up as expected."""
+        """Test that the project metadata is set up as expected.
+        
+        These are edging toward private attributes but it's easier here to just
+        check them all in one go, at least until that's more cleaned up."""
 
         md = {}
         md["status"] = "none"
@@ -133,8 +136,8 @@ class TestProjectData(TestBase):
                 }
         md_se["sample_paths"] = fps
 
-        self.assertEqual(self.projs["STR"].metadata, md_str)
-        self.assertEqual(self.projs["Something Else"].metadata, md_se)
+        self.assertEqual(self.projs["STR"]._metadata, md_str)
+        self.assertEqual(self.projs["Something Else"]._metadata, md_se)
 
     def test_readonly(self):
         self.assertTrue(self.projs["STR"].readonly)
@@ -547,7 +550,7 @@ class TestProjectDataUpload(TestProjectDataOneTask):
         # The basic checks
         super().test_process()
         # After processing, there should be a URL recorded for the upload task.
-        url_obs = self.proj.metadata["task_output"]["upload"]["url"]
+        url_obs = self.proj._metadata["task_output"]["upload"]["url"]
         self.assertEqual(url_obs[0:8], "https://")
 
 

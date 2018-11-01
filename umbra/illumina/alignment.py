@@ -36,7 +36,7 @@ class Alignment:
         # This doesn't always exist.  On our MiniSeq and one of two MiSeqs it's
         # always written, but on a newer MiSeq we only have the copy saved to
         # the root of the run directory for the most recent alignment.
-        # TODO merge this logic with Run's own version
+        # (The Run class also has this idiom to load one if it can be found.)
         try:
             self.completed_job_info = load_xml(self.path_job_info)
         except FileNotFoundError:

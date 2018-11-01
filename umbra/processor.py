@@ -207,7 +207,7 @@ class IlluminaProcessor:
                             entry_proj = dict(entry_al)
                             entry_proj["Project"] = proj.name
                             entry_proj["Status"] = proj.status
-                            entry_proj["NSamples"] = len(proj.metadata["experiment_info"]["sample_names"])
+                            entry_proj["NSamples"] = len(proj.experiment_info["sample_names"])
                             entry_proj["NFiles"] = sum([len(x) for x in proj.sample_paths.values()])
                             entry_proj["Group"] = project_to_group[proj]
                             entries.append(entry_proj)

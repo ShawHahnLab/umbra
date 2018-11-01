@@ -25,9 +25,6 @@ class ProjectData:
     The same project may span many separate runs, but a ProjectData object
     refers only to a specific portion of a single Run.
     """
-    # TODO pass in experiment metadata for relevant samples
-    # track run/alignment_num/project_name at this point.
-
 
     # ProjectData processing status enumerated type.
     NONE          = "none"
@@ -144,23 +141,21 @@ class ProjectData:
         self.phred_offset = 33 # FASTQ quality score encoding offset
         self.contig_length_min = 255
 
-        self.metadata = {"status": ProjectData.NONE}
+        self._metadata = {"status": ProjectData.NONE}
         self.readonly = self.path.exists() or readonly
         self.load_metadata()
-        # TODO tidy up these keys and protect behind getters/setters with
-        # automatic file updating.
-        self.metadata["alignment_info"] = {}
-        self.metadata["experiment_info"] = self._setup_exp_info(exp_info_full)
-        self.metadata["experiment_info"]["path"] = str(exp_path or "")
-        self.metadata["run_info"] = {}
-        self.metadata["sample_paths"] = {}
-        self.metadata["task_status"] = self._setup_task_status()
-        self.metadata["task_output"] = {}
+        self._metadata["alignment_info"] = {}
+        self._metadata["experiment_info"] = self._setup_exp_info(exp_info_full)
+        self._metadata["experiment_info"]["path"] = str(exp_path or "")
+        self._metadata["run_info"] = {}
+        self._metadata["sample_paths"] = {}
+        self._metadata["task_status"] = self._setup_task_status()
+        self._metadata["task_output"] = {}
         if self.alignment:
-            self.metadata["alignment_info"]["path"] = str(self.alignment.path)
-            self.metadata["experiment_info"]["name"] = self.alignment.experiment
+            self._metadata["alignment_info"]["path"] = str(self.alignment.path)
+            self._metadata["experiment_info"]["name"] = self.alignment.experiment
         if self.alignment.run:
-            self.metadata["run_info"]["path"] = str(self.alignment.run.path)
+            self._metadata["run_info"]["path"] = str(self.alignment.run.path)
 
         self.path_proc = Path(dp_proc) / self.work_dir
         self.path_pack = Path(dp_pack) / (self.work_dir + ".zip")
@@ -170,19 +165,21 @@ class ProjectData:
 
     @property
     def status(self):
-        return(self.metadata["status"])
+        """Get processing status with shorthand method."""
+        return(self._metadata["status"])
 
     @status.setter
     def status(self, value):
+        """Set status to an allowed value and update metadata on disk."""
         if not value in ProjectData.STATUS:
             raise ValueError
-        self.metadata["status"] = value
+        self._metadata["status"] = value
         if not self.readonly:
             self.save_metadata()
 
     @property
     def experiment_info(self):
-        return(self.metadata["experiment_info"])
+        return(self._metadata["experiment_info"])
 
     @property
     def work_dir(self):
@@ -204,7 +201,7 @@ class ProjectData:
 
     @property
     def sample_paths(self):
-        paths = self.metadata["sample_paths"]
+        paths = self._metadata["sample_paths"]
         if not paths: 
             return({})
         paths2 = {}
@@ -215,24 +212,24 @@ class ProjectData:
     @sample_paths.setter
     def sample_paths(self, sample_paths):
         if sample_paths:
-            self.metadata["sample_paths"] = {}
-            for sample_name in self.metadata["experiment_info"]["sample_names"]:
+            self._metadata["sample_paths"] = {}
+            for sample_name in self.experiment_info["sample_names"]:
                 paths = [str(p) for p in sample_paths[sample_name]]
-                self.metadata["sample_paths"][sample_name] = paths
+                self._metadata["sample_paths"][sample_name] = paths
         else:
-            self.metadata["sample_paths"] = None
+            self._metadata["sample_paths"] = None
 
     @property
     def tasks_pending(self):
-        return(self.metadata["task_status"]["pending"])
+        return(self._metadata["task_status"]["pending"])
 
     @property
     def tasks_completed(self):
-        return(self.metadata["task_status"]["completed"])
+        return(self._metadata["task_status"]["completed"])
 
     @property
     def task_current(self):
-        return(self.metadata["task_status"]["current"])
+        return(self._metadata["task_status"]["current"])
 
     def deps_completed(self, task):
         """ Are all dependencies of a given task already completed?"""
@@ -250,7 +247,7 @@ class ProjectData:
             raise ProjectError("ProjectData is read-only")
         self.status = ProjectData.PROCESSING
         self.path_proc.mkdir(parents=True, exist_ok=True)
-        ts = self.metadata["task_status"]
+        ts = self._metadata["task_status"]
         while self.tasks_pending: 
             if self.task_current:
                 raise ProjectError("a task is already running")
@@ -261,7 +258,7 @@ class ProjectData:
             try:
                 self._run_task(ts["current"])
             except Exception as e:
-                self.metadata["failure_exception"] = traceback.format_exc()
+                self._metadata["failure_exception"] = traceback.format_exc()
                 self.status = ProjectData.FAILED
                 raise(e)
             ts["completed"].append(ts["current"])
@@ -278,7 +275,7 @@ class ProjectData:
         except FileNotFoundError:
             data = None
         else:
-            self.metadata.update(data)
+            self._metadata.update(data)
         return(data)
 
     def save_metadata(self):
@@ -287,7 +284,7 @@ class ProjectData:
             raise ProjectError("ProjectData is read-only")
         mkparent(self.path)
         with open(self.path, "w") as f:
-            f.write(yaml.dump(self.metadata))
+            f.write(yaml.dump(self._metadata))
 
     ###### Task-related methods
 
@@ -492,9 +489,9 @@ class ProjectData:
         # Gather fields to fill in for the message
         # (The name prefix is considered OK by RFC822, so we should be able to
         # leave that intact for both the sending part and the "To:" field.)
-        contacts = self.metadata["experiment_info"]["contacts"]
+        contacts = self._metadata["experiment_info"]["contacts"]
         contacts = ["<%s> %s" % (k, contacts[k]) for k in contacts]
-        url = self.metadata["task_output"].get("upload", {}).get("url", "")
+        url = self._metadata["task_output"].get("upload", {}).get("url", "")
         subject = "Illumina Run Processing Complete for %s" % self.work_dir
         # Build message text and html
         body = "Hello,\n\n"
@@ -582,7 +579,7 @@ class ProjectData:
         msg = "ProjectData processing: %s, task: %s" % (self.work_dir, task)
         self.logger.debug(msg)
 
-        self.metadata["task_output"][task] = {}
+        self._metadata["task_output"][task] = {}
         
         # No-op: do nothing!
         if task == ProjectData.TASK_NOOP:
@@ -617,7 +614,7 @@ class ProjectData:
         # Upload the zip archive to Box
         elif task == ProjectData.TASK_UPLOAD:
             url = self.uploader(path = self.path_pack)
-            self.metadata["task_output"][task] = {"url": url}
+            self._metadata["task_output"][task] = {"url": url}
 
         # Email contacts with link to Box download
         elif task == ProjectData.TASK_EMAIL:
