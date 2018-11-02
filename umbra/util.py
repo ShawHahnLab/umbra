@@ -8,6 +8,7 @@ import logging
 import yaml
 from distutils.dir_util import copy_tree
 from . import illumina
+from .illumina import run
 
 def slugify(text, mask="_"):
     pat = "[^A-Za-z0-9-_]"
