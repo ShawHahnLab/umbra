@@ -94,7 +94,6 @@ class TestProjectData(TestBase):
                 "name": "Partials_1_1_18",
                 "sample_names": ["1086S1_03", "1086S1_04"],
                 "tasks": [],
-                "contacts": dict(),
                 "contacts": {
                     "Someone": "person@gmail.com",
                     "Jesse Connell": "ancon@upenn.edu"
