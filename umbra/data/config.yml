@@ -95,5 +95,6 @@ mailer:
   # will be username @ hostname.  Setting the hostname part to something else
   # may look fishy to receiving mail servers.
   from_addr: null
-  # Any addressses that should be CC'd on sent emails.
+  # Any addressses that should be CC'd on sent emails.  If set, this can be a
+  # single address or a list.
   cc_addrs: null
