@@ -4,6 +4,13 @@ import re
 import datetime
 from pathlib import Path
 
+ADAPTERS = {
+        "Nextera": [
+            "CTGTCTCTTATACACATCTCCGAGCCCACGAGAC",
+            "CTGTCTCTTATACACATCTGACGCTGCCGACGA"
+            ]
+        }
+
 def load_xml(path):
     e = xml.etree.ElementTree.parse(path).getroot()
     return(e)

@@ -227,7 +227,7 @@ class TestProjectDataOneTask(TestBase):
     def fake_fastq(self, seq_pair, readlen=100):
         fastq_paths = self.alignment.sample_paths_for_num(1)
         [p.chmod(0o644) for p in fastq_paths]
-        adp = illumina.adapters["Nextera"]
+        adp = illumina.util.ADAPTERS["Nextera"]
         fills = ("G", "A")
         for path, seq, a, fill in zip(fastq_paths, seq_pair, adp, fills):
             read = (seq + a).ljust(readlen, fill)

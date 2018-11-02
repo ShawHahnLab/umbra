@@ -37,7 +37,7 @@ class ProjectData:
     # Recognized tasks:
     TASK_NOOP     = "noop"     # do nothing
     TASK_COPY     = "copy"     # copy raw files
-    TASK_TRIM     = "trim"     # trip adapters
+    TASK_TRIM     = "trim"     # trim adapters
     TASK_MERGE    = "merge"    # interleave trimmed R1/R2 reads
     TASK_ASSEMBLE = "assemble" # contig assembly
     TASK_MANUAL   = "manual"   # manual intervention step
@@ -318,7 +318,7 @@ class ProjectData:
                 if len(paths) > 2:
                     raise ProjectError("trimming can't handle >2 files per sample")
                 for i in range(len(paths)):
-                    adapter = illumina.adapters["Nextera"][i]
+                    adapter = illumina.util.ADAPTERS["Nextera"][i]
                     fastq_in = str(paths[i])
                     fastq_out = self.task_path(paths[i],
                             "trimmed",

@@ -26,7 +26,7 @@ def _parse_contacts(text):
 
 def load_metadata(path):
     """Load an Experiment metadata spreadsheet."""
-    info = illumina.load_csv(path, csv.DictReader)
+    info = illumina.util.load_csv(path, csv.DictReader)
     for row in info:
         row["Tasks"] = row["Tasks"].split()
         row["Contacts"] = _parse_contacts(row["Contacts"])
