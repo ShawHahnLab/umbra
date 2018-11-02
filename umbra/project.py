@@ -312,7 +312,6 @@ class ProjectData:
 
     def trim(self):
         # For each sample, separately process the one or more associated files.
-        # TODO open trim log
         with open(self._log_path("trim"), "w") as f:
             for samp in self.sample_paths.keys():
                 paths = self.sample_paths[samp]

@@ -155,7 +155,6 @@ class IlluminaProcessor:
         If a report was configured at intialization time, an updated report
         file will be generated each cycle as well."""
         # regularly refresh and process
-        # TODO accept SIGUSR2 to increment verbosity.
         self.start()
         self._finish_up = False
         self._reload = False
