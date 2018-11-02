@@ -177,7 +177,9 @@ class TestProjectData(TestBase):
 class TestProjectDataOneTask(TestBase):
     """Base class for one-project-one-task tests.
     
-    This handles the noop case and can be subclassed for other cases."""
+    This handles the noop case and can be subclassed for other cases.  This
+    base class only sets certain attribute values if they haven't already been
+    overridden."""
 
     def setUp(self):
         if not hasattr(self, "task"):
@@ -190,10 +192,18 @@ class TestProjectDataOneTask(TestBase):
             self.rundir = "180101_M00000_0000_000000000-XXXXX"
         self.run = Run(self.path_runs / self.rundir)
         self.alignment = self.run.alignments[0]
-        self.exp_path = str(self.path_exp / "Partials_1_1_18" / "metadata.csv")
+        if not hasattr(self, "exp_name"):
+            self.exp_name = "Partials_1_1_18"
+        self.exp_path = str(self.path_exp / self.exp_name / "metadata.csv")
         self.project_name = "TestProject"
         if not hasattr(self, "tasks_run"):
             self.tasks_run = [self.task, "package", "upload", "email"]
+        if not hasattr(self, "contacts_str"):
+            self.contacts_str = "Name Lastname <name@example.com>"
+        if not hasattr(self, "contacts"):
+            self.contacts = {"Name Lastname": "name@example.com"}
+        if not hasattr(self, "work_dir_exp"):
+            self.work_dir_exp = "2018-01-01-TestProject-Name"
         # modify project spreadsheet, then create ProjectData
         self.write_test_experiment()
         self.proj = ProjectData.from_alignment(self.alignment,
@@ -209,7 +219,7 @@ class TestProjectDataOneTask(TestBase):
         exp_row = lambda sample_name: {
                 "Sample_Name": sample_name,
                 "Project": self.project_name,
-                "Contacts": "Name Lastname <name@example.com>",
+                "Contacts": self.contacts_str,
                 "Tasks": self.task
                 }
         with open(self.exp_path, "w", newline="") as f:
@@ -278,7 +288,7 @@ class TestProjectDataOneTask(TestBase):
         self.assertEqual(self.proj.path, s / (self.project_name + ".yml"))
 
     def test_work_dir(self):
-        self.assertEqual(self.proj.work_dir, "2018-01-01-TestProject-Name")
+        self.assertEqual(self.proj.work_dir, self.work_dir_exp)
 
     def test_readonly(self):
         self.assertFalse(self.proj.readonly)
@@ -296,6 +306,20 @@ class TestProjectDataOneTask(TestBase):
                 warnings.filterwarnings("ignore",category=DeprecationWarning)
                 data = yaml.safe_load(f)
             self.assertEqual(data["status"], "processing")
+
+    def test_experiment_info(self):
+        if hasattr(self, "tasks_listed"):
+            tasks = self.tasks_listed
+        else:
+            tasks = [self.task]
+        exp_info = {
+                "name": self.exp_name,
+                "sample_names": self.sample_names,
+                "tasks": tasks,
+                "contacts": self.contacts,
+                "path": self.exp_path
+                }
+        self.assertEqual(self.proj.experiment_info, exp_info)
 
     # Test task properties, at start
 
@@ -564,6 +588,12 @@ class TestProjectDataEmail(TestProjectDataOneTask):
     def setUp(self):
         self.task = "email"
         self.tasks_run = ["package", "upload", "email"]
+        if not hasattr(self, "msg_body"):
+            self.msg_body = "6a4ac9de2b9a60cf199533bb445698f7"
+        if not hasattr(self, "msg_html"):
+            self.msg_html = "60418f13707b73b32f0f7be4edd76fb4"
+        if not hasattr(self, "to_addrs_exp"):
+            self.to_addrs_exp = ["<Name Lastname> name@example.com"]
         super().setUp()
 
     def test_process(self):
@@ -579,18 +609,32 @@ class TestProjectDataEmail(TestProjectDataOneTask):
         self.assertEqual(sorted(m.keys()), keys_exp)
         subject_exp = "Illumina Run Processing Complete for %s" % \
             self.proj.work_dir
-        to_addrs_exp = ["<Name Lastname> name@example.com"]
-        self.assertEqual(md5(m["msg_body"]), "6a4ac9de2b9a60cf199533bb445698f7")
-        self.assertEqual(md5(m["msg_html"]), "60418f13707b73b32f0f7be4edd76fb4")
+        to_addrs_exp = self.to_addrs_exp
+        self.assertEqual(md5(m["msg_body"]), self.msg_body)
+        self.assertEqual(md5(m["msg_html"]), self.msg_html)
         self.assertEqual(m["subject"], subject_exp)
         self.assertEqual(m["to_addrs"], to_addrs_exp)
 
 
-class TestProjectDataEmailNocontacts(TestProjectDataOneTask):
-    # TODO test with task = email but empty contacts field
-    # work_dir should be correct
-    # contcts shoudl be correct (empty dict)
-    pass
+class TestProjectDataEmailNoContacts(TestProjectDataEmail):
+    """What should happen if the email task is run with no contact info?
+    
+    Nothing much different here.  The mailer should still be called as usual
+    (it might have recipients it always appends) with the expected arguments.
+    (As for other cases the actual Mailer behavior is tested separately for
+    that class.) In this ProjectData, the work_dir slug will be shorter and the
+    contacts should be an empty dict, modifying the formatted message slightly,
+    but that's about it.
+    """
+
+    def setUp(self):
+        self.contacts_str = ""
+        self.contacts = {}
+        self.to_addrs_exp = []
+        self.work_dir_exp = "2018-01-01-TestProject"
+        self.msg_body = "925bfb376b0a2bc2b6797ef992ddbb00"
+        self.msg_html = "e2a8c65f1d67ba6abd09caf2dddbc370"
+        super().setUp()
 
 
 class TestProjectDataBlank(TestProjectDataOneTask):
