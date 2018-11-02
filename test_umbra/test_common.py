@@ -12,18 +12,15 @@ import csv
 from zipfile import ZipFile
 import hashlib
 
-# TODO fix this
-import sys
-sys.path.append(str((Path(__file__).parent/"..").resolve()))
 import umbra
 from umbra import (illumina,  util)
 from umbra.project import (ProjectData, ProjectError)
 from umbra.illumina.run import Run
 from umbra.illumina.alignment import Alignment
 
-PATH_ROOT = Path(__file__).parent / ".."
-PATH_DATA = PATH_ROOT / "testdata"
-PATH_CONFIG = PATH_ROOT / "test_config.yml"
+PATH_ROOT = Path(__file__).parent
+PATH_DATA = PATH_ROOT / "data"
+PATH_CONFIG = PATH_ROOT / ".." / "test_config.yml"
 
 # Wait for enter key before removing tempdir on each test?
 TMP_PAUSE = False
