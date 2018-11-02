@@ -10,6 +10,7 @@ import pwd
 import socket
 import os
 import smtpd
+import smtplib
 import asyncore
 import threading
 from umbra.mailer import Mailer
@@ -28,18 +29,24 @@ class StubSMTP(smtpd.SMTPServer):
     def message_pretty(self):
         return(self._prettify(self.message_parsed))
 
+    def _parse_header(self, header):
+        # unwrap
+        header = re.sub("\n ", " ", header)
+        # split keys/vals
+        header = header.split("\n")
+        # This is a little roundabout to handle empty fields.
+        header = [h.split(":") for h in header]
+        header = [[h[0], h[1].lstrip()] for h in header]
+        header = {h[0]: h[1] for h in header}
+        return(header)
+
     def _parse(self, data):
         # locate double-newline between header and body of message
         i = data.find('\n\n')
         # split
         header = data[0:i]
         body = data[(i+2):len(data)]
-        # unwrap
-        header = re.sub("\n ", " ", header)
-        # split keys/vals
-        header = header.split("\n")
-        header = [h.split(": ") for h in header]
-        header = {h[0]: h[1] for h in header}
+        header = self._parse_header(header)
         if "multipart" in header.get("Content-Type", ""):
             m = re.search('boundary="(.*)"', header["Content-Type"])
             boundary = m.group(1)
@@ -87,6 +94,9 @@ class TestMailer(unittest.TestCase):
                 }
         self.expected = dict(self.kwargs)
         self.expected["to_addrs"] = [self.expected["to_addrs"]]
+        # The message was actually sent, right?  In certain situations we can
+        # toggle this off.
+        self.exp_sent = True
 
     def tearDown(self):
         # we need to explicitly clean up the socket or we'll get OSError:
@@ -108,30 +118,52 @@ class TestMailer(unittest.TestCase):
                 kwargs=kwargs,
                 daemon=True)
         self.thread.start()
-
-    def test_mail(self):
-        self.mailer.mail(**self.kwargs)
+    
+    def check_mail(self):
         # Test recipients
         # This should be a list of the To addresses and CC addresses (if
         # present)
         exp = self.expected
         to = exp.get("to_addrs", [])
         cc = exp.get("cc_addrs", [])
+        # If it looks like no message was received, just return here.  But fail
+        # if that was unexpected.
+        if not hasattr(self.smtpd, "rcpttos"):
+            if self.exp_sent:
+                self.fail("SMTPD did not receive a message")
+            return
         recipients = to + cc
         self.assertEqual(self.smtpd.rcpttos, recipients)
         # Test message attributes
         m = self.smtpd.message_parsed
-        self.assertEqual(m["header"]["To"],      ", ".join(exp["to_addrs"]))
         self.assertEqual(m["header"]["Subject"], exp["subject"])
         self.assertEqual(m["header"]["From"],    exp["from_addr"])
+        if to:
+            self.assertEqual(m["header"].get("To"), ", ".join(to))
         if cc:
-            self.assertEqual(m["header"].get("CC"),  ", ".join(cc))
+            self.assertEqual(m["header"].get("CC"), ", ".join(cc))
         if "msg_html" in self.kwargs:
             self.assertEqual(m["body"][0]["body"][0], exp["msg_body"])
             self.assertEqual(m["body"][1]["body"][0], exp["msg_html"])
         else:
             self.assertEqual(m["body"][0], exp["msg_body"])
             self.assertEqual(len(m["body"]), 1)
+
+    def test_mail(self):
+        failure = None
+        try:
+            if self.exp_sent:
+                self.mailer.mail(**self.kwargs)
+            else:
+                # There should be a complaint in this case
+                with self.assertLogs(level = "ERROR") as cm:
+                    self.mailer.mail(**self.kwargs)
+                self.assertEqual(len(cm.output), 1)
+            self.check_mail()
+        except smtplib.SMTPException:
+            failure = "SMTP Failure"
+        if failure:
+            self.fail(failure)
 
 
 class TestMailerDefaultFrom(TestMailer):
@@ -195,6 +227,45 @@ class TestMailerCCAddrsMulti(TestMailer):
         self.mailer = Mailer(self.host, self.port, cc_addrs=cc)
         self.setUpVars()
         self.expected["cc_addrs"] = cc
+
+
+class TestMailerNoTo(TestMailer):
+    """ Test Mailer giving empty to_addrs.
+    
+    In this case there are no recipients at all, and the message is created but
+    not sent.  An error should be logged."""
+
+    def setUp(self):
+        super().setUp()
+        self.kwargs["to_addrs"] = []
+        self.expected["to_addrs"] = []
+        self.exp_sent = False
+
+
+class TestMailerOnlyCC(TestMailer):
+    """ Test Mailer giving empty to_addrs but with cc_addrs.
+    
+    In this case there are still technically recipients but only CC addresses.
+    This could come up if the mailer is configured for CC but a particular
+    message has no specific recipients.  The message should be sent without a
+    "To:" field and with a warning logged."""
+
+    def setUp(self):
+        self.setUpSMTP()
+        cc = "admin@example.com"
+        self.mailer = Mailer(self.host, self.port, cc_addrs=cc)
+        self.setUpVars()
+        self.kwargs["to_addrs"] = []
+        self.expected["to_addrs"] = []
+        self.expected["cc_addrs"] = [cc]
+
+    def test_mail(self):
+        # There should be a complaint about the lack of to_addrs
+        with self.assertLogs(level = "WARNING") as cm:
+            self.mailer.mail(**self.kwargs)
+        self.assertEqual(len(cm.output), 1)
+        self.check_mail()
+
 
 if __name__ == '__main__':
     unittest.main()

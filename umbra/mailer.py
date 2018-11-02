@@ -44,7 +44,7 @@ class Mailer:
         
         This will connect to the SMTP server (with authentication if enabled
         for the object), format and send a single message, and disconnect."""
-        self.logger.debug("Preparing message: %s" % subject)
+        self.logger.debug('Preparing message: "%s"' % subject)
         if isinstance(to_addrs, str):
             to_addrs = [to_addrs]
         # From address can be set already or given here.  Either way, if it was
@@ -59,20 +59,13 @@ class Mailer:
                 if socket.getfqdn(srv) == "localhost":
                     srv = socket.getfqdn()
                 from_addr = name + "@" + srv
-        # Connect
-        self.logger.debug("Connecting over SMTP for message: %s" % subject)
-        smtp = smtplib.SMTP(self.host, port=self.port)
-        if self.ssl:
-            context = ssl.create_default_context()
-            smtp.starttls(context=context)
-        if self.auth:
-            smtp.login(self.__user, self.__password)
         # Construct message
         msg = EmailMessage()
         msg["Subject"] = subject
         msg["From"] = from_addr
-        msg["To"] = ", ".join(to_addrs)
-        self.logger.debug("Connecting over SMTP for message: %s" % subject)
+        if to_addrs:
+            msg["To"] = ", ".join(to_addrs)
+        self.logger.debug('Connecting over SMTP for message: "%s"' % subject)
         if self.cc_addrs:
             msg["CC"] = ", ".join(self.cc_addrs)
         if msg_html:
@@ -86,10 +79,25 @@ class Mailer:
             msg.set_payload([msg1, msg2])
         else:
             msg.set_payload(msg_body)
-        # Send and quit
         recipients = to_addrs + self.cc_addrs
-        self.logger.debug("Sending message: %s" % subject)
-        smtp.sendmail(from_addr, recipients, msg.as_string())
-        self.logger.debug("Qutting SMTP from message: %s" % subject)
-        smtp.quit()
-        self.logger.info("Message sent: %s" % subject)
+        # If there are no receipients, don't actually try to send.  If there
+        # are recipients but no "To:" addresses, just warn.
+        if not recipients:
+            logmsg = 'No receipients given, skipping message: "%s"' % subject
+            self.logger.error(logmsg)
+            return(msg)
+        if not to_addrs:
+            logmsg = 'No "To:" addresses given for message: "%s"' % subject
+            self.logger.warning(logmsg)
+        self.logger.debug('Connecting over SMTP for message: "%s"' % subject)
+        with smtplib.SMTP(self.host, port=self.port) as smtp:
+            if self.ssl:
+                context = ssl.create_default_context()
+                smtp.starttls(context=context)
+            if self.auth:
+                smtp.login(self.__user, self.__password)
+            # Send and quit
+            self.logger.debug('Sending message: "%s"' % subject)
+            smtp.sendmail(from_addr, recipients, msg.as_string())
+        self.logger.info('Message sent: "%s"' % subject)
+        return(msg)
