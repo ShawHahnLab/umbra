@@ -147,7 +147,7 @@ class IlluminaProcessor:
         
         This will not interrupt jobs or stop processing from the queue, but
         will stop a watch_and_process loop."""
-        self._finish_up = True
+        self._queue_cmd.put("finish_up")
 
     def watch_and_process(self, poll=5, wait=False):
         """Refresh continually, optionally waiting for completion each cycle.
@@ -156,21 +156,34 @@ class IlluminaProcessor:
         file will be generated each cycle as well."""
         # regularly refresh and process
         self.start()
-        self._finish_up = False
-        self._reload = False
-        signal.signal(signal.SIGINT, self._signal_handler)
+        finish_up = False
+        cmd = None
+        self._queue_cmd = queue.Queue()
+        signal.signal(signal.SIGINT,  self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGHUP,  self._signal_handler)
         signal.signal(signal.SIGUSR1, self._signal_handler)
-        while not self._finish_up:
-            if self._reload:
-                self.load(wait)
-                self._reload = False
-            else:
+        signal.signal(signal.SIGUSR2, self._signal_handler)
+        while not finish_up:
+            # The usual loop iteration is to refresh (unless we just did a full
+            # reload on a previous cycle), update the report, and sleep for a
+            # bit.
+            if not cmd == "reload":
                 self.refresh(wait)
             report_args = self.config.get("save_report")
             if report_args:
                 self.save_report(**report_args)
             time.sleep(poll)
+            # Next any commands (such as caught from signals) are processed.
+            try:
+                while True:
+                    cmd = self._queue_cmd.get_nowait()
+                    if cmd == "reload":
+                        self.load(wait)
+                    elif cmd == "finish_up":
+                        finish_up = True
+            except queue.Empty:
+                pass
 
     def create_report(self):
         """ Create a nested data structure summarizing processing status.
@@ -312,16 +325,41 @@ class IlluminaProcessor:
             if not self._finish_up:
                 msg = "Signal caught (%s), finishing up" % sig
                 self.logger.warning(msg)
-                self._finish_up = True
+                #self._finish_up = True
+                self._queue_cmd.put("finish_up")
             else:
                 msg = "Second signal caught (%s), stopping now" % sig
                 self.logger.error(msg)
                 sys.exit(1)
+        elif sig in [signal.SIGHUP]:
+            msg = "Signal caught (%s),"
+            msg += " re-loading all data after current tasks finish."
+            msg = msg % sig
+            self.logger.warning(msg)
+            #self._reload = True
+            self._queue_cmd.put("reload")
         elif sig in [signal.SIGUSR1]:
             msg = "Signal caught (%s),"
-            msg += " re-loading all data after current tasks finish." % sig
+            msg += " decreasing loglevel (increasing verbosity)."
+            msg = msg % sig
+            self._loglevel_shift(-10)
             self.logger.warning(msg)
-            self._reload = True
+        elif sig in [signal.SIGUSR2]:
+            msg = "Signal caught (%s),"
+            msg += " increasing loglevel (decreasing verbosity)."
+            msg = msg % sig
+            self._loglevel_shift(10)
+            self.logger.warning(msg)
+
+    def _loglevel_shift(self, step):
+        """Change the root logger's level by a relative amount.
+        
+        Positive numbers give less verbose logging.   Steps of ten match
+        Python's named levels.  A minimum of zero is applied."""
+        logger = logging.getLogger()
+        lvl_current = logger.getEffectiveLevel()
+        lvl_new = max(0, lvl_current + step)
+        logger.setLevel(lvl_new)
 
     def _proc_new_alignment(self, al):
         """Match a newly-completed Alignment to Project information.
