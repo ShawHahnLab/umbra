@@ -42,4 +42,8 @@ def yaml_load(path):
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore",category=DeprecationWarning)
             data = yaml.safe_load(f)
+    # If there's no actual yaml data in the file (like, say, just a bunch of
+    # comments) we get None!  That makes it tricky later on so for our purposes
+    # we'll catch that and default to a dict.
+    data = data or {}
     return(data)
