@@ -4,7 +4,7 @@ Executable interface for use as a script.
 
 from .util import *
 from .processor import IlluminaProcessor
-from .config import (update_config, path_for_config)
+from . import config
 from . import install
 import argparse
 
@@ -30,8 +30,7 @@ parser = argparse.ArgumentParser(
         description=DOCS["description"],
         epilog=DOCS["epilog"],
         formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument("-c", "--config", default="/etc/umbra.yml",
-        help="path to configuration file")
+parser.add_argument("-c", "--config", help="path to configuration file")
 parser.add_argument("-a", "--action", default="report",
         help="program action (default: %(default)s)",
         choices=["process", "report", "install"])
@@ -62,23 +61,38 @@ def main(args_raw=None):
         else:
             args = parser.parse_args()
         setup_log(args.verbose, args.quiet)
-        config = update_config(args.config, args)
+        # In order, layer together the package default, system default, action
+        # default, and command-line config path (if present).
+        cpaths = [
+                config.path_for_config(),
+                config.SYSTEM_CONFIG,
+                config.path_for_config(args.action),
+                args.config]
+        conf = config.layer_configs(cpaths)
         # If specific in the config, modify the log level.  Call setup_log
         # again so that the command-line flags are applied after the new level
         # is set.
-        newlevel = config.get("loglevel")
+        newlevel = conf.get("loglevel")
         if not newlevel is None: # (since 0 is distinct from not set)
             logger.setLevel(newlevel)
             setup_log(args.verbose, args.quiet)
-        action_args = config.get(args.action, {})
+        action_args = conf.get(args.action, {})
         if args.action == "process":
-            proc = IlluminaProcessor(config["paths"]["root"], config)
+            proc = IlluminaProcessor(conf["paths"]["root"], conf)
             proc.watch_and_process(**action_args)
         elif args.action == "report":
-            proc = IlluminaProcessor(config["paths"]["root"], config)
+            proc = IlluminaProcessor(conf["paths"]["root"], conf)
             proc.load()
             proc.report(**action_args)
         elif args.action == "install":
+            if args.config:
+                msg = "Custom configuration not applicable during install."
+                msg += " To use a configuration during and after install,"
+                msg += " place settings in %s, or to use a configuration"
+                msg += " after installation, modify the path after installation."
+                msg = msg % config.SYSTEM_CONFIG
+                logger.critical(msg)
+                sys.exit(1)
             # Set logger one increment more verbose
             lvl_current = logger.getEffectiveLevel()
             logger.setLevel(max(0, lvl_current - 10))
@@ -87,7 +101,7 @@ def main(args_raw=None):
                 msg += " Filesystem will not be changed."
                 logger.info(msg)
             install.DRYRUN = args.dry_run
-            install.install(config, args.config)
+            install.install(conf, args.config)
     except BrokenPipeError:
         pass
 

@@ -2,8 +2,10 @@
 Configuration file handling.
 """
 from .util import *
-import collections
+import collections.abc
 import yaml.parser
+
+SYSTEM_CONFIG = "/etc/umbra.yml"
 
 # Adapted from
 # https://stackoverflow.com/a/3233356
@@ -12,7 +14,7 @@ def update_tree(tree_orig, tree_new):
     
     Note that the original is modified in place."""
     for key, val in tree_new.items():
-        if isinstance(val, collections.Mapping):
+        if isinstance(val, collections.abc.Mapping):
             tree_orig[key] = update_tree(tree_orig.get(key, {}), val)
         else:
             tree_orig[key] = val
@@ -21,10 +23,12 @@ def update_tree(tree_orig, tree_new):
 def layer_configs(paths):
     """Load configuration for each path given, merging all options.
     
-    The later paths take priority."""
+    The later paths take priority.  Empty/None entries are ignored."""
     config = {}
     logger = logging.getLogger()
     for path in paths:
+        if not path:
+            continue
         if Path(path).exists():
             try:
                 c = yaml_load(path)
@@ -45,11 +49,3 @@ def path_for_config(suffix=None):
         name = "config.yml"
     path = Path(__file__).parent / "data" / name
     return(path)
-
-def update_config(config_path, args):
-    """Load a config file layered with package defaults."""
-    # In order, load package defaults (including action-specific if available)
-    # and then layer in the supplied config.
-    paths = [path_for_config(), path_for_config(args.action), config_path]
-    config = layer_configs(paths)
-    return(config)
