@@ -85,6 +85,14 @@ def main(args_raw=None):
             proc.load()
             proc.report(**action_args)
         elif args.action == "install":
+            if args.config:
+                msg = "Custom configuration not applicable during install."
+                msg += " To use a configuration during and after install,"
+                msg += " place settings in %s, or to use a configuration"
+                msg += " after installation, modify the path after installation."
+                msg = msg % config.SYSTEM_CONFIG
+                logger.critical(msg)
+                sys.exit(1)
             # Set logger one increment more verbose
             lvl_current = logger.getEffectiveLevel()
             logger.setLevel(max(0, lvl_current - 10))
