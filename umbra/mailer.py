@@ -22,7 +22,7 @@ class Mailer:
     
     def __init__(self, host="localhost", port=25,
             ssl=False, auth=False, user=None, password=None, from_addr=None,
-            cc_addrs=None, **kwargs):
+            cc_addrs=None, reply_to=None, **kwargs):
         """Configure connection details for sending mail over SMTP."""
         self.logger = logging.getLogger(__name__)
         self.host = host
@@ -32,6 +32,7 @@ class Mailer:
         self.__user = user
         self.__password = password
         self.from_addr = from_addr
+        self.reply_to = reply_to
         if isinstance(cc_addrs, str):
             cc_addrs = [cc_addrs]
         if not cc_addrs:
@@ -39,7 +40,21 @@ class Mailer:
         self.cc_addrs = cc_addrs
         self.logger.debug("Mailer initialized.")
 
-    def mail(self, to_addrs, subject, msg_body, msg_html=None, from_addr=None):
+    def _resolve_from_addr(self, addr, addr_default):
+        addr = addr or addr_default
+        if not addr:
+            name = self.__user or get_username()
+            if "@" in name:
+                addr = name
+            else:
+                srv = self.host
+                if socket.getfqdn(srv) == "localhost":
+                    srv = socket.getfqdn()
+                addr = name + "@" + srv
+        return(addr)
+
+    def mail(self, to_addrs, subject, msg_body, msg_html=None, from_addr=None,
+            reply_to=None):
         """Send a message.
         
         This will connect to the SMTP server (with authentication if enabled
@@ -49,20 +64,14 @@ class Mailer:
             to_addrs = [to_addrs]
         # From address can be set already or given here.  Either way, if it was
         # not defined, construct a From address from user and network details.
-        from_addr = from_addr or self.from_addr
-        if not from_addr:
-            name = self.__user or get_username()
-            if "@" in name:
-                from_addr = name
-            else:
-                srv = self.host
-                if socket.getfqdn(srv) == "localhost":
-                    srv = socket.getfqdn()
-                from_addr = name + "@" + srv
+        from_addr = self._resolve_from_addr(from_addr, self.from_addr)
+        reply_to = reply_to or self.reply_to
         # Construct message
         msg = EmailMessage()
         msg["Subject"] = subject
         msg["From"] = from_addr
+        if reply_to:
+            msg["Reply-To"] = reply_to
         if to_addrs:
             msg["To"] = ", ".join(to_addrs)
         self.logger.debug('Connecting over SMTP for message: "%s"' % subject)
@@ -98,6 +107,12 @@ class Mailer:
                 smtp.login(self.__user, self.__password)
             # Send and quit
             self.logger.debug('Sending message: "%s"' % subject)
+            # "Note: The from_addr and to_addrs parameters are used to construct
+            # the message envelope used by the transport agents. sendmail does
+            # not modify the message headers in any way."
+            # In other words, we need to have the same information present
+            # inside the msg object, even though we're also giving it
+            # explicitly to smtp.sendmail.
             smtp.sendmail(from_addr, recipients, msg.as_string())
         self.logger.info('Message sent: "%s"' % subject)
         return(msg)
