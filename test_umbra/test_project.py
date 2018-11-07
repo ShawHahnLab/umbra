@@ -646,10 +646,31 @@ class TestProjectDataBlank(TestProjectDataOneTask):
 
 # Other ProjectData test cases
 
-class TestProjectDataFailure(TestBase):
-    # TODO test the case of a failure during processing.  An Exception should
-    # be raised but also logged to the ProjectData object and updated on disk.
-    pass
+class TestProjectDataFailure(TestProjectDataOneTask):
+    """What should happen if an exception is raised during processing?
+    
+    The exception should reach the caller but the ProjectData object should do
+    some cleanup of its own, trying to update its status to "failed" before
+    re-raising the exception.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Processing won't like that there's already something using the path
+        # it wants to use.  Let's make sure it fails, but in the way we expect.
+        self.proj.path_proc.touch(mode=0o000)
+
+    def test_process(self):
+        """Test that process() fails in the expected way.
+        
+        It should raise an exception, but still set its status attribute in the
+        process."""
+        with self.assertRaises(FileExistsError):
+            self.proj.process()
+        self.assertEqual(self.proj.status, "failed")
+        self.assertEqual(self.proj.tasks_pending, self.tasks_run)
+        self.assertEqual(self.proj.tasks_completed, [])
+        self.assertEqual(self.proj.task_current, "")
 
 
 class TestProjectDataBlank(TestBase):
