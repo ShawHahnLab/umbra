@@ -98,3 +98,5 @@ mailer:
   # Any addressses that should be CC'd on sent emails.  If set, this can be a
   # single address or a list.
   cc_addrs: null
+  # An optional address for the "Reply-To" header of sent emails.
+  reply_to: null
