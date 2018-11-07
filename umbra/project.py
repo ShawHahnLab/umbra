@@ -246,24 +246,24 @@ class ProjectData:
         if self.readonly:
             raise ProjectError("ProjectData is read-only")
         self.status = ProjectData.PROCESSING
-        self.path_proc.mkdir(parents=True, exist_ok=True)
-        ts = self._metadata["task_status"]
-        while self.tasks_pending: 
-            if self.task_current:
-                raise ProjectError("a task is already running")
-            ts["current"] = ts["pending"].pop(0)
-            if not self.deps_completed(ts["current"]):
-                raise ProjectError("not all dependencies for task completed")
-            self.save_metadata()
-            try:
+        try:
+            self.path_proc.mkdir(parents=True, exist_ok=True)
+            ts = self._metadata["task_status"]
+            while self.tasks_pending:
+                if self.task_current:
+                    raise ProjectError("a task is already running")
+                ts["current"] = ts["pending"].pop(0)
+                if not self.deps_completed(ts["current"]):
+                    raise ProjectError("not all dependencies for task completed")
+                self.save_metadata()
                 self._run_task(ts["current"])
-            except Exception as e:
-                self._metadata["failure_exception"] = traceback.format_exc()
-                self.status = ProjectData.FAILED
-                raise(e)
-            ts["completed"].append(ts["current"])
-            ts["current"] = ""
-            self.save_metadata()
+                ts["completed"].append(ts["current"])
+                ts["current"] = ""
+                self.save_metadata()
+        except Exception as e:
+            self._metadata["failure_exception"] = traceback.format_exc()
+            self.status = ProjectData.FAILED
+            raise(e)
         self.status = ProjectData.COMPLETE
 
     def load_metadata(self):
