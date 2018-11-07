@@ -658,19 +658,21 @@ class TestProjectDataFailure(TestProjectDataOneTask):
         super().setUp()
         # Processing won't like that there's already something using the path
         # it wants to use.  Let's make sure it fails, but in the way we expect.
+        util.mkparent(self.proj.path_proc)
         self.proj.path_proc.touch(mode=0o000)
 
     def test_process(self):
         """Test that process() fails in the expected way.
         
         It should raise an exception, but still set its status attribute in the
-        process."""
+        process and also record the exception details."""
         with self.assertRaises(FileExistsError):
             self.proj.process()
         self.assertEqual(self.proj.status, "failed")
         self.assertEqual(self.proj.tasks_pending, self.tasks_run)
         self.assertEqual(self.proj.tasks_completed, [])
         self.assertEqual(self.proj.task_current, "")
+        self.assertTrue("failure_exception" in self.proj._metadata.keys())
 
 
 class TestProjectDataBlank(TestBase):
