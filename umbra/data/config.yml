@@ -15,6 +15,12 @@ readonly: false
 # How many worker threads should be run in parallel?  This sets an upper limit
 # on how many projects will be processed at a time.
 nthreads: 1
+# Should run directories newer than a certain age be skipped in a given refresh
+# cycle?  This can avoid spurious warnings for partially-written run data.
+# Configure as a number of seconds from the present time.
+min_age: null
+# How about run directories older than a certain age?
+max_age: null
 
 ##############################################################################
 # Basic file and directory path setup for processing tasks.
