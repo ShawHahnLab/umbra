@@ -68,7 +68,7 @@ class TestIlluminaProcessor(TestBase):
         # in the list anymore.
         remove_tree(str(self.path_run), verbose=True)
         self.proc.load(wait=True)
-        self.assertEqual(len(self.proc.runs), self.num_runs-1)
+        self.assertEqual(len(self.proc.runs), max(0, self.num_runs-1))
 
     def test_refresh(self):
         """Basic scenario for refresh(): a new run directory appears."""
@@ -183,6 +183,8 @@ class TestIlluminaProcessor(TestBase):
         
         We'll step through each possible filesystem situation separately and
         make sure the loader can handle it."""
+        if not self.num_runs:
+            raise unittest.SkipTest("No run data expected; skipping test")
         run_id = "180102_M00000_0000_000000000-XXXXX"
         path_run = self.path_runs/run_id
         get_run = lambda: [r for r in self.proc.runs if r.path.name == run_id][0]
@@ -340,6 +342,82 @@ class TestIlluminaProcessorReportConfig(TestIlluminaProcessor):
         with open(self.report_path) as f:
             txt = f.read()
         self._check_csv(txt)
+
+
+class TestIlluminaProcessorMinRunAge(TestIlluminaProcessor):
+    """Test case for a required min run age for IlluminaProcessor.
+    
+    With this feature enabled, runs newer than a fixed age (by ctime on the run
+    directory) will be skipped."""
+
+    def setUpConfig(self):
+        self.config = copy.deepcopy(CONFIG)
+        self.config["min_age"] = 60 # seconds
+
+    def setUpVars(self):
+        super().setUpVars()
+        # Here we don't expect any runs to be loaded since they're too new.
+        # The report should be empty.
+        self.num_runs = 0
+        self.report_md5 = md5("")
+
+    def test_refresh(self):
+        with TemporaryDirectory() as stash:
+            run_stash = str(Path(stash)/self.run_id)
+            copy_tree(str(self.path_run), run_stash)
+            remove_tree(self.path_run)
+            # Start with an empty set
+            self.assertEqual(self.proc.runs, set())
+            proj_exp = {"active": set(), "inactive": set(), "completed": set()}
+            self.assertEqual(self.proc.projects, proj_exp)
+            # Refresh loads a number of Runs
+            self.proc.refresh()
+            self.assertEqual(self.proc.runs, set())
+            self.assertEqual(self.proc.projects, proj_exp)
+            # Copy run directory back
+            copy_tree(run_stash, str(self.path_run))
+            # Now, we should load a new Run with refresh()
+            self.assertEqual(self.proc.projects, proj_exp)
+            self.proc.start()
+            self.proc.refresh(wait=True)
+            # Except we still haven't loaded any yet (too new)
+            self.assertEqual(self.proc.projects, proj_exp)
+
+
+class TestIlluminaProcessorMinRunAgeZero(TestIlluminaProcessor):
+    """Test case #2 for a required min run age for IlluminaProcessor.
+    
+    This time runs should be loaded since they're old enough to pass the
+    filter."""
+
+    def setUpConfig(self):
+        self.config = copy.deepcopy(CONFIG)
+        self.config["min_age"] = 0
+
+
+class TestIlluminaProcessorMaxRunAgeZero(TestIlluminaProcessorMinRunAge):
+    """Test case for a max allowed run age for IlluminaProcessor.
+    
+    With this feature enabled, runs older than a fixed age (by ctime on the run
+    directory) will be skipped.  This inherits from the minimum-age test case
+    since we can re-use the behavior of a high min-age to test a low
+    max-age."""
+
+    def setUpConfig(self):
+        self.config = copy.deepcopy(CONFIG)
+        self.config["max_age"] = 0
+
+
+class TestIlluminaProcessorMaxRunAge(TestIlluminaProcessorMinRunAgeZero):
+    """Test case #2 for a max allowed run age for IlluminaProcessor.
+    
+    This time runs should be loaded since they're new enough to pass the
+    filter."""
+
+    def setUpConfig(self):
+        self.config = copy.deepcopy(CONFIG)
+        self.config["max_age"] = 60
+
 
 if __name__ == '__main__':
     unittest.main()

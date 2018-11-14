@@ -291,15 +291,29 @@ class IlluminaProcessor:
         self.runs |= runs
 
     def _run_setup(self, run_dir):
+        run = None
+        # The min and max run directory ctime age in seconds, time of last
+        # change of run directory, and current time.
+        min_age = self.config.get("min_age")
+        max_age = self.config.get("max_age")
+        time_change = run_dir.stat().st_ctime
+        time_now = time.time()
+        # Now, check each threshold if it was specified.  Careful to check for
+        # None here because a literal zero should be taken as its own meaning.
+        if min_age is not None and (time_now - time_change < min_age):
+            self.logger.debug("skipping run; timestamp too new:.../%s" % run_dir.name)
+            return(run)
+        if max_age is not None and (time_now - time_change > max_age):
+            self.logger.debug("skipping run; timestamp too old:.../%s" % run_dir.name)
+            return(run)
         try:
-            self.logger.debug("loading new run:.../%s" % Path(run_dir).name)
+            self.logger.debug("loading new run:.../%s" % run_dir.name)
             run = illumina.run.Run(run_dir,
                     strict = True,
                     alignment_callback = self._proc_new_alignment)
         except Exception as e:
             # ValueError for unrecognized or mismatched directories
             if type(e) is ValueError:
-                run = None
                 self.logger.debug("skipped unrecognized run: %s" % run_dir)
             else:
                 self.logger.critical("Error while loading run %s\n" % run_dir)
