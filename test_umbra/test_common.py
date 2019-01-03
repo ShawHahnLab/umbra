@@ -11,6 +11,7 @@ import re
 import csv
 from zipfile import ZipFile
 import hashlib
+import sys
 
 import umbra
 from umbra import (illumina,  util)
