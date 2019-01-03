@@ -13,6 +13,8 @@ import io
 import warnings
 import threading
 from umbra.processor import IlluminaProcessor
+from umbra.project import ProjectData
+import logging
 
 class TestIlluminaProcessor(TestBase):
     """Main tests for IlluminaProcessor."""
@@ -418,6 +420,45 @@ class TestIlluminaProcessorMaxRunAge(TestIlluminaProcessorMinRunAgeZero):
         self.config = copy.deepcopy(CONFIG)
         self.config["max_age"] = 60
 
+
+class TestIlluminaProcessorFailure(TestIlluminaProcessor):
+    """Test case for a processing failure.
+    
+    When processing for a project fails, log messages and an email alert should
+    be generated, and the processing status should be set to
+    ProjectData.FAILED.  (The processor then moves on with no interruption.)"""
+
+    def setUpConfig(self):
+        self.config = copy.deepcopy(CONFIG)
+        self.config["mailer"]["to_addrs_on_error"] = ["admin@example.com"]
+
+    def setUp(self):
+        super().setUp()
+        # Use the dummy storing mailer provided by TestBase.  We'll make sure
+        # it's called with the right arguments when processing fails.
+        self.proc.mailer = self.mailer
+
+    def test_refresh(self):
+        # Ensure that processing will fail by embedding a read-only directory
+        # inside the working directory.
+        self.proj_str = "2018-01-01-Something_Else-Someone-Jesse"
+        path = self.path_proc / self.proj_str / self.run_id / "Data"
+        path.mkdir(0o444, parents=True)
+        # On refresh, the processing failure should be caught and filed as a
+        # log message.
+        self.proc.start()
+        with self.assertLogs(level = logging.ERROR) as cm:
+            self.proc.refresh(wait=True)
+        # A mail should have been "sent"
+        self.assertEqual(len(self.mails), 1)
+        self.assertEqual(self.mails[0]["to_addrs"], ["admin@example.com"])
+        # Overall structure of the projects should be the same, but the
+        # completed one should be marked as failed.
+        self.assertEqual(self._proj_names("active"), [])
+        self.assertEqual(self._proj_names("inactive"), ["STR"])
+        self.assertEqual(self._proj_names("completed"), ["Something Else"])
+        completed = self.proc.projects["completed"]
+        self.assertEqual(completed.pop().status, ProjectData.FAILED)
 
 if __name__ == '__main__':
     unittest.main()
