@@ -106,3 +106,6 @@ mailer:
   cc_addrs: null
   # An optional address for the "Reply-To" header of sent emails.
   reply_to: null
+  # Any addresses that should receive email alerts of processing failures (in
+  # addition to cc_addrs).
+  to_addrs_on_error: null
