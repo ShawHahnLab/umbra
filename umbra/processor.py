@@ -149,6 +149,14 @@ class IlluminaProcessor:
         will stop a watch_and_process loop."""
         self._queue_cmd.put("finish_up")
 
+    def is_finishing_up(self):
+        """Is a finish_up task in the command queue?
+        
+        This comes with all the caveats of checking the queue state without
+        popping an item from it, but should be good enough for a quick
+        check."""
+        return("finish_up" in self._queue_cmd.queue)
+
     def watch_and_process(self, poll=5, wait=False):
         """Refresh continually, optionally waiting for completion each cycle.
         
@@ -336,11 +344,10 @@ class IlluminaProcessor:
         needs to do next.  But, if two INT/TERM signals are sent in a row, the
         program will exit without waiting."""
         if sig in [signal.SIGINT, signal.SIGTERM]:
-            if not self._finish_up:
+            if not self.is_finishing_up():
                 msg = "Signal caught (%s), finishing up" % sig
                 self.logger.warning(msg)
-                #self._finish_up = True
-                self._queue_cmd.put("finish_up")
+                self.finish_up()
             else:
                 msg = "Second signal caught (%s), stopping now" % sig
                 self.logger.error(msg)
