@@ -415,7 +415,20 @@ class IlluminaProcessor:
             try:
                 proj.process()
             except Exception as e:
-                self.logger.error("Failed project: %s\n" % proj.name)
+                subject = "Failed project: %s\n" % proj.name
+                self.logger.error(subject)
                 self.logger.error(traceback.format_exc())
+                config_mail = self.config.get("mailer", {})
+                contacts = config_mail.get("to_addrs_on_error", [])
+                body = "Project processing failed for \"%s\"" % proj.work_dir
+                body += " with the following message:\n"
+                body += "\n\n"
+                body += traceback.format_exc()
+                kwargs = {
+                        "to_addrs": contacts,
+                        "subject": subject,
+                        "msg_body": body
+                        }
+                self.mailer(**kwargs)
             self._queue_jobs.task_done()
             self._queue_completion.put(proj)
