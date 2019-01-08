@@ -195,7 +195,7 @@ def _parse_log_line(line):
 
 def scrape_log_for_code(log_path):
     """Watch log file until a Box auth code appears, then return it."""
-    box_url = 'https://app.box.com/api/oauth2/authorize'
+    box_url_suffix = 'box.com/api/oauth2/authorize'
     # "tail -n 0 -f" will give all lines written to the file after the tail
     # process starts.
     # Based on: https://stackoverflow.com/a/12523371/6073858
@@ -204,7 +204,7 @@ def scrape_log_for_code(log_path):
     while True:
         line = f.stdout.readline()
         logentry = _parse_log_line(line)
-        if box_url in logentry["Referer"]:
+        if box_url_suffix in logentry["Referer"]:
             m = re.search('code=([^ ]*) ', logentry["Request"])
             code = m.group(1)
             return(code)
