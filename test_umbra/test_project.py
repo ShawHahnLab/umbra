@@ -593,7 +593,7 @@ class TestProjectDataEmail(TestProjectDataOneTask):
         if not hasattr(self, "msg_html"):
             self.msg_html = "60418f13707b73b32f0f7be4edd76fb4"
         if not hasattr(self, "to_addrs_exp"):
-            self.to_addrs_exp = ["<Name Lastname> name@example.com"]
+            self.to_addrs_exp = ["Name Lastname <name@example.com>"]
         super().setUp()
 
     def test_process(self):
