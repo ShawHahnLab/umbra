@@ -489,7 +489,7 @@ class ProjectData:
         # (The name prefix is considered OK by RFC822, so we should be able to
         # leave that intact for both the sending part and the "To:" field.)
         contacts = self._metadata["experiment_info"]["contacts"]
-        contacts = ["<%s> %s" % (k, contacts[k]) for k in contacts]
+        contacts = ["%s <%s>" % (k, contacts[k]) for k in contacts]
         url = self._metadata["task_output"].get("upload", {}).get("url", "")
         subject = "Illumina Run Processing Complete for %s" % self.work_dir
         # Build message text and html
