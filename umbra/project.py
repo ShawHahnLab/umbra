@@ -2,7 +2,7 @@ from .util import *
 from . import experiment
 import yaml
 import traceback
-from zipfile import ZipFile
+import zipfile
 import subprocess
 from Bio import SeqIO
 import warnings
@@ -469,7 +469,9 @@ class ProjectData:
     def zip(self):
         """Create zipfile of processing directory and metadata."""
         mkparent(self.path_pack)
-        with ZipFile(self.path_pack, "x") as z:
+        # By default ZipFile will not actually compress!  We need to specify a
+        # compression method explicitly for that.
+        with zipfile.ZipFile(self.path_pack, "x", zipfile.ZIP_DEFLATED) as z:
             # Archive everything in the processing directory
             for root, dirs, files in os.walk(self.path_proc):
                 for fn in files:
