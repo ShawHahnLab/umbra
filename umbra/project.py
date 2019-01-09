@@ -78,6 +78,7 @@ class ProjectData:
     def from_alignment(alignment, path_exp, dp_align, dp_proc, dp_pack,
             uploader,
             mailer,
+            nthreads=1,
             readonly=False):
         """Make dict of ProjectData objects from alignment/experiment table."""
         # Row by row, build up a dict for each unique project.  Even though
@@ -108,14 +109,17 @@ class ProjectData:
             for name in names:
                 proj_file = slugify(name) + ".yml"
                 fp = Path(dp_align) / run_id / al_idx / proj_file
-                proj = ProjectData(name, fp,
-                        dp_proc,
-                        dp_pack,
-                        alignment,
-                        experiment_info,
-                        uploader,
-                        mailer,
-                        exp_path,
+                proj = ProjectData(
+                        name = name,
+                        path = fp,
+                        dp_proc = dp_proc,
+                        dp_pack = dp_pack,
+                        alignment = alignment,
+                        exp_info_full = experiment_info,
+                        uploader = uploader,
+                        mailer = mailer,
+                        exp_path = exp_path,
+                        nthreads = nthreads,
                         readonly = readonly)
                 proj.sample_paths = sample_paths
                 projects.add(proj)
@@ -125,14 +129,14 @@ class ProjectData:
             uploader,
             mailer,
             exp_path=None,
-            threads=1,
+            nthreads=1,
             readonly=False):
 
         self.logger = logging.getLogger(__name__)
         self.name = name
         self.alignment = alignment
         self.path = path # YAML metadata path
-        self.threads = threads # max threads to give tasks
+        self.nthreads = nthreads # max threads to give tasks
         self.uploader = uploader # callback to upload zip file
         self.mailer = mailer # callback to send email
         # TODO phred score should really be a property of the Illumina
@@ -387,7 +391,7 @@ class ProjectData:
             return(fp_out)
         args = ["spades.py", "--12", fq_in,
                 "-o", dir_out,
-                "-t", self.threads,
+                "-t", self.nthreads,
                 "--phred-offset", self.phred_offset]
         args = [str(x) for x in args]
         # spades tends to throw nonzero exit codes with short files, empty

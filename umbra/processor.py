@@ -42,6 +42,7 @@ class IlluminaProcessor:
         self.path_proc = self._init_path(paths.get("processed", "processed"))
         self.path_pack = self._init_path(paths.get("packaged", "packaged"))
         self.nthreads = config.get("nthreads", 1)
+        self.nthreads_per_project = config.get("nthreads_per_project", 1)
         self.readonly = config.get("readonly")
         self._init_data()
         self._init_job_queue()
@@ -389,14 +390,16 @@ class IlluminaProcessor:
         Any projects with previously-created metadata on disk will be marked
         inactive and not processed."""
         self.logger.debug("proccesing new alignment: %s" % al.path)
-        projs = project.ProjectData.from_alignment(al,
-                self.path_exp,
-                self.path_status,
-                self.path_proc,
-                self.path_pack,
-                self.uploader,
-                self.mailer,
-                self.readonly)
+        projs = project.ProjectData.from_alignment(
+                alignment = al,
+                path_exp = self.path_exp,
+                dp_align = self.path_status,
+                dp_proc = self.path_proc,
+                dp_pack = self.path_pack,
+                uploader = self.uploader,
+                mailer = self.mailer,
+                nthreads = self.nthreads_per_project,
+                readonly = self.readonly)
         for proj in projs:
             suffix = ""
             if proj.readonly:
