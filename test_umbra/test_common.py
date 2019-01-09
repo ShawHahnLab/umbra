@@ -9,7 +9,6 @@ from distutils.file_util import copy_file
 from pathlib import Path
 import re
 import csv
-from zipfile import ZipFile
 import hashlib
 import sys
 
