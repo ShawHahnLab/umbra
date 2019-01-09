@@ -12,6 +12,7 @@ that.
 
 from .test_common import *
 import gzip
+import zipfile
 import warnings
 import yaml
 import threading
@@ -267,9 +268,14 @@ class TestProjectDataOneTask(TestBase):
         
         This will also check for the YAML metadata file in the expected hidden
         location."""
-        # In the zipfile we should also find those same files.
-        with ZipFile(self.proj.path_pack, "r") as z:
+        with zipfile.ZipFile(self.proj.path_pack, "r") as z:
             info = z.infolist()
+            # Check compression status.  It should actually be compressed, and
+            # with the expected method.
+            item = info[0]
+            self.assertTrue(item.compress_size < item.file_size)
+            self.assertEqual(item.compress_type, zipfile.ZIP_DEFLATED)
+            # Check that the expected files are all present in the zipfile.
             files = [i.filename for i in info]
             for f in files_exp:
                 p = Path(self.proj.work_dir) / self.run.run_id / f
