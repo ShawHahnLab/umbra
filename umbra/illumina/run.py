@@ -1,15 +1,19 @@
 from .util import *
 from .alignment import Alignment
 import warnings
+import logging
 
 class Run:
     """A single Illumina sequencing run, based on a directory tree."""
 
-    def __init__(self, path, strict=None, alignment_callback=None):
+    def __init__(self, path, strict=None, alignment_callback=None,
+            min_alignment_dir_age=None):
+        self.logger = logging.getLogger(__name__)
         # Setup run path
         path = Path(path).resolve()
         self.path = path
         self.alignment_callback = alignment_callback
+        self.min_alignment_dir_age = min_alignment_dir_age
 
         self.invalid = False
         # RunInfo.xml is one of the first files to show up in a run directory,
@@ -79,7 +83,9 @@ class Run:
         is_new = lambda d: not d in al_loc_known
         al_loc = [d for d in al_loc if is_new(d)]
         al = [self._alignment_setup(d) for d in al_loc]
-        # Filter out any blanks that failed to load
+        # Filter out any blanks.  These were either not recognized as
+        # alignments or skipped as too new and potentially unfinished (and
+        # logged appropriately) below.
         al = [a for a in al if a]
         # Merge new ones into existing list
         self.alignments += al
