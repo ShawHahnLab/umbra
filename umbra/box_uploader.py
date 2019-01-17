@@ -76,7 +76,9 @@ class BoxUploader:
                        refresh_token = self.creds["user_refresh_token"])
         self.client = boxsdk.Client(self.oauth)
         me = self.client.user(user_id='me').get()
+        self.max_upload_size = int(me["max_upload_size"])
         self.logger.info('User: ' + me['login'])
+        self.logger.info('Max upload size in bytes: %d' % self.max_upload_size)
 
     def _init_upload_folder(self):
         folder_id = self.config.get("folder_id", 0)
@@ -95,8 +97,14 @@ class BoxUploader:
 
     def upload(self, path, name=None):
         """Upload file from a given path, optionally with custom name."""
+        path = Path(path)
+        fsize = path.stat().st_size
+        if fsize > self.max_upload_size:
+            msg = "File size (%d) exceeds max upload size (%d)" % (fsize,
+                    self.max_upload_szie)
+            raise ValueError(msg)
         if not name:
-            name = Path(path).name
+            name = path.name
         # Possibly add a call to folder.canUpload() to make sure it would work,
         # first.
         box_file = self.folder.upload(str(path), name)
