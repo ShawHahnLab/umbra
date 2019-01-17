@@ -91,9 +91,19 @@ class Run:
         self.alignments += al
 
     def _alignment_setup(self, path):
-        # Try loading an alignment directory, but just throw a warning and
-        # return None if it doesn't look like an Alignment.  This should handle
-        # not-yet-complete Alignment directories on disk.
+        # Try loading an alignment directory, but skip if the alignment
+        # directory looks too new on disk (according to min_alignment_dir_age)
+        # or just throw a warning and return None if it doesn't look like an
+        # Alignment.  This should handle not-yet-complete Alignment directories
+        # on disk while avoiding spurious warnings.
+        min_age = self.min_alignment_dir_age
+        time_change = path.stat().st_ctime
+        time_now = time.time()
+        if min_age is not None and (time_now - time_change < min_age):
+            msg = "skipping alignment; timestamp too new:.../%s/.../%s" % (
+                    self.path.name, path.name)
+            self.logger.debug(msg)
+            return(None)
         try:
             al = Alignment(path, self, self.alignment_callback)
         except ValueError as e:
