@@ -319,7 +319,8 @@ class IlluminaProcessor:
             self.logger.debug("loading new run:.../%s" % run_dir.name)
             run = illumina.run.Run(run_dir,
                     strict = True,
-                    alignment_callback = self._proc_new_alignment)
+                    alignment_callback = self._proc_new_alignment,
+                    min_alignment_dir_age = min_age)
         except Exception as e:
             # ValueError for unrecognized or mismatched directories
             if type(e) is ValueError:
