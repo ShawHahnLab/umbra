@@ -119,6 +119,8 @@ class TestProjectData(TestBase):
         md_str["status"] = "complete"
         md_str["task_output"] = {}
         md_se["task_output"] = {}
+        md_se["work_dir"] = "2018-01-01-Something_Else-Someone-Jesse"
+        md_str["work_dir"] = "2018-01-01-STR-Jesse"
 
         fq = self.path_runs/"180101_M00000_0000_000000000-XXXXX/Data/Intensities/BaseCalls"
         fps = {

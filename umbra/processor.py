@@ -21,6 +21,7 @@ class IlluminaProcessor:
                 "AlignComplete", # Is the alignment complete?
                 # Project attributes
                 "Project",       # Name of project from extra metadata
+                "WorkDir",       # Project working directory name
                 "Status",        # Project data processing status
                 "NSamples",      # Num samples in project data
                 "NFiles",        # Num files in project data
@@ -227,6 +228,7 @@ class IlluminaProcessor:
                         for proj in projs:
                             entry_proj = dict(entry_al)
                             entry_proj["Project"] = proj.name
+                            entry_proj["WorkDir"] = proj.work_dir
                             entry_proj["Status"] = proj.status
                             entry_proj["NSamples"] = len(proj.experiment_info["sample_names"])
                             entry_proj["NFiles"] = sum([len(x) for x in proj.sample_paths.values()])

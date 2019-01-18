@@ -160,12 +160,29 @@ class ProjectData:
             self._metadata["experiment_info"]["name"] = self.alignment.experiment
         if self.alignment.run:
             self._metadata["run_info"]["path"] = str(self.alignment.run.path)
+        self._metadata["work_dir"] = self._init_work_dir_name()
 
         self.path_proc = Path(dp_proc) / self.work_dir
         self.path_pack = Path(dp_pack) / (self.work_dir + ".zip")
         if not self.readonly:
             self.save_metadata()
         self.logger.info("ProjectData initialized: %s" % self.work_dir)
+
+    def _init_work_dir_name(self):
+        txt_date = datestamp(self.alignment.run.rta_complete["Date"])
+        txt_proj = slugify(self.name)
+        # first names of contacts given
+        who = self.experiment_info["contacts"]
+        who = [txt.split(" ")[0] for txt in who.keys()]
+        who = "-".join(who)
+        txt_name = slugify(who)
+        fields = [txt_date, txt_proj, txt_name]
+        fields = [f for f in fields if f]
+        dirname = "-".join(fields)
+        # TODO better exception here
+        if not dirname:
+            raise Exception("empty work_dir")
+        return(dirname)
 
     @property
     def status(self):
@@ -188,20 +205,7 @@ class ProjectData:
     @property
     def work_dir(self):
         """Short name for working directory, without path"""
-        txt_date = datestamp(self.alignment.run.rta_complete["Date"])
-        txt_proj = slugify(self.name)
-        # first names of contacts given
-        who = self.experiment_info["contacts"]
-        who = [txt.split(" ")[0] for txt in who.keys()]
-        who = "-".join(who)
-        txt_name = slugify(who)
-        fields = [txt_date, txt_proj, txt_name]
-        fields = [f for f in fields if f]
-        dirname = "-".join(fields)
-        # TODO better exception here
-        if not dirname:
-            raise Exception("empty work_dir")
-        return(dirname)
+        return(self._metadata["work_dir"])
 
     @property
     def sample_paths(self):

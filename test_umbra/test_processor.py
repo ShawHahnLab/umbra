@@ -40,7 +40,7 @@ class TestIlluminaProcessor(TestBase):
         # MD5 sum of the report CSV text, minus the RunPath column.
         # This is after fulling loading the default data, but before starting
         # processing.
-        self.report_md5 = "40c9bf2b0f99159c9cc061a58ca7bb91"
+        self.report_md5 = "a6288d49f223ad85b564069701bc8b6f"
         # Temporary path to use for a report
         self.report_path = Path(self.tmpdir.name) / "report.csv"
         # The header entries we expect to see in the CSV report text.
@@ -51,6 +51,7 @@ class TestIlluminaProcessor(TestBase):
                 "Experiment",
                 "AlignComplete",
                 "Project",
+                "WorkDir",
                 "Status",
                 "NSamples",
                 "NFiles",
@@ -243,7 +244,7 @@ class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
         self.warn_msg += "run-files-custom-name / "
         self.warn_msg += "180102_M00000_0000_000000000-XXXXX"
         # There's an extra line in the report due to the duplicated run
-        self.report_md5 = "ccf4d07a070b7f1ce5bf65e587721652"
+        self.report_md5 = "6d3a716cc86a08f382e29474847f018b"
 
     def test_load(self):
         # One run dir in particular is named oddly and is a duplicate of the
@@ -290,7 +291,7 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
     def setUpVars(self):
         super().setUpVars()
         # All projects inactive in this case
-        self.report_md5 = "493730e3e0e7698f92bc5230fad2a25b"
+        self.report_md5 = "513fb89c2d3341352ad34e791eae5fdf"
 
     def test_refresh(self):
         """Basic scenario for refresh(): a new run directory appears.
@@ -338,7 +339,7 @@ class TestIlluminaProcessorReportConfig(TestIlluminaProcessor):
         # watch_and_process will automatically call start(), and this wrapper
         # will wait, so we'll get a completed ProjectData for one case.
         # Need an MD5 for a slightly different report in that case
-        self.report_md5 = "703bbe9ffe7a3270a14a8a3718a4e07b"
+        self.report_md5 = "c815570da24ce8e556d8e50b454a8eb1"
         self._watch_and_process_maybe_warning()
         # If a report was configured, it should exist
         with open(self.report_path) as f:
