@@ -1,15 +1,19 @@
 from .util import *
 from .alignment import Alignment
 import warnings
+import logging
 
 class Run:
     """A single Illumina sequencing run, based on a directory tree."""
 
-    def __init__(self, path, strict=None, alignment_callback=None):
+    def __init__(self, path, strict=None, alignment_callback=None,
+            min_alignment_dir_age=None):
+        self.logger = logging.getLogger(__name__)
         # Setup run path
         path = Path(path).resolve()
         self.path = path
         self.alignment_callback = alignment_callback
+        self.min_alignment_dir_age = min_alignment_dir_age
 
         self.invalid = False
         # RunInfo.xml is one of the first files to show up in a run directory,
@@ -79,15 +83,27 @@ class Run:
         is_new = lambda d: not d in al_loc_known
         al_loc = [d for d in al_loc if is_new(d)]
         al = [self._alignment_setup(d) for d in al_loc]
-        # Filter out any blanks that failed to load
+        # Filter out any blanks.  These were either not recognized as
+        # alignments or skipped as too new and potentially unfinished (and
+        # logged appropriately) below.
         al = [a for a in al if a]
         # Merge new ones into existing list
         self.alignments += al
 
     def _alignment_setup(self, path):
-        # Try loading an alignment directory, but just throw a warning and
-        # return None if it doesn't look like an Alignment.  This should handle
-        # not-yet-complete Alignment directories on disk.
+        # Try loading an alignment directory, but skip if the alignment
+        # directory looks too new on disk (according to min_alignment_dir_age)
+        # or just throw a warning and return None if it doesn't look like an
+        # Alignment.  This should handle not-yet-complete Alignment directories
+        # on disk while avoiding spurious warnings.
+        min_age = self.min_alignment_dir_age
+        time_change = path.stat().st_ctime
+        time_now = time.time()
+        if min_age is not None and (time_now - time_change < min_age):
+            msg = "skipping alignment; timestamp too new:.../%s/.../%s" % (
+                    self.path.name, path.name)
+            self.logger.debug(msg)
+            return(None)
         try:
             al = Alignment(path, self, self.alignment_callback)
         except ValueError as e:

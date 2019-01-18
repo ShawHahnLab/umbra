@@ -1,4 +1,5 @@
 from .test_common import *
+import time
 
 class TestRun(unittest.TestCase):
     """Base test case for a Run."""
@@ -33,9 +34,7 @@ class TestRun(unittest.TestCase):
         self.assertEqual(self.t1_exp, t1_obs)
         self.assertEqual(self.t2_exp, t2_obs)
 
-    def test_refresh(self):
-        """Test that a run refresh works"""
-        ### 1: Update run completion status
+    def check_refresh_run(self):
         # Starting without a RTAComplete.txt, run is marked incomplete.
         move(str(self.path_run / "RTAComplete.txt"), str(self.path_run / "tmp.txt"))
         self.run = Run(self.path_run)
@@ -47,8 +46,9 @@ class TestRun(unittest.TestCase):
         # On refresh, it is now seen as complete.
         self.run.refresh()
         self.assertTrue(self.run.complete)
+
+    def check_refresh_alignments(self):
         orig_als = self.run.alignments
-        ### 2: refresh existing alignments
         path_checkpoint = self.run.alignments[0].path_checkpoint
         move(str(path_checkpoint), str(self.path_run / "tmp.txt"))
         self.run = Run(self.path_run)
@@ -58,7 +58,7 @@ class TestRun(unittest.TestCase):
         self.assertFalse(self.run.alignments[0].complete)
         self.run.refresh()
         self.assertTrue(self.run.alignments[0].complete)
-        ### 3: load any new alignments
+        # Now, load any new alignments
         path_al = self.run.alignments[0].path
         move(str(path_al), str(self.path_run / "tmp"))
         self.run = Run(self.path_run)
@@ -67,6 +67,11 @@ class TestRun(unittest.TestCase):
         self.assertEqual(len(self.run.alignments), len(orig_als)-1)
         self.run.refresh()
         self.assertEqual(len(self.run.alignments), len(orig_als))
+
+    def test_refresh(self):
+        """Test that a run refresh works"""
+        self.check_refresh_run() # 1: Update run completion status
+        self.check_refresh_alignments() # 2: refresh existing alignments
 
     def test_run_id(self):
         self.assertEqual(self.id_exp, self.run.run_id)
@@ -150,3 +155,33 @@ class TestRunInvalid(unittest.TestCase):
             run = Run(path, strict = False)
             self.assertEqual(1, len(w))
             self.assertTrue(run.invalid)
+
+
+class TestRunMinAlignmentAge(TestRun):
+    """Test case for a Run set to ignore too-new alignment directories.
+    
+    This should not warn about empty alignment directories if they're newer (by
+    ctime) than a certain age."""
+
+    def check_refresh_alignments(self):
+        # We just need to override the alignment refresh check method.  Last
+        # time we didn't have Checkpoint.txt, so it didn't consider it
+        # complete.  This time we'll see what happens with Alignment
+        # directories with no SampleSheetUsed.csv.
+        orig_als = self.run.alignments
+        # min_alignment_dir_age should make the Run object skip the "too new"
+        # alignment directories.  We'll use a one-second setting for this test,
+        # and will touch the directory to reset the ctime.
+        self.run.alignments[0].path.touch()
+        with self.assertLogs(level = "DEBUG") as cm:
+            self.run = Run(self.path_run, min_alignment_dir_age = 1)
+        # That alignment shouldn't have been added to the list yet.  No
+        # warnings should have been generated, just a debug log message about
+        # the skip.
+        self.assertEqual(len(cm.output), 1)
+        self.assertEqual(len(self.run.alignments), len(orig_als)-1)
+        # After enough time has passed it should be loaded.
+        time.sleep(1.1)
+        self.assertEqual(len(self.run.alignments), len(orig_als)-1)
+        self.run.refresh()
+        self.assertEqual(len(self.run.alignments), len(orig_als))

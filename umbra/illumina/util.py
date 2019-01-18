@@ -2,6 +2,7 @@ import xml.etree.ElementTree
 import csv
 import re
 import datetime
+import time
 from pathlib import Path
 
 ADAPTERS = {
