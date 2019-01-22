@@ -29,7 +29,11 @@ CONFIG = util.yaml_load(PATH_CONFIG)
 
 def md5(text):
     """MD5 Checksum of the given text."""
-    return(hashlib.md5(text.encode("utf-8")).hexdigest())
+    try:
+        text = text.encode("utf-8")
+    except AttributeError:
+        pass
+    return(hashlib.md5(text).hexdigest())
 
 class TestBase(unittest.TestCase):
     """Some setup/teardown shared with the real test classes."""
