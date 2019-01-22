@@ -1,9 +1,11 @@
 from .util import *
+import shutil
 from . import experiment
 import yaml
 import traceback
 import zipfile
 import subprocess
+import csv
 from Bio import SeqIO
 import warnings
 from tempfile import TemporaryDirectory
@@ -41,6 +43,7 @@ class ProjectData:
     TASK_MERGE    = "merge"    # interleave trimmed R1/R2 reads
     TASK_ASSEMBLE = "assemble" # contig assembly
     TASK_MANUAL   = "manual"   # manual intervention step
+    TASK_METADATA = "metadata" # copy metadata to working dir
     TASK_PACKAGE  = "package"  # package in zip file
     TASK_UPLOAD   = "upload"   # upload to Box
     TASK_EMAIL    = "email"    # email contacts
@@ -53,6 +56,7 @@ class ProjectData:
             TASK_MERGE,
             TASK_ASSEMBLE,
             TASK_MANUAL,
+            TASK_METADATA,
             TASK_PACKAGE,
             TASK_UPLOAD,
             TASK_EMAIL
@@ -62,11 +66,12 @@ class ProjectData:
             TASK_EMAIL: [TASK_UPLOAD],
             TASK_UPLOAD: [TASK_PACKAGE],
             TASK_MERGE: [TASK_TRIM],
-            TASK_ASSEMBLE: [TASK_MERGE],
+            TASK_ASSEMBLE: [TASK_MERGE]
             }
 
     # We'll always include these tasks:
     TASK_DEFAULTS = [
+            TASK_METADATA,
             TASK_EMAIL
             ]
 
@@ -135,6 +140,7 @@ class ProjectData:
         self.logger = logging.getLogger(__name__)
         self.name = name
         self.alignment = alignment
+        self.exp_path = exp_path # Orig experiment spreadsheet (maybe >1 proj)
         self.path = path # YAML metadata path
         self.nthreads = nthreads # max threads to give tasks
         self.uploader = uploader # callback to upload zip file
@@ -484,12 +490,31 @@ class ProjectData:
                     filename = os.path.join(root, fn)
                     arcname = Path(filename).relative_to(self.path_proc.parent)
                     z.write(filename, arcname)
-            # Also add in a copy of the metadata YAML file as it currently
-            # stands.
-            filename = self.path
-            arcname = Path(self.path_proc.name) / ("." + str(filename.name))
-            z.write(filename, arcname)
 
+    ### Metadata
+
+    def copy_metadata(self):
+        """Copy metadata spreadsheets and YAML into working directory."""
+        dest = self.path_proc / "Metadata"
+        dest.mkdir(exist_ok=True)
+        paths = []
+        paths.append(self.alignment.path_sample_sheet) # Sample Sheet
+        paths.append(self.path) # Metadata YAML file (as it currently stands)
+        for path in paths:
+            shutil.copy(path, str(dest / path.name))
+        # metadata is special: need to filter out other projects
+        path_md_out = dest / self.exp_path.name
+        with open(self.exp_path) as f_in, open(path_md_out, "w") as f_out:
+            # Read in all the rows in the original metadata spreadsheet
+            reader = csv.DictReader(f_in)
+            data = list(reader)
+            # Here, write out the experiment spreadsheet but only include our
+            # rows
+            writer = csv.DictWriter(f_out, fieldnames = data[0].keys())
+            writer.writeheader()
+            for row in data:
+                if row["Project"] == self.name:
+                    writer.writerow(row)
 
     ### Mail
 
@@ -615,6 +640,10 @@ class ProjectData:
         elif task == ProjectData.TASK_MANUAL:
             while not (self.path_proc / "Manual").exists():
                 time.sleep(1)
+
+        # Copy over metadata to working directory
+        elif task == ProjectData.TASK_METADATA:
+            self.copy_metadata()
 
         # Zip up all files in the processing directory
         elif task == ProjectData.TASK_PACKAGE:

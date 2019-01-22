@@ -18,6 +18,8 @@ import yaml
 import threading
 import time
 
+DEFAULT_TASKS = ["metadata", "package", "upload", "email"]
+
 class TestProjectData(TestBase):
     """Main tests for ProjectData.
     
@@ -102,12 +104,12 @@ class TestProjectData(TestBase):
                 "path": self.exp_path
                 }
         ts_str = {
-                "pending": ['trim', 'package', 'upload', 'email'],
+                "pending": ['trim', 'metadata', 'package', 'upload', 'email'],
                 "current": "",
                 "completed": []
                 }
         ts_se = {
-                "pending": ['copy', 'package', 'upload', 'email'],
+                "pending": ['copy', 'metadata', 'package', 'upload', 'email'],
                 "current": "",
                 "completed": []
                 }
@@ -198,9 +200,13 @@ class TestProjectDataOneTask(TestBase):
         if not hasattr(self, "exp_name"):
             self.exp_name = "Partials_1_1_18"
         self.exp_path = str(self.path_exp / self.exp_name / "metadata.csv")
+        # Note the write_test_experiment below using this name.
         self.project_name = "TestProject"
         if not hasattr(self, "tasks_run"):
-            self.tasks_run = [self.task, "package", "upload", "email"]
+            if self.task in DEFAULT_TASKS:
+                self.tasks_run = DEFAULT_TASKS[:]
+            else:
+                self.tasks_run = [self.task] + DEFAULT_TASKS
         if not hasattr(self, "contacts_str"):
             self.contacts_str = "Name Lastname <name@example.com>"
         if not hasattr(self, "contacts"):
@@ -209,13 +215,18 @@ class TestProjectDataOneTask(TestBase):
             self.work_dir_exp = "2018-01-01-TestProject-Name"
         # modify project spreadsheet, then create ProjectData
         self.write_test_experiment()
-        self.proj = ProjectData.from_alignment(self.alignment,
+        # Pull out the project we want (to support possibility of additional
+        # projects under this run+alignment)
+        projs = ProjectData.from_alignment(self.alignment,
                 self.path_exp,
                 self.path_status,
                 self.path_proc,
                 self.path_pack,
                 self.uploader,
-                self.mailer).pop()
+                self.mailer)
+        for proj in projs:
+            if proj.name == self.project_name:
+                self.proj = proj
 
     def write_test_experiment(self):
         fieldnames = ["Sample_Name","Project","Contacts","Tasks"]
@@ -232,6 +243,7 @@ class TestProjectDataOneTask(TestBase):
                 writer.writerow((exp_row(sample_name)))
 
     def fake_fastq_entry(self, seq, qual):
+        # TODO can I just md5(seq)? check back on this.
         name = hashlib.md5(seq.encode("utf-8")).hexdigest()
         txt = "@%s\n%s\n+\n%s\n" % (name, seq, qual)
         return(txt)
@@ -283,11 +295,6 @@ class TestProjectDataOneTask(TestBase):
                 p = Path(self.proj.work_dir) / self.run.run_id / f
                 with self.subTest(p=p):
                     self.assertIn(str(p), files)
-            # While we're at it let's check that a copy of the YAML metadata
-            # was put in the zip, too.  This is really more about task=package
-            # though.
-            p = Path(self.proj.work_dir) / ("." + self.proj.path.name)
-            self.assertIn(str(p), files)
 
     def test_attrs(self):
         s = self.path_status / self.run.run_id / "0"
@@ -367,15 +374,16 @@ class TestProjectDataCopy(TestProjectDataOneTask):
         super().test_process()
         # Here we should have a copy of the raw run data inside of the work
         # directory.
-        # The top-level work directory should contain the run directory.
+        # The top-level work directory should contain the run directory and the
+        # default Metadata directory.
         dirpath = self.proj.path_proc
-        dir_exp = [self.run.run_id]
-        dir_obs = [x.name for x in (dirpath.glob("*"))]
+        dir_exp = sorted(["Metadata", self.run.run_id])
+        dir_obs = sorted([x.name for x in (dirpath.glob("*"))])
         self.assertEqual(dir_obs, dir_exp)
         # The files in the top-level of the run directory should match, too.
         files_in = lambda d, s: [x.name for x in d.glob(s) if x.is_file()]
         files_exp = sorted(files_in(self.run.path, "*"))
-        files_obs = sorted(files_in(dirpath, "*/*"))
+        files_obs = sorted(files_in(dirpath / self.run.run_id, "*"))
         self.assertEqual(files_obs, files_exp)
         self.check_zipfile(files_exp)
 
@@ -430,7 +438,7 @@ class TestProjectDataMerge(TestProjectDataOneTask):
     def setUp(self):
         self.task = "merge"
         # trim is a dependency of merge.
-        self.tasks_run = ["trim", self.task, "package", "upload", "email"]
+        self.tasks_run = ["trim", self.task] + DEFAULT_TASKS
         super().setUp()
 
     def test_process(self):
@@ -489,8 +497,7 @@ class TestProjectDataAssemble(TestProjectDataOneTask):
     def setUp(self):
         self.task = "assemble"
         # trim and merge are dependencies of assemble.
-        self.tasks_run = ["trim", "merge", self.task,
-                "package", "upload", "email"]
+        self.tasks_run = ["trim", "merge", self.task] + DEFAULT_TASKS
         # TODO remove this, it's a real run for a first attempt at a real-life
         # test.
         #self.rundir = "180919_M05588_0119_000000000-D4VL7"
@@ -533,7 +540,7 @@ class TestProjectDataManual(TestProjectDataOneTask):
 
     def setUp(self):
         self.task = "manual"
-        self.tasks_run = ["manual", "package", "upload", "email"]
+        self.tasks_run = ["manual"] + DEFAULT_TASKS
         super().setUp()
 
     def finish_manual(self):
@@ -546,17 +553,76 @@ class TestProjectDataManual(TestProjectDataOneTask):
         super().test_process()
 
 
+class TestProjectDataMetadata(TestProjectDataOneTask):
+    """ Test for single-task "metadata".
+
+    Test that a ProjectData gets the expected metadata files copied over to the
+    working directory.
+    """
+
+    def setUp(self):
+        self.task = "metadata"
+        super().setUp()
+
+    def test_process(self):
+        # The basic checks
+        super().test_process()
+        # Also make sure that the expected files are there
+        # SampleSheetUsed.csv from Alignment
+        # metadata.csv for just this project
+        # YAML for this project
+        path_root = Path(self.proj.path_proc) / "Metadata"
+        paths = {
+                "sample_sheet": path_root / "SampleSheetUsed.csv",
+                "metadata":     path_root / "metadata.csv",
+                "yaml":         path_root / self.proj.path.name
+                }
+        path_md5s = {
+                "sample_sheet": "1fbbfa008ef3038560e9904f3d8579a2",
+                "metadata":     "5ef2284fced0e08105c0670518ae2eae"
+                }
+        # First off, they should all be there.
+        for path in paths.values():
+            self.assertTrue(path.exists())
+        # They should also have the expected contents.  (YAML has paths so it'd
+        # be random, though.  We'll skip that one.)
+        for key, md5_exp in path_md5s.items():
+            with self.subTest(md_file=key):
+                path = paths[key]
+                with open(path, 'rb') as f:
+                    contents = f.read().decode("ASCII")
+                md5_obs = md5(contents)
+                self.assertEqual(md5_obs, md5_exp)
+
+    def write_test_experiment(self):
+        # We need a more nuanced experiment metadata spreadsheet here to test
+        # that only this project's rows are copied.
+        fieldnames = ["Sample_Name","Project","Contacts","Tasks"]
+        exp_row = lambda sample_name, pname: {
+                "Sample_Name": sample_name,
+                "Project": pname,
+                "Contacts": self.contacts_str,
+                "Tasks": self.task
+                }
+        sample_names_extra = ["1086S1_05", "1086S2_01", "1086S2_02", "1086S2_03"]
+        with open(self.exp_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames)
+            writer.writeheader()
+            for sample_name in self.sample_names:
+                writer.writerow((exp_row(sample_name, self.project_name)))
+            for sample_name in sample_names_extra:
+                writer.writerow((exp_row(sample_name, "ZZ_Another")))
+
+
 class TestProjectDataPackage(TestProjectDataOneTask):
     """ Test for single-task "package".
 
-    This will barely do anything at all since only the project metadata file
-    will be included in the zip file. (TestProjectDataCopy actually makes for a
-    more thorough test.)
+    This will barely do anything at all since no files get included in the zip
+    file. (TestProjectDataCopy actually makes for a more thorough test.)
     """
 
     def setUp(self):
         self.task = "package"
-        self.tasks_run = ["package", "upload", "email"]
         super().setUp()
 
     def test_process(self):
@@ -574,7 +640,6 @@ class TestProjectDataUpload(TestProjectDataOneTask):
 
     def setUp(self):
         self.task = "upload"
-        self.tasks_run = ["package", "upload", "email"]
         super().setUp()
 
     def test_process(self):
@@ -595,7 +660,6 @@ class TestProjectDataEmail(TestProjectDataOneTask):
 
     def setUp(self):
         self.task = "email"
-        self.tasks_run = ["package", "upload", "email"]
         if not hasattr(self, "msg_body"):
             self.msg_body = "6a4ac9de2b9a60cf199533bb445698f7"
         if not hasattr(self, "msg_html"):
