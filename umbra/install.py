@@ -3,7 +3,7 @@ Supporting functions for installing as a systemd service.
 """
 
 from .util import *
-from .config import path_for_config
+from . import config
 import configparser
 import tempfile
 import pwd
@@ -230,9 +230,16 @@ def _setup_paths(config, uid, gid):
 def _setup_config(config_path):
     logger.info("Installing config file")
     if not config_path or not Path(config_path).exists():
+        if Path(config.SYSTEM_CONFIG).exists():
+            msg = "skipping config file setup;"
+            msg += " file already exists at %s." % config.SYSTEM_CONFIG
+            msg += " To receive the latest default config,"
+            msg += " remove the existing file first."
+            logger.warning(msg)
+            return
         logger.info("no existing config file; using package default.")
-        config_path = path_for_config()
-    _install_file(config_path, "/etc/umbra.yml", mode=0o644)
+        config_path = config.path_for_config()
+    _install_file(config_path, config.SYSTEM_CONFIG, mode=0o644)
 
 def _setup_rsyslog():
     path_conf = Path(__file__).parent / "data" / "10-umbra.conf"
@@ -247,7 +254,8 @@ def install(config, config_path):
     
     config: the currently loaded config dict.
     config_path: the configuration file to copy to /etc/.  If not specified or
-    nonexistent the package default will be used."""
+    nonexistent the package default will be used.  The command-line interface
+    currently enforces the latter behavior."""
     # Get current executable path and permissions
     path_exec = Path(sys.argv[0])
     info = os.stat(path_exec)
