@@ -38,6 +38,7 @@ class ProjectData:
 
     # Recognized tasks:
     TASK_NOOP     = "noop"     # do nothing
+    TASK_FAIL     = "fail"     # trigger a failure
     TASK_COPY     = "copy"     # copy raw files
     TASK_TRIM     = "trim"     # trim adapters
     TASK_MERGE    = "merge"    # interleave trimmed R1/R2 reads
@@ -51,6 +52,7 @@ class ProjectData:
     # Adding an explicit order and dependencies.
     TASKS = [
             TASK_NOOP,
+            TASK_FAIL,
             TASK_COPY,
             TASK_TRIM,
             TASK_MERGE,
@@ -171,7 +173,15 @@ class ProjectData:
         self.path_proc = Path(dp_proc) / self.work_dir
         self.path_pack = Path(dp_pack) / (self.work_dir + ".zip")
         if not self.readonly:
-            self.save_metadata()
+            if self.path_proc.exists() and self.path_proc.glob("*"):
+                msg = ("Processing directory exists and is not empty: %s" %
+                    str(self.path_proc))
+                self.logger.warning(msg)
+                msg = "Marking project readonly: %s" % self.work_dir
+                self.logger.warning(msg)
+                self.readonly = True
+            else:
+                self.save_metadata()
         self.logger.info("ProjectData initialized: %s" % self.work_dir)
 
     def _init_work_dir_name(self):
@@ -501,7 +511,7 @@ class ProjectData:
         paths.append(self.alignment.path_sample_sheet) # Sample Sheet
         paths.append(self.path) # Metadata YAML file (as it currently stands)
         for path in paths:
-            shutil.copy(path, str(dest / path.name))
+            shutil.copy(path, dest)
         # metadata is special: need to filter out other projects
         path_md_out = dest / self.exp_path.name
         with open(self.exp_path) as f_in, open(path_md_out, "w") as f_out:
@@ -618,6 +628,9 @@ class ProjectData:
         # No-op: do nothing!
         if task == ProjectData.TASK_NOOP:
             pass
+
+        elif task == ProjectData.TASK_FAIL:
+            raise ProjectError("Failing ProjectData as requested")
 
         # Copy run directory to within processing directory
         elif task == ProjectData.TASK_COPY:

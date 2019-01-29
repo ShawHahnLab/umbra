@@ -215,6 +215,9 @@ class TestProjectDataOneTask(TestBase):
             self.work_dir_exp = "2018-01-01-TestProject-Name"
         # modify project spreadsheet, then create ProjectData
         self.write_test_experiment()
+        # Readymade hook for any extra stuff for sub-classes
+        if "setUpPreProject" in dir(self):
+            self.setUpPreProject()
         # Pull out the project we want (to support possibility of additional
         # projects under this run+alignment)
         projs = ProjectData.from_alignment(self.alignment,
@@ -357,6 +360,25 @@ class TestProjectDataOneTask(TestBase):
         self.assertEqual(self.proj.tasks_pending, [])
         self.assertEqual(self.proj.tasks_completed, self.tasks_run)
         self.assertEqual(self.proj.task_current, "")
+
+
+class TestProjectDataFail(TestProjectDataOneTask):
+    """ Test for single-task "fail".
+
+    Here we should see a processing failure get caught and logged."""
+
+    def setUp(self):
+        self.task = "fail"
+        super().setUp()
+
+    def test_process(self):
+        """Test that failure is caught and reported correctly in process()."""
+        with self.assertRaises(ProjectError):
+            self.proj.process()
+        self.assertEqual(self.proj.status, "failed")
+        self.assertEqual(self.proj.tasks_pending, DEFAULT_TASKS)
+        self.assertEqual(self.proj.tasks_completed, [])
+        self.assertEqual(self.proj.task_current, self.task)
 
 
 class TestProjectDataCopy(TestProjectDataOneTask):
@@ -707,13 +729,6 @@ class TestProjectDataEmailNoContacts(TestProjectDataEmail):
         self.msg_body = "925bfb376b0a2bc2b6797ef992ddbb00"
         self.msg_html = "e2a8c65f1d67ba6abd09caf2dddbc370"
         super().setUp()
-
-
-class TestProjectDataBlank(TestProjectDataOneTask):
-    # TODO test with no tasks at all
-    # this just needs to confim that the TASK_NULL code correctly inserts
-    # "copy" when nothing else is specified.  put it in self.tasks_run.
-    pass
         
 
 # Other ProjectData test cases
@@ -747,10 +762,45 @@ class TestProjectDataFailure(TestProjectDataOneTask):
         self.assertTrue("failure_exception" in self.proj._metadata.keys())
 
 
-class TestProjectDataBlank(TestBase):
+class TestProjectDataFilesExist(TestProjectDataOneTask):
+    """What should happen when there are already files in the processing dir?
+    
+    We should log a warning about it and mark the ProjectData as readonly.
+    """
 
-    # TODO test the case of having a blank in the project column.  The run ID
-    # should be used instead.
+    def setUp(self):
+        # Here we'll get a warning from within __init__ about the unexpected
+        # subdirectory (see setUpPreProject below).  We'll check other
+        # attributes in the tests.
+        with self.assertLogs(level = logging.WARNING):
+            super().setUp()
+
+    def setUpPreProject(self):
+        # Put something inside the processing directory that will trip up
+        # ProjectData initialization.
+        (self.path_proc / self.work_dir_exp / "subdir").mkdir(parents=True)
+
+    def test_readonly(self):
+        """Test that readonly=True."""
+        self.assertTrue(self.proj.readonly)
+
+    def test_status(self):
+        """Test that status attribute works but file is not written."""
+        self.assertEqual(self.proj.status, "none")
+        # We won't touch anything on disk in this case due to the readyonly
+        # flag.
+        self.assertFalse(self.proj.path.exists())
+
+    def test_process(self):
+        """Test that processing throws exception."""
+        with self.assertRaises(ProjectError):
+            self.proj.process()
+
+
+class TestProjectDataBlank(TestProjectDataOneTask):
+    # TODO test with no tasks at all
+    # this just needs to confim that the TASK_NULL code correctly inserts
+    # "copy" when nothing else is specified.  put it in self.tasks_run.
     pass
 
 
