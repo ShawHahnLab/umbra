@@ -13,6 +13,7 @@ setuptools.setup(
     install_requires=[
         "biopython",
         "boxsdk",
+        "pyopenssl", # required for boxsdk but not always pulled in
         "cutadapt",
         "pyyaml"
         ],
