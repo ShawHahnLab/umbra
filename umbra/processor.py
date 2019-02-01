@@ -174,11 +174,14 @@ class IlluminaProcessor:
         signal.signal(signal.SIGHUP,  self._signal_handler)
         signal.signal(signal.SIGUSR1, self._signal_handler)
         signal.signal(signal.SIGUSR2, self._signal_handler)
+        self.logger.debug("starting processing loop")
         while not finish_up:
+            self.logger.debug("starting process cycle")
             # The usual loop iteration is to refresh (unless we just did a full
             # reload on a previous cycle), update the report, and sleep for a
             # bit.
             if not cmd == "reload":
+                self.logger.debug("refreshing")
                 self.refresh(wait)
             report_args = self.config.get("save_report")
             if report_args:
@@ -187,13 +190,18 @@ class IlluminaProcessor:
             # Next any commands (such as caught from signals) are processed.
             try:
                 while True:
+                    self.logger.debug("reading commands")
                     cmd = self._queue_cmd.get_nowait()
                     if cmd == "reload":
+                        self.logger.debug("cmd found: reloading")
                         self.load(wait)
                     elif cmd == "finish_up":
+                        self.logger.debug("cmd found: finishing up")
                         finish_up = True
             except queue.Empty:
-                pass
+                self.logger.debug("done reading commands")
+            self.logger.debug("finishing process cycle")
+        self.logger.debug("exited processing loop")
 
     def create_report(self):
         """ Create a nested data structure summarizing processing status.
@@ -328,7 +336,7 @@ class IlluminaProcessor:
             if type(e) is ValueError:
                 self.logger.debug("skipped unrecognized run: %s" % run_dir)
             else:
-                self.logger.critical("Error while loading run %s\n" % run_dir)
+                self.logger.critical("Error while loading run %s" % run_dir)
                 raise e
         return(run)
 
@@ -336,6 +344,8 @@ class IlluminaProcessor:
         try:
             while True:
                 proj = self._queue_completion.get_nowait()
+                self.logger.debug("Filing project in completed set: \"%s\"" %
+                        proj.work_dir)
                 self.projects["active"].remove(proj)
                 self.projects["completed"].add(proj)
         except queue.Empty:
@@ -384,6 +394,8 @@ class IlluminaProcessor:
         logger = logging.getLogger()
         lvl_current = logger.getEffectiveLevel()
         lvl_new = max(0, lvl_current + step)
+        self.logger.warning("Changing loglevel: %d -> %d" %
+                (lvl_current, lvl_new))
         logger.setLevel(lvl_new)
 
     def _proc_new_alignment(self, al):
@@ -428,11 +440,11 @@ class IlluminaProcessor:
             try:
                 proj.process()
             except Exception as e:
-                subject = "Failed project: %s\n" % proj.name
+                subject = "Failed project: %s" % proj.name
                 self.logger.error(subject)
                 self.logger.error(traceback.format_exc())
                 config_mail = self.config.get("mailer", {})
-                contacts = config_mail.get("to_addrs_on_error", [])
+                contacts = config_mail.get("to_addrs_on_error") or []
                 body = "Project processing failed for \"%s\"" % proj.work_dir
                 body += " with the following message:\n"
                 body += "\n\n"
@@ -443,5 +455,10 @@ class IlluminaProcessor:
                         "msg_body": body
                         }
                 self.mailer(**kwargs)
-            self._queue_jobs.task_done()
-            self._queue_completion.put(proj)
+            finally:
+                self.logger.debug("Declaring project done: \"%s\"" %
+                        proj.work_dir)
+                self._queue_jobs.task_done()
+                self.logger.debug("Placing project on completion queue: \"%s\"" %
+                        proj.work_dir)
+                self._queue_completion.put(proj)
