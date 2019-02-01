@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory, NamedTemporaryFile
 from distutils.dir_util import copy_tree, remove_tree, mkpath
 from distutils.file_util import copy_file
 from pathlib import Path
+import logging
 import re
 import csv
 import hashlib
@@ -39,8 +40,8 @@ class TestBase(unittest.TestCase):
     """Some setup/teardown shared with the real test classes."""
 
     def setUp(self):
-        self.mails = []
         self.setUpTmpdir()
+        self.setUpVars()
 
     def tearDown(self):
         if TMP_PAUSE:
@@ -60,7 +61,14 @@ class TestBase(unittest.TestCase):
         self.path_pack   = Path(self.tmpdir.name) / "packaged"
         self.path_report = Path(self.tmpdir.name) / "report.csv"
 
+    def setUpVars(self):
+        self.mails = []
+
     def tearDownTmpdir(self):
+        # There's a bug where it'll raise a PermissionError if anything
+        # write-protected ended up in the tmpdir.  So don't leave anything like
+        # that lying around during a test!
+        # https://bugs.python.org/issue26660
         self.tmpdir.cleanup()
 
     def uploader(self, path):
