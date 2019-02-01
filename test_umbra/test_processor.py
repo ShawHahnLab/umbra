@@ -14,7 +14,6 @@ import warnings
 import threading
 from umbra.processor import IlluminaProcessor
 from umbra.project import ProjectData
-import logging
 
 class TestIlluminaProcessor(TestBase):
     """Main tests for IlluminaProcessor."""
@@ -37,6 +36,7 @@ class TestIlluminaProcessor(TestBase):
         self.run_id = "180101_M00000_0000_000000000-XXXXX"
         self.path_run = self.path_runs/self.run_id
         self.warn_msg = ""
+        self.mails = []
         # MD5 sum of the report CSV text, minus the RunPath column.
         # This is after fulling loading the default data, but before starting
         # processing.
@@ -438,13 +438,21 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
         # Use the dummy storing mailer provided by TestBase.  We'll make sure
         # it's called with the right arguments when processing fails.
         self.proc.mailer = self.mailer
+        # Tell the project to throw a ProjectError during processing.
+        # Previously I used a write-protected file to cause it to fail, but now
+        # we do more upfront checking so a contrived failure is the easiest
+        # way.
+        fp = self.path_exp / "Partials_1_1_18/metadata.csv"
+        with open(fp) as f:
+            lines = f.readlines()
+        failify = lambda line: re.sub(",[A-Za-z]*$", ",fail", line)
+        lines = [lines[0]] + [failify(line) for line in lines[1:]]
+        with open(fp, "w") as f:
+            f.writelines(lines)
 
     def test_refresh(self):
-        # Ensure that processing will fail by embedding a read-only directory
-        # inside the working directory.
+        """Test that project failure during refresh is logged as expected."""
         self.proj_str = "2018-01-01-Something_Else-Someone-Jesse"
-        path = self.path_proc / self.proj_str / self.run_id / "Data"
-        path.mkdir(0o444, parents=True)
         # On refresh, the processing failure should be caught and filed as a
         # log message.
         self.proc.start()
@@ -460,6 +468,20 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
         self.assertEqual(self._proj_names("completed"), ["Something Else"])
         completed = self.proc.projects["completed"]
         self.assertEqual(completed.pop().status, ProjectData.FAILED)
+
+    def _watch_and_process_maybe_warning(self):
+        # watch_and_process() should log an error when it calls refresh(), as
+        # tested above.
+        t = threading.Timer(1, self.proc.finish_up)
+        t.start()
+        with self.assertLogs(level = logging.ERROR) as cm:
+            if self.warn_msg:
+                with self.assertWarns(Warning) as cm:
+                    self.proc.watch_and_process(poll=1, wait=True)
+            else:
+                with warnings.catch_warnings():
+                    self.proc.watch_and_process(poll=1, wait=True)
+        self.proc.wait_for_jobs()
 
 if __name__ == '__main__':
     unittest.main()
