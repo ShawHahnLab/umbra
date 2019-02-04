@@ -17,3 +17,4 @@ RUN_IDS = {
         }
 
 PATH_RUNS = PATH_DATA / "runs"
+PATH_OTHER = PATH_DATA / "other"

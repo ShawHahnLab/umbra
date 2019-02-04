@@ -17,7 +17,16 @@ def load_xml(path):
     return(e)
 
 def load_csv(path, loader=csv.reader):
-    with open(path, 'r', newline='') as f:
+    """Load CSV data from a given file path.
+    
+    By default returns a list of lists using csv.reader, but another reader
+    than can operate on a file object (e.g. csv.DictReader) can be supplied
+    instead.  Supports UTF8 (with or without a byte order mark) and
+    equivalently ASCII.
+    """
+    # Explicitly setting the encoding to utf-8-sig allows the byte order mark
+    # to be automatically stripped out if present.
+    with open(path, 'r', newline='', encoding='utf-8-sig') as f:
         data = [row for row in (loader(f))]
     return(data)
 
@@ -38,12 +47,14 @@ def load_sample_sheet(path):
     for row in data_raw:
         if not len(row):
             continue
+        # Check for section name like [Header].  If found, initialize a section
+        # with that name.
         m = re.match("\\[([A-Za-z0-9]+)\\]", row[0])
         if m:
             name = m.group(1)
             data[name] = []
+        # Otherwise, append non-empty rows to the current named section.
         else:
-            # skip empty rows
             if sum([len(x) for x in row]) > 0:
                 data[name] += [row]
 
