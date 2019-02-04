@@ -72,3 +72,28 @@ class TestLoadCSVUTF8BOM(TestLoadCSV):
         super().setUp()
         self.path = PATH_OTHER / "test_utf8bom.csv"
 
+
+class TestLoadCSVMissing(TestLoadCSV):
+    """Test CSV loading for a nonexistent file.
+    
+    Any attempt should raise FileNotFoundError."""
+
+    def setUp(self):
+        # This should produce the same result as the original test.
+        super().setUp()
+        self.path = PATH_OTHER / "test_missing.csv"
+
+    def test_load_csv(self):
+        """Test that a list of lists is created."""
+        with self.assertRaises(FileNotFoundError):
+            util.load_csv(self.path)
+
+    def test_load_csv_loader(self):
+        """Test that a specific reader object can be supplied."""
+        with self.assertRaises(FileNotFoundError):
+            util.load_csv(self.path, csv.reader)
+
+    def test_load_csv_dict_loader(self):
+        """Test that a csv.DictReader works too."""
+        with self.assertRaises(FileNotFoundError):
+            util.load_csv(self.path, csv.DictReader)
