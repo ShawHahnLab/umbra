@@ -187,16 +187,25 @@ class TestProjectDataOneTask(TestBase):
     overridden."""
 
     def setUp(self):
+        self.setUpTmpdir()
+        self.setUpVars()
+        self.setUpRun()
+        # modify project spreadsheet, then create ProjectData
+        self.write_test_experiment()
+        # Readymade hook for any extra stuff for sub-classes
+        if "setUpPreProject" in dir(self):
+            self.setUpPreProject()
+        self.setUpProj()
+
+    def setUpVars(self):
+        super().setUpVars()
         if not hasattr(self, "task"):
             self.task = "noop"
-        self.setUpTmpdir()
         self.maxDiff = None
         # Expected and shared attributes
         self.sample_names = ["1086S1_01", "1086S1_02", "1086S1_03", "1086S1_04"]
         if not hasattr(self, "rundir"):
             self.rundir = "180101_M00000_0000_000000000-XXXXX"
-        self.run = Run(self.path_runs / self.rundir)
-        self.alignment = self.run.alignments[0]
         if not hasattr(self, "exp_name"):
             self.exp_name = "Partials_1_1_18"
         self.exp_path = str(self.path_exp / self.exp_name / "metadata.csv")
@@ -213,23 +222,10 @@ class TestProjectDataOneTask(TestBase):
             self.contacts = {"Name Lastname": "name@example.com"}
         if not hasattr(self, "work_dir_exp"):
             self.work_dir_exp = "2018-01-01-TestProject-Name"
-        # modify project spreadsheet, then create ProjectData
-        self.write_test_experiment()
-        # Readymade hook for any extra stuff for sub-classes
-        if "setUpPreProject" in dir(self):
-            self.setUpPreProject()
-        # Pull out the project we want (to support possibility of additional
-        # projects under this run+alignment)
-        projs = ProjectData.from_alignment(self.alignment,
-                self.path_exp,
-                self.path_status,
-                self.path_proc,
-                self.path_pack,
-                self.uploader,
-                self.mailer)
-        for proj in projs:
-            if proj.name == self.project_name:
-                self.proj = proj
+
+    def setUpRun(self):
+        self.run = Run(self.path_runs / self.rundir)
+        self.alignment = self.run.alignments[0]
 
     def write_test_experiment(self):
         fieldnames = ["Sample_Name","Project","Contacts","Tasks"]
@@ -244,6 +240,20 @@ class TestProjectDataOneTask(TestBase):
             writer.writeheader()
             for sample_name in self.sample_names:
                 writer.writerow((exp_row(sample_name)))
+
+    def setUpProj(self):
+        # Pull out the project we want (to support possibility of additional
+        # projects under this run+alignment)
+        projs = ProjectData.from_alignment(self.alignment,
+                self.path_exp,
+                self.path_status,
+                self.path_proc,
+                self.path_pack,
+                self.uploader,
+                self.mailer)
+        for proj in projs:
+            if proj.name == self.project_name:
+                self.proj = proj
 
     def fake_fastq_entry(self, seq, qual):
         # TODO can I just md5(seq)? check back on this.
@@ -365,7 +375,7 @@ class TestProjectDataOneTask(TestBase):
 class TestProjectDataFail(TestProjectDataOneTask):
     """ Test for single-task "fail".
 
-    Here we should see a processing failure get caught and logged."""
+    Here we should see a failure during processing get caught and logged."""
 
     def setUp(self):
         self.task = "fail"
@@ -520,9 +530,6 @@ class TestProjectDataAssemble(TestProjectDataOneTask):
         self.task = "assemble"
         # trim and merge are dependencies of assemble.
         self.tasks_run = ["trim", "merge", self.task] + DEFAULT_TASKS
-        # TODO remove this, it's a real run for a first attempt at a real-life
-        # test.
-        #self.rundir = "180919_M05588_0119_000000000-D4VL7"
         super().setUp()
 
     def test_process(self):
@@ -536,7 +543,6 @@ class TestProjectDataAssemble(TestProjectDataOneTask):
         # TODO
         # Next, check that we have the output we expect from spades.  Ideally
         # we should have a true test but right now we get no contigs built.
-        # Using a real run dir (see setUp above) to check it for now.
 
         # We should have one file each in ContigsGeneious and CombinedGeneious
         # per sample.
@@ -795,6 +801,77 @@ class TestProjectDataFilesExist(TestProjectDataOneTask):
         """Test that processing throws exception."""
         with self.assertRaises(ProjectError):
             self.proj.process()
+
+
+class TestProjectDataMissingSamples(TestProjectDataOneTask):
+    """What if samples listed in metadata.csv are not in the sample sheet?
+    
+    Aside from typos, this could come up if one experiment name and metadata
+    spreadsheet matches multiple runs.  This is a bit weird and warrants a
+    warning but is allowed.
+    """
+
+    def setUpVars(self):
+        super().setUpVars()
+        # Include an extra sample in the experiment metadata spreadsheet that
+        # won't be in the run data.
+        self.sample_names = ["1086S1_01", "1086S1_02", "1086S1_03", "1086S1_04",
+                "somethingelse"]
+
+    def setUpProj(self):
+        # The project should be initialized fine, but with a warning logged
+        # about the sample name mismatch.
+        with self.assertLogs(level = logging.WARNING):
+            projs = ProjectData.from_alignment(self.alignment,
+                    self.path_exp,
+                    self.path_status,
+                    self.path_proc,
+                    self.path_pack,
+                    self.uploader,
+                    self.mailer)
+        for proj in projs:
+            if proj.name == self.project_name:
+                self.proj = proj
+
+
+class TestProjectDataNoSamples(TestProjectDataOneTask):
+    """What if no samples listed in metadata.csv are in the sample sheet?
+    
+    If no samples at all are found it should be an error.  For simplicity in
+    setting up multiple projects, we'll log an error and mark the project
+    failed, but won't raise an exception.
+    """
+
+    def setUpVars(self):
+        super().setUpVars()
+        # Include an extra sample in the experiment metadata spreadsheet that
+        # won't be in the run data.
+        self.sample_names = ["somethingelse1", "somethingelse2"]
+
+    def setUpProj(self):
+        with self.assertLogs(level = logging.ERROR):
+            projs = ProjectData.from_alignment(self.alignment,
+                    self.path_exp,
+                    self.path_status,
+                    self.path_proc,
+                    self.path_pack,
+                    self.uploader,
+                    self.mailer)
+        for proj in projs:
+            if proj.name == self.project_name:
+                self.proj = proj
+
+    def test_status(self):
+        self.assertEqual(self.proj.status, "failed")
+
+    def test_process(self):
+        """Test that process()ing a failed project is not allowed."""
+        with self.assertRaises(ProjectError):
+            self.proj.process()
+        self.assertEqual(self.proj.status, "failed")
+        self.assertEqual(self.proj.tasks_pending, self.tasks_run)
+        self.assertEqual(self.proj.tasks_completed, [])
+        self.assertEqual(self.proj.task_current, "")
 
 
 class TestProjectDataBlank(TestProjectDataOneTask):

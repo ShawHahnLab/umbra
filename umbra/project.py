@@ -87,10 +87,12 @@ class ProjectData:
             mailer,
             nthreads=1,
             readonly=False):
-        """Make dict of ProjectData objects from alignment/experiment table."""
-        # Row by row, build up a dict for each unique project.  Even though
-        # we're reading it in as a spreadsheet we'll treat most of this as
-        # an unordered sets for each project.
+        """Make set of ProjectData objects from alignment/experiment table.
+        
+        This is called from IlluminaProcessor and so is protected from a set of
+        "expected" errors and just logs them appropriately.  Exceptions outside
+        of the expected type will still propogate so the processor will halt
+        and catch fire, though."""
 
         exp_path = path_exp / alignment.experiment / "metadata.csv"
         projects = set()
@@ -104,6 +106,9 @@ class ProjectData:
             try:
                 sample_paths = alignment.sample_paths()
             except FileNotFoundError as e:
+                # In this case there's a mismatch in the data files expected
+                # from the Alignment directory's metadata and the data files
+                # actually on disk.
                 msg = "\nFASTQ file not found:\n"
                 msg += "Run:       %s\n" % alignment.run.path
                 msg += "Alignment: %s\n" % alignment.path
@@ -128,7 +133,16 @@ class ProjectData:
                         exp_path = exp_path,
                         nthreads = nthreads,
                         readonly = readonly)
-                proj.sample_paths = sample_paths
+                try:
+                    proj.sample_paths = sample_paths
+                except ProjectError:
+                    # If something went wrong at this point, complain, but
+                    # still add the (failed) project to the set, since it did
+                    # initialize already.
+                    proj.fail()
+                    msg = "ProjectData setup failed for %s (%s)"
+                    msg = msg % (proj.work_dir, alignment.run.run_id)
+                    logging.getLogger(__name__).error(msg)
                 projects.add(proj)
         return(projects)
 
@@ -235,13 +249,49 @@ class ProjectData:
 
     @sample_paths.setter
     def sample_paths(self, sample_paths):
-        if sample_paths:
-            self._metadata["sample_paths"] = {}
-            for sample_name in self.experiment_info["sample_names"]:
-                paths = [str(p) for p in sample_paths[sample_name]]
-                self._metadata["sample_paths"][sample_name] = paths
-        else:
-            self._metadata["sample_paths"] = None
+        # Here we expect that each sample name listed in the metadata
+        # spreadsheet will also be found in the given sample_paths from
+        # the run data.  But what if not?
+        # If just some, report a warning.  Maybe a typo or maybe one
+        # spreadsheet is being used across multiple runs.  If all are
+        # missing, throw exception.
+        # Keep paths for the sample names present in both the experiment
+        # metadata spreadsheet and the given sample paths by sample name.
+        # Exclude sample names we didn't find in the given sample paths.
+        # (Also implicitly excludes unrelated sample paths that may be for
+        # other projects.)
+        from_exp = set(self.experiment_info["sample_names"])
+        from_given = set(sample_paths.keys())
+        keepers = from_exp & from_given
+        excluded = from_exp - keepers
+        msg = "Samples from experiment/run/both: %d/%d/%d"
+        msg = msg % (len(from_exp), len(from_given), len(keepers))
+        try:
+            if len(excluded) and len(keepers):
+                # some excluded, some kept
+                msg += " (some not matched in run)"
+                lvl = logging.WARNING
+            elif len(excluded):
+                # all excluded, none kept
+                msg += " (none matched in run)"
+                lvl = logging.ERROR
+                err = "No matching samples between experiment and run"
+                raise ProjectError(err)
+            elif len(keepers):
+                # OK! all kept.
+                lvl = logging.DEBUG
+            else:
+                # huh, nothing given here?  warning?
+                msg += " (none given in run)"
+                lvl = logging.WARNING
+        finally:
+            # In any case, log the sample numbers at the appropriate level.  An
+            # exception will continue from here, if present.
+            self.logger.log(lvl, msg)
+        self._metadata["sample_paths"] = {}
+        for sample_name in keepers:
+            paths = [str(p) for p in sample_paths[sample_name]]
+            self._metadata["sample_paths"][sample_name] = paths
 
     @property
     def tasks_pending(self):
@@ -265,10 +315,13 @@ class ProjectData:
         """Run all tasks.
         
         This function will block until processing is complete.  Calling process
-        if readyonly=True raises ProjectError."""
+        if readyonly=True or status != NONE raises ProjectError."""
         self.logger.info("ProjectData processing: %s" % self.work_dir)
         if self.readonly:
             raise ProjectError("ProjectData is read-only")
+        elif self.status != ProjectData.NONE:
+            msg = "ProjectData status already defined as \"%s\"" % self.status
+            raise ProjectError(msg)
         self.status = ProjectData.PROCESSING
         try:
             self.path_proc.mkdir(parents=True, exist_ok=True)
@@ -285,10 +338,17 @@ class ProjectData:
                 ts["current"] = ""
                 self.save_metadata()
         except Exception as e:
-            self._metadata["failure_exception"] = traceback.format_exc()
-            self.status = ProjectData.FAILED
+            self.fail()
             raise(e)
         self.status = ProjectData.COMPLETE
+
+    def fail(self):
+        """Mark processing status as failed, and note exception, if any."""
+        msg = ""
+        if any(sys.exc_info()):
+            msg = traceback.format_exc()
+        self._metadata["failure_exception"] = msg
+        self.status = ProjectData.FAILED
 
     def load_metadata(self):
         try:
@@ -560,6 +620,11 @@ class ProjectData:
     ###### Implementation Details
 
     def _setup_exp_info(self, exp_info_full):
+        # Row by row, build up a dict for this project.  Even though we're
+        # reading the experiment info as a spreadsheet we'll treat most of this
+        # as though it's unordered sets for each project.  (Not actually using
+        # the set object as that gave me trouble with the YAML, but plain lists
+        # do fine.)
         exp_info = {
                 "sample_names": [],
                 "tasks": [],
