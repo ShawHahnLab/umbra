@@ -1,38 +1,47 @@
-from .util import *
+"""
+A simple interface for sending email.
+
+See the Mailer class for usage.
+"""
+
 import ssl
 import pwd
-import collections.abc
 import socket
 import smtplib
+import os
+import logging
 from email.message import EmailMessage
 
 # https://stackoverflow.com/a/2899055
 def get_username():
-        entry = pwd.getpwuid(os.getuid())
-        username = entry[0] 
-        return(username)
+    """Get the current OS username."""
+    entry = pwd.getpwuid(os.getuid())
+    username = entry[0]
+    return username
 
 class Mailer:
     """A simple interface for sending email.
-    
+
     With no arguments it will set up an SMTP connection to localhost on port
     25, and will send messages as user@fully.qualified.domain.name of
     localhost.  Connection details, SSL, auth, and the apparent From address
     can be customized."""
-    
-    def __init__(self, host="localhost", port=25,
-            ssl=False, auth=False, user=None, password=None, from_addr=None,
+
+    def __init__(
+            self, host="localhost", port=25,
+            use_ssl=False, auth=False, user=None, password=None, from_addr=None,
             cc_addrs=None, reply_to=None, **kwargs):
         """Configure connection details for sending mail over SMTP."""
         self.logger = logging.getLogger(__name__)
         self.host = host
         self.port = port
-        self.ssl = ssl
+        self.ssl = use_ssl
         self.auth = auth
         self.__user = user
         self.__password = password
         self.from_addr = from_addr
         self.reply_to = reply_to
+        self.kwargs = kwargs
         if isinstance(cc_addrs, str):
             cc_addrs = [cc_addrs]
         if not cc_addrs:
@@ -51,12 +60,12 @@ class Mailer:
                 if socket.getfqdn(srv) == "localhost":
                     srv = socket.getfqdn()
                 addr = name + "@" + srv
-        return(addr)
+        return addr
 
     def mail(self, to_addrs, subject, msg_body, msg_html=None, from_addr=None,
-            reply_to=None):
+             reply_to=None):
         """Send a message.
-        
+
         This will connect to the SMTP server (with authentication if enabled
         for the object), format and send a single message, and disconnect."""
         self.logger.debug('Preparing message: "%s"' % subject)
@@ -94,7 +103,7 @@ class Mailer:
         if not recipients:
             logmsg = 'No receipients given, skipping message: "%s"' % subject
             self.logger.error(logmsg)
-            return(msg)
+            return msg
         if not to_addrs:
             logmsg = 'No "To:" addresses given for message: "%s"' % subject
             self.logger.warning(logmsg)
@@ -115,4 +124,4 @@ class Mailer:
             # explicitly to smtp.sendmail.
             smtp.sendmail(from_addr, recipients, msg.as_string())
         self.logger.info('Message sent: "%s"' % subject)
-        return(msg)
+        return msg

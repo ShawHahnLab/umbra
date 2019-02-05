@@ -1,9 +1,17 @@
-from .util import *
+"""
+A simple interface to Box.com to upload individual files to a folder.
+
+See BoxUploader for usage details.
+"""
+
+import re
+import logging
 import datetime
 import subprocess
-
+from pathlib import Path
 import boxsdk
-from boxsdk.exception import BoxAPIException
+import yaml
+from .util import yaml_load
 
 class BoxUploader:
     """A simple Box API interface to upload files to one directory.
@@ -22,7 +30,7 @@ class BoxUploader:
     specifying the folder ID to upload to.  (This ID is the last segment of the
     URL shown in the web interface for any given folder; 0 for the root
     folder.)
-    
+
     There is just one public function, upload(), taking a file path and an
     optional custom name.  An existing file with the same name in Box will
     cause an exception."""
@@ -41,25 +49,24 @@ class BoxUploader:
 
     def _init_creds(self):
         """Load Box API credentials and put in an OAuth2 object.
-        
+
         If authentication fails or credentials are missing, attempt to
         re-connect with Box in a browser with a provided URL."""
         self._load_creds()
         try:
             self._init_client()
-        except boxsdk.exception.BoxAPIException as e: 
+        except boxsdk.exception.BoxAPIException as e:
             # If (and only if) the problem is authentication, try getting new
             # access and refresh tokens.
             if e.status == 400 and not self.config.get("strict_auth"):
-                msg = "Authentication failure.  Try re-connecting with Box in a browser with the URL shown."
+                msg = "Authentication failure.  Try re-connecting with Box in"
+                msg += " a browser with the URL shown."
                 self.logger.critical(msg)
                 self._janky_auth_trick()
             else:
-                raise(e)
+                raise e
 
     def _load_creds(self):
-        #with open(self.creds_store_path, "r") as f:
-        #    self.creds = yaml.safe_load(f)
         self.creds = yaml_load(self.creds_store_path)
         req = BoxUploader.REQUIRED_FIELDS
         miss = [field for field in req if field not in self.creds.keys()]
@@ -69,15 +76,16 @@ class BoxUploader:
             self.creds[key] = self.creds.get(key, 0)
 
     def _init_client(self):
-        self.oauth = boxsdk.OAuth2(client_id = self.creds["client_id"],
-                       client_secret = self.creds["client_secret"],
-                       store_tokens = self._store_tokens,
-                       access_token = self.creds["user_access_token"],
-                       refresh_token = self.creds["user_refresh_token"])
+        self.oauth = boxsdk.OAuth2(
+            client_id=self.creds["client_id"],
+            client_secret=self.creds["client_secret"],
+            store_tokens=self._store_tokens,
+            access_token=self.creds["user_access_token"],
+            refresh_token=self.creds["user_refresh_token"])
         self.client = boxsdk.Client(self.oauth)
         me = self.client.user(user_id='me').get()
         self.max_upload_size = int(me["max_upload_size"])
-        self.logger.info('User: ' + me['login'])
+        self.logger.info('User: %s' % me['login'])
         self.logger.info('Max upload size in bytes: %d' % self.max_upload_size)
 
     def _init_upload_folder(self):
@@ -100,19 +108,19 @@ class BoxUploader:
         path = Path(path)
         fsize = path.stat().st_size
         if fsize > self.max_upload_size:
-            msg = "File size (%d) exceeds max upload size (%d)" % (fsize,
-                    self.max_upload_szie)
+            msg = "File size (%d) exceeds max upload size (%d)"
+            msg += msg % (fsize, self.max_upload_size)
             raise ValueError(msg)
         if not name:
             name = path.name
         # Possibly add a call to folder.canUpload() to make sure it would work,
         # first.
         box_file = self.folder.upload(str(path), name)
-        url = box_file.get_shared_link_download_url(access = "open")
+        url = box_file.get_shared_link_download_url(access="open")
         self.logger.info("File uploaded: %s" % str(path))
-        return(url)
+        return url
 
-    def _list(self, chunk = 100):
+    def _list(self, chunk=100):
         """List of file and folder objects in the uploader folder."""
         offset = 0
         items = self.folder.get_items(chunk)
@@ -121,7 +129,7 @@ class BoxUploader:
             offset += chunk
             items = self.folder.get_items(chunk, offset)
             allitems.extend(items)
-        return(allitems)
+        return allitems
 
     def _janky_auth_trick(self, log_path="/var/log/nginx/access.log"):
         """The most minimal sort of method of getting a Box API access token.
@@ -137,7 +145,7 @@ class BoxUploader:
         Log Format.
 
         In more detail:
-        
+
         1) First create an App at https://app.box.com/developers/console.  For
         Authentication Method use "Standard OAuth 2.0 (User Authentication)"
         Copy and paste the Client ID and Client Secret text into the
@@ -160,13 +168,13 @@ class BoxUploader:
         up in the logs.  (There's a pretty short timeout -- sixty seconds? -- on
         the whole process, so as soon as Box sends the data to your web server this
         function needs to catch it.)
-        
+
         5) Use the returned OAuth2 object and/or enter those extra lines into
         config.py as user_access_token and user_refresh_token.
         """
         self.oauth = boxsdk.OAuth2(client_id=self.creds["client_id"],
                                    client_secret=self.creds["client_secret"])
-        auth_url, csrf_token = self.oauth.get_authorization_url(self.creds["redirect_uri"])
+        auth_url = self.oauth.get_authorization_url(self.creds["redirect_uri"])[0]
         self.logger.critical("Auth URL: " + auth_url)
         code = scrape_log_for_code(log_path)
         access_token, refresh_token = self.oauth.authenticate(code)
@@ -187,19 +195,19 @@ def _parse_log_line(line):
     except AttributeError:
         pass
     #       src IP   X  user   time    request  status   bytes     referer   agent
-    fmt = '([0-9.]+) - (.+) \[(.+)\] "([^"]+)" ([0-9]+) ([0-9]+) "([^"]+)" "([^"]+)"'
+    fmt = r'([0-9.]+) - (.+) \[(.+)\] "([^"]+)" ([0-9]+) ([0-9]+) "([^"]+)" "([^"]+)"'
     fmt_date = "%d/%b/%Y:%H:%M:%S %z"
     m = re.match(fmt, line)
     logentry = {}
-    logentry["IP"]         = m.group(1)
-    logentry["User"]       = m.group(2)
-    logentry["Time"]       = datetime.datetime.strptime(m.group(3), fmt_date)
-    logentry["Request"]    = m.group(4)
-    logentry["Status"]     = m.group(5)
-    logentry["Bytes"]      = int(m.group(6))
-    logentry["Referer"]    = m.group(7)
+    logentry["IP"] = m.group(1)
+    logentry["User"] = m.group(2)
+    logentry["Time"] = datetime.datetime.strptime(m.group(3), fmt_date)
+    logentry["Request"] = m.group(4)
+    logentry["Status"] = m.group(5)
+    logentry["Bytes"] = int(m.group(6))
+    logentry["Referer"] = m.group(7)
     logentry["User Agent"] = m.group(8)
-    return(logentry)
+    return logentry
 
 def scrape_log_for_code(log_path):
     """Watch log file until a Box auth code appears, then return it."""
@@ -215,4 +223,4 @@ def scrape_log_for_code(log_path):
         if box_url_suffix in logentry["Referer"]:
             m = re.search('code=([^ ]*) ', logentry["Request"])
             code = m.group(1)
-            return(code)
+            return code
