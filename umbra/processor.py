@@ -417,7 +417,7 @@ class IlluminaProcessor:
                 readonly = self.readonly)
         for proj in projs:
             suffix = ""
-            if proj.readonly:
+            if proj.readonly or proj.status == project.ProjectData.FAILED:
                 grp = "inactive"
                 self.projects[grp].add(proj)
                 if proj.status != project.ProjectData.COMPLETE:
