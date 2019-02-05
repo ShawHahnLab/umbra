@@ -1,12 +1,15 @@
 """
 Executable interface for use as a script.
+
+See the main function for usage.
 """
 
-from .util import *
+import sys
+import argparse
+import logging
 from .processor import IlluminaProcessor
 from . import config
 from . import install
-import argparse
 
 DOCS = {}
 DOCS["description"] = "Process Illumina runs."
@@ -26,56 +29,60 @@ install: Create a systemd service entry and configure filesystem paths and
          sudo -E $(which umbra) -a install
 """
 
-parser = argparse.ArgumentParser(
-        description=DOCS["description"],
-        epilog=DOCS["epilog"],
-        formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument("-c", "--config", help="path to configuration file")
-parser.add_argument("-a", "--action", default="report",
-        help="program action (default: %(default)s)",
-        choices=["process", "report", "install"])
-parser.add_argument("-v", "--verbose", action="count", default=0,
-        help="Increment log verbosity")
-parser.add_argument("-q", "--quiet", action="count", default=0,
-        help="Decrement log verbosity")
-parser.add_argument("-n", "--dry-run", action="store_true",
-        help="Only pretend during an install action")
+PARSER = argparse.ArgumentParser(
+    description=DOCS["description"],
+    epilog=DOCS["epilog"],
+    formatter_class=argparse.RawDescriptionHelpFormatter)
+PARSER.add_argument("-c", "--config", help="path to configuration file")
+PARSER.add_argument("-a", "--action", default="report",
+                    help="program action (default: %(default)s)",
+                    choices=["process", "report", "install"])
+PARSER.add_argument("-v", "--verbose", action="count", default=0,
+                    help="Increment log verbosity")
+PARSER.add_argument("-q", "--quiet", action="count", default=0,
+                    help="Decrement log verbosity")
+PARSER.add_argument("-n", "--dry-run", action="store_true",
+                    help="Only pretend during an install action")
 
-logger = logging.getLogger()
+LOGGER = logging.getLogger()
 
-def setup_log(verbose, quiet):
+def _setup_log(verbose, quiet):
     # Handle warnings via logging
     logging.captureWarnings(True)
     # Configure the root logger
     # each -v or -q decreases or increases the log level by 10, starting from
     # WARNING by default.
-    lvl_current = logger.getEffectiveLevel()
+    lvl_current = LOGGER.getEffectiveLevel()
     lvl_subtract = (verbose - quiet) * 10
     verbosity = max(0, lvl_current - lvl_subtract)
-    logging.basicConfig(stream=sys.stderr, level = verbosity)
+    logging.basicConfig(stream=sys.stderr, level=verbosity)
 
 def main(args_raw=None):
+    """Executable interface for use as a script.
+
+    Command-line arguments are defined by PARSER.  Run with --help to see from
+    the command-line."""
     try:
         if args_raw:
-            args = parser.parse_args(args_raw)
+            args = PARSER.parse_args(args_raw)
         else:
-            args = parser.parse_args()
-        setup_log(args.verbose, args.quiet)
+            args = PARSER.parse_args()
+        _setup_log(args.verbose, args.quiet)
         # In order, layer together the package default, system default, action
         # default, and command-line config path (if present).
         cpaths = [
-                config.path_for_config(),
-                config.SYSTEM_CONFIG,
-                config.path_for_config(args.action),
-                args.config]
+            config.path_for_config(),
+            config.SYSTEM_CONFIG,
+            config.path_for_config(args.action),
+            args.config]
         conf = config.layer_configs(cpaths)
-        # If specific in the config, modify the log level.  Call setup_log
+        # If specific in the config, modify the log level.  Call _setup_log
         # again so that the command-line flags are applied after the new level
         # is set.
         newlevel = conf.get("loglevel")
         if not newlevel is None: # (since 0 is distinct from not set)
-            logger.setLevel(newlevel)
-            setup_log(args.verbose, args.quiet)
+            LOGGER.setLevel(newlevel)
+            _setup_log(args.verbose, args.quiet)
         action_args = conf.get(args.action, {})
         if args.action == "process":
             proc = IlluminaProcessor(conf["paths"]["root"], conf)
@@ -91,15 +98,15 @@ def main(args_raw=None):
                 msg += " place settings in %s, or to use a configuration"
                 msg += " after installation, modify the path after installation."
                 msg = msg % config.SYSTEM_CONFIG
-                logger.critical(msg)
+                LOGGER.critical(msg)
                 sys.exit(1)
-            # Set logger one increment more verbose
-            lvl_current = logger.getEffectiveLevel()
-            logger.setLevel(max(0, lvl_current - 10))
+            # Set LOGGER one increment more verbose
+            lvl_current = LOGGER.getEffectiveLevel()
+            LOGGER.setLevel(max(0, lvl_current - 10))
             if args.dry_run:
                 msg = "Dry run enabled."
                 msg += " Filesystem will not be changed."
-                logger.info(msg)
+                LOGGER.info(msg)
             install.DRYRUN = args.dry_run
             install.install(conf, args.config)
     except BrokenPipeError:
