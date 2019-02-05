@@ -1,25 +1,44 @@
-from .util import *
+"""
+Handle processing of select samples from a single run.
+
+This is the glue that connects raw sequence data and additional metadata
+supplied separately, and executes any processing tasks defined.  Objects of
+class ProjectData are created primarily via ProjectData.from_alignment in
+IlluminaProcessor, creating an arbitrary number of ProjectData instances for a
+given run as defined by the supplied metadata.csv.
+
+A single custom exception, ProjectError, is used for any "expected" problems
+that may arise (e.g., attempting to process a readonly project, existing files
+in the processing output directory, unexpected input data formats, etc).
+"""
+
 import shutil
-from . import experiment
-import yaml
 import traceback
 import zipfile
 import subprocess
 import csv
-from Bio import SeqIO
+import logging
+import re
+import time
+import sys
+import os
 import warnings
-from tempfile import TemporaryDirectory
+from pathlib import Path
+from distutils.dir_util import copy_tree
+import yaml
+from Bio import SeqIO
+from . import experiment, illumina
+from .util import touch, mkparent, slugify, datestamp
 # requires on PATH:
 #  * cutadapt
 #  * spades.py
 
 class ProjectError(Exception):
     """Any sort of project-related exception."""
-    pass
 
 class ProjectData:
     """The data for a Run and Alignment specific to one project.
-    
+
     This references the data files within a specific run relevant to a single
     project, tracks the associated additional metadata provided via the
     "experiment" identified in the sample sheet, and handles post-processing.
@@ -51,44 +70,42 @@ class ProjectData:
 
     # Adding an explicit order and dependencies.
     TASKS = [
-            TASK_NOOP,
-            TASK_FAIL,
-            TASK_COPY,
-            TASK_TRIM,
-            TASK_MERGE,
-            TASK_ASSEMBLE,
-            TASK_MANUAL,
-            TASK_METADATA,
-            TASK_PACKAGE,
-            TASK_UPLOAD,
-            TASK_EMAIL
-            ]
+        TASK_NOOP,
+        TASK_FAIL,
+        TASK_COPY,
+        TASK_TRIM,
+        TASK_MERGE,
+        TASK_ASSEMBLE,
+        TASK_MANUAL,
+        TASK_METADATA,
+        TASK_PACKAGE,
+        TASK_UPLOAD,
+        TASK_EMAIL
+        ]
 
     TASK_DEPS = {
-            TASK_EMAIL: [TASK_UPLOAD],
-            TASK_UPLOAD: [TASK_PACKAGE],
-            TASK_MERGE: [TASK_TRIM],
-            TASK_ASSEMBLE: [TASK_MERGE]
-            }
+        TASK_EMAIL: [TASK_UPLOAD],
+        TASK_UPLOAD: [TASK_PACKAGE],
+        TASK_MERGE: [TASK_TRIM],
+        TASK_ASSEMBLE: [TASK_MERGE]
+        }
 
     # We'll always include these tasks:
     TASK_DEFAULTS = [
-            TASK_METADATA,
-            TASK_EMAIL
-            ]
+        TASK_METADATA,
+        TASK_EMAIL
+        ]
 
     # If nothing else is given, this will be added:
     TASK_NULL = [
-            TASK_COPY
-            ]
+        TASK_COPY
+        ]
 
+    @staticmethod
     def from_alignment(alignment, path_exp, dp_align, dp_proc, dp_pack,
-            uploader,
-            mailer,
-            nthreads=1,
-            readonly=False):
+                       uploader, mailer, nthreads=1, readonly=False):
         """Make set of ProjectData objects from alignment/experiment table.
-        
+
         This is called from IlluminaProcessor and so is protected from a set of
         "expected" errors and just logs them appropriately.  Exceptions outside
         of the expected type will still propogate so the processor will halt
@@ -105,14 +122,14 @@ class ProjectData:
             sample_paths = None
             try:
                 sample_paths = alignment.sample_paths()
-            except FileNotFoundError as e:
+            except FileNotFoundError as exception:
                 # In this case there's a mismatch in the data files expected
                 # from the Alignment directory's metadata and the data files
                 # actually on disk.
                 msg = "\nFASTQ file not found:\n"
                 msg += "Run:       %s\n" % alignment.run.path
                 msg += "Alignment: %s\n" % alignment.path
-                msg += "File:      %s\n" % e.filename
+                msg += "File:      %s\n" % exception.filename
                 warnings.warn(msg)
             # Set of unique names in the experiment spreadsheet
             names = {row["Project"] for row in experiment_info}
@@ -120,19 +137,19 @@ class ProjectData:
             al_idx = str(alignment.index)
             for name in names:
                 proj_file = slugify(name) + ".yml"
-                fp = Path(dp_align) / run_id / al_idx / proj_file
+                fpath = Path(dp_align) / run_id / al_idx / proj_file
                 proj = ProjectData(
-                        name = name,
-                        path = fp,
-                        dp_proc = dp_proc,
-                        dp_pack = dp_pack,
-                        alignment = alignment,
-                        exp_info_full = experiment_info,
-                        uploader = uploader,
-                        mailer = mailer,
-                        exp_path = exp_path,
-                        nthreads = nthreads,
-                        readonly = readonly)
+                    name=name,
+                    path=fpath,
+                    dp_proc=dp_proc,
+                    dp_pack=dp_pack,
+                    alignment=alignment,
+                    exp_info_full=experiment_info,
+                    uploader=uploader,
+                    mailer=mailer,
+                    exp_path=exp_path,
+                    nthreads=nthreads,
+                    readonly=readonly)
                 try:
                     proj.sample_paths = sample_paths
                 except ProjectError:
@@ -144,14 +161,11 @@ class ProjectData:
                     msg = msg % (proj.work_dir, alignment.run.run_id)
                     logging.getLogger(__name__).error(msg)
                 projects.add(proj)
-        return(projects)
+        return projects
 
-    def __init__(self, name, path, dp_proc, dp_pack, alignment, exp_info_full,
-            uploader,
-            mailer,
-            exp_path=None,
-            nthreads=1,
-            readonly=False):
+    def __init__(
+            self, name, path, dp_proc, dp_pack, alignment, exp_info_full,
+            uploader, mailer, exp_path=None, nthreads=1, readonly=False):
 
         self.logger = logging.getLogger(__name__)
         self.name = name
@@ -188,7 +202,8 @@ class ProjectData:
         self.path_pack = Path(dp_pack) / (self.work_dir + ".zip")
         if not self.readonly:
             if self.path_proc.exists() and self.path_proc.glob("*"):
-                msg = ("Processing directory exists and is not empty: %s" %
+                msg = (
+                    "Processing directory exists and is not empty: %s" %
                     str(self.path_proc))
                 self.logger.warning(msg)
                 msg = "Marking project readonly: %s" % self.work_dir
@@ -212,12 +227,12 @@ class ProjectData:
         # TODO better exception here
         if not dirname:
             raise Exception("empty work_dir")
-        return(dirname)
+        return dirname
 
     @property
     def status(self):
         """Get processing status with shorthand method."""
-        return(self._metadata["status"])
+        return self._metadata["status"]
 
     @status.setter
     def status(self, value):
@@ -230,22 +245,24 @@ class ProjectData:
 
     @property
     def experiment_info(self):
-        return(self._metadata["experiment_info"])
+        """Dict of experiment metdata specific to this project."""
+        return self._metadata["experiment_info"]
 
     @property
     def work_dir(self):
-        """Short name for working directory, without path"""
-        return(self._metadata["work_dir"])
+        """Short name for working directory, without path."""
+        return self._metadata["work_dir"]
 
     @property
     def sample_paths(self):
+        """Dict mapping sample names to filesystem paths."""
         paths = self._metadata["sample_paths"]
-        if not paths: 
-            return({})
+        if not paths:
+            return {}
         paths2 = {}
         for k in paths:
             paths2[k] = [Path(p) for p in paths[k]]
-        return(paths2)
+        return paths2
 
     @sample_paths.setter
     def sample_paths(self, sample_paths):
@@ -267,17 +284,17 @@ class ProjectData:
         msg = "Samples from experiment/run/both: %d/%d/%d"
         msg = msg % (len(from_exp), len(from_given), len(keepers))
         try:
-            if len(excluded) and len(keepers):
+            if excluded and keepers:
                 # some excluded, some kept
                 msg += " (some not matched in run)"
                 lvl = logging.WARNING
-            elif len(excluded):
+            elif excluded:
                 # all excluded, none kept
                 msg += " (none matched in run)"
                 lvl = logging.ERROR
                 err = "No matching samples between experiment and run"
                 raise ProjectError(err)
-            elif len(keepers):
+            elif keepers:
                 # OK! all kept.
                 lvl = logging.DEBUG
             else:
@@ -295,25 +312,28 @@ class ProjectData:
 
     @property
     def tasks_pending(self):
-        return(self._metadata["task_status"]["pending"])
+        """List of task names not yet completed."""
+        return self._metadata["task_status"]["pending"]
 
     @property
     def tasks_completed(self):
-        return(self._metadata["task_status"]["completed"])
+        """List of task names completed."""
+        return self._metadata["task_status"]["completed"]
 
     @property
     def task_current(self):
-        return(self._metadata["task_status"]["current"])
+        """Name of task currently running."""
+        return self._metadata["task_status"]["current"]
 
     def deps_completed(self, task):
         """ Are all dependencies of a given task already completed?"""
         deps = ProjectData.TASK_DEPS.get(task, [])
         remaining = [d for d in deps if d not in self.tasks_completed]
-        return(not remaining)
+        return not remaining
 
     def process(self):
         """Run all tasks.
-        
+
         This function will block until processing is complete.  Calling process
         if readyonly=True or status != NONE raises ProjectError."""
         self.logger.info("ProjectData processing: %s" % self.work_dir)
@@ -325,21 +345,21 @@ class ProjectData:
         self.status = ProjectData.PROCESSING
         try:
             self.path_proc.mkdir(parents=True, exist_ok=True)
-            ts = self._metadata["task_status"]
+            tstat = self._metadata["task_status"]
             while self.tasks_pending:
                 if self.task_current:
                     raise ProjectError("a task is already running")
-                ts["current"] = ts["pending"].pop(0)
-                if not self.deps_completed(ts["current"]):
+                tstat["current"] = tstat["pending"].pop(0)
+                if not self.deps_completed(tstat["current"]):
                     raise ProjectError("not all dependencies for task completed")
                 self.save_metadata()
-                self._run_task(ts["current"])
-                ts["completed"].append(ts["current"])
-                ts["current"] = ""
+                self._run_task(tstat["current"])
+                tstat["completed"].append(tstat["current"])
+                tstat["current"] = ""
                 self.save_metadata()
-        except Exception as e:
+        except Exception as exception:
             self.fail()
-            raise(e)
+            raise exception
         self.status = ProjectData.COMPLETE
 
     def fail(self):
@@ -351,24 +371,28 @@ class ProjectData:
         self.status = ProjectData.FAILED
 
     def load_metadata(self):
+        """Load metadata YAML file from disk."""
         try:
-            with open(self.path) as f:
+            # TODO wait, why not using load_yaml here?
+            with open(self.path) as fin:
                 with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore",category=DeprecationWarning)
-                    data = yaml.safe_load(f)
+                    warnings.filterwarnings(
+                        "ignore",
+                        category=DeprecationWarning)
+                    data = yaml.safe_load(fin)
         except FileNotFoundError:
             data = None
         else:
             self._metadata.update(data)
-        return(data)
+        return data
 
     def save_metadata(self):
         """Update project metadata on disk."""
         if self.readonly:
             raise ProjectError("ProjectData is read-only")
         mkparent(self.path)
-        with open(self.path, "w") as f:
-            f.write(yaml.dump(self._metadata))
+        with open(self.path, "w") as fout:
+            fout.write(yaml.dump(self._metadata))
 
     ###### Task-related methods
 
@@ -387,16 +411,17 @@ class ProjectData:
             name = re.sub(pat, "\\1R\\2\\3" + suffix, readfile.name)
         fastq_out = self.path_proc / subdir / name
         mkparent(fastq_out)
-        return(fastq_out)
+        return fastq_out
 
     def _log_path(self, task):
         path = self.path_proc / "logs" / ("log_" + str(task) + ".txt")
         mkparent(path)
-        return(path)
+        return path
 
     def trim(self):
+        """Trim adapters from raw fastq.gz files."""
         # For each sample, separately process the one or more associated files.
-        with open(self._log_path("trim"), "w") as f:
+        with open(self._log_path("trim"), "w") as fout:
             for samp in self.sample_paths.keys():
                 paths = self.sample_paths[samp]
                 if len(paths) > 2:
@@ -404,15 +429,16 @@ class ProjectData:
                 for i in range(len(paths)):
                     adapter = illumina.util.ADAPTERS["Nextera"][i]
                     fastq_in = str(paths[i])
-                    fastq_out = self.task_path(paths[i],
-                            "trimmed",
-                            ".trimmed.fastq",
-                            r1only=False)
+                    fastq_out = self.task_path(
+                        paths[i],
+                        "trimmed",
+                        ".trimmed.fastq",
+                        r1only=False)
                     args = ["cutadapt", "-a", adapter, "-o", fastq_out, fastq_in]
                     # Call cutadapt with each file.  If the exit status is
                     # nonzero or if the expected output file is missing, raise
                     # an exception.
-                    subprocess.run(args, stdout=f, stderr=f, check=True)
+                    subprocess.run(args, stdout=fout, stderr=fout, check=True)
                     if not Path(fastq_out).exists():
                         msg = "missing output file %s" % fastq_out
                         raise ProjectError(msg)
@@ -423,40 +449,41 @@ class ProjectData:
         with open(fq_out, "w") as f_out, \
                 open(fqs_in[0], "r") as f_r1, \
                 open(fqs_in[1], "r") as f_r2:
-            r1 = SeqIO.parse(f_r1, "fastq")
-            r2 = SeqIO.parse(f_r2, "fastq")
-            for rec1, rec2 in zip(r1, r2):
+            riter1 = SeqIO.parse(f_r1, "fastq")
+            riter2 = SeqIO.parse(f_r2, "fastq")
+            for rec1, rec2 in zip(riter1, riter2):
                 SeqIO.write(rec1, f_out, "fastq")
                 SeqIO.write(rec2, f_out, "fastq")
 
     def merge(self):
-        with open(self._log_path("merge"), "w") as f:
+        """Interleave forward and reverse reads for each sample."""
+        with open(self._log_path("merge"), "w") as fout:
             try:
                 for samp in self.sample_paths.keys():
                     paths = self.sample_paths[samp]
                     if len(paths) != 2:
                         raise ProjectError("merging needs 2 files per sample")
-                    tp = lambda p: self.task_path(p, "trimmed", ".trimmed.fastq", r1only=False)
-                    fqs_in = [tp(p) for p in paths]
+                    get_tp = lambda p: self.task_path(p, "trimmed", ".trimmed.fastq", r1only=False)
+                    fqs_in = [get_tp(p) for p in paths]
                     fq_out = self.task_path(paths[0],
-                            "PairedReads",
-                            ".merged.fastq")
+                                            "PairedReads",
+                                            ".merged.fastq")
                     self._merge_pair(fq_out, fqs_in)
                     # Merge each file pair. If the expected output file is missing,
                     # raise an exception.
                     if not Path(fq_out).exists():
                         msg = "missing output file %s" % fq_out
                         raise ProjectError(msg)
-            except Exception as e:
+            except Exception as exception:
                 msg = traceback.format_exc()
-                f.write(msg + "\n")
-                raise e
+                fout.write(msg + "\n")
+                raise exception
 
     ### Assemble
 
     def _assemble_reads(self, fq_in, dir_out, f_log):
         """Assemble a pair of read files with SPAdes.
-        
+
         This runs spades.py on a single sample, saving the output to a given
         directory.  The contigs, if built, will be in contigs.fasta.  Spades
         seems to crash a lot so if anything goes wrong we just create an empty
@@ -468,7 +495,7 @@ class ProjectData:
             f_log.write("Skipping assembly for empty file: %s\n" % str(fq_in))
             f_log.write("creating placeholder contig file.\n")
             touch(fp_out)
-            return(fp_out)
+            return fp_out
         args = ["spades.py", "--12", fq_in,
                 "-o", dir_out,
                 "-t", self.nthreads,
@@ -483,23 +510,23 @@ class ProjectData:
             f_log.write("spades exited with errors.\n")
             f_log.write("creating placeholder contig file.\n")
             touch(fp_out)
-        return(fp_out)
+        return fp_out
 
     def _prep_contigs_for_geneious(self, fa_in, fq_out):
         """Filter and format contigs for use in Geneious.
-        
+
         Keep contigs above a length threshold, and fake quality scores so we
         can get a FASTQ file to combine with the reads in the next step.
         Modify the sequence ID line to be: <sample>-contig_<contig_number>
         """
-        m = re.match("(.*)\\.contigs\\.fastq$", fq_out.name)
-        sample_prefix = m.group(1)
+        match = re.match("(.*)\\.contigs\\.fastq$", fq_out.name)
+        sample_prefix = match.group(1)
         with open(fq_out, "w") as f_out, open(fa_in, "r") as f_in:
             for rec in SeqIO.parse(f_in, "fasta"):
                 if len(rec.seq) > self.contig_length_min:
                     rec.letter_annotations["phred_quality"] = [40]*len(rec.seq)
-                    m = re.match("^NODE_([0-9])+_.*", rec.id)
-                    contig_num = m.group(1)
+                    match = re.match("^NODE_([0-9])+_.*", rec.id)
+                    contig_num = match.group(1)
                     rec.id = "%s-contig_%s" % (sample_prefix, contig_num)
                     rec.description = ""
                     SeqIO.write(rec, f_out, "fastq")
@@ -514,35 +541,34 @@ class ProjectData:
 
     def assemble(self):
         """Assemble contigs from all samples.
-        
+
         This handles de-novo assembly with Spades and some of our own
         post-processing."""
-        with open(self._log_path("assemble"), "w") as f:
+        with open(self._log_path("assemble"), "w") as fout:
             try:
                 for samp in self.sample_paths.keys():
                     # Set up paths to use
                     paths = self.sample_paths[samp]
-                    r1 = paths[0]
-                    fq_merged = self.task_path(r1,
-                            "PairedReads",
-                            ".merged.fastq")
-                    fq_contigs = self.task_path(r1,
-                            "ContigsGeneious",
-                            ".contigs.fastq")
-                    fq_combo = self.task_path(r1,
-                            "CombinedGeneious",
-                            ".contigs_reads.fastq")
-                    spades_dir = self.task_path(r1, "assembled")
+                    fq_merged = self.task_path(paths[0],
+                                               "PairedReads",
+                                               ".merged.fastq")
+                    fq_contigs = self.task_path(paths[0],
+                                                "ContigsGeneious",
+                                                ".contigs.fastq")
+                    fq_combo = self.task_path(paths[0],
+                                              "CombinedGeneious",
+                                              ".contigs_reads.fastq")
+                    spades_dir = self.task_path(paths[0], "assembled")
                     # Assemble and post-process: create FASTQ version for all
                     # contigs above a given length, using altered sequence
                     # descriptions, and then combine with the original reads.
-                    fa_contigs = self._assemble_reads(fq_merged, spades_dir, f)
+                    fa_contigs = self._assemble_reads(fq_merged, spades_dir, fout)
                     self._prep_contigs_for_geneious(fa_contigs, fq_contigs)
                     self._combine_contigs_for_geneious(fq_contigs, fq_merged, fq_combo)
-            except Exception as e:
+            except Exception as exception:
                 msg = traceback.format_exc()
-                f.write(msg + "\n")
-                raise e
+                fout.write(msg + "\n")
+                raise exception
 
     ### Zip
 
@@ -551,15 +577,15 @@ class ProjectData:
         mkparent(self.path_pack)
         # By default ZipFile will not actually compress!  We need to specify a
         # compression method explicitly for that.
-        with zipfile.ZipFile(self.path_pack, "x", zipfile.ZIP_DEFLATED) as z:
+        with zipfile.ZipFile(self.path_pack, "x", zipfile.ZIP_DEFLATED) as zipper:
             # Archive everything in the processing directory
-            for root, dirs, files in os.walk(self.path_proc):
-                for fn in files:
+            for root, dummy, files in os.walk(self.path_proc):
+                for fname in files:
                     # Archive the file but trim the name so it's relative to
                     # the processing directory.
-                    filename = os.path.join(root, fn)
+                    filename = os.path.join(root, fname)
                     arcname = Path(filename).relative_to(self.path_proc.parent)
-                    z.write(filename, arcname)
+                    zipper.write(filename, arcname)
 
     ### Metadata
 
@@ -580,7 +606,7 @@ class ProjectData:
             data = list(reader)
             # Here, write out the experiment spreadsheet but only include our
             # rows
-            writer = csv.DictWriter(f_out, fieldnames = data[0].keys())
+            writer = csv.DictWriter(f_out, fieldnames=data[0].keys())
             writer.writeheader()
             for row in data:
                 if row["Project"] == self.name:
@@ -610,11 +636,11 @@ class ProjectData:
         html += "\n<a href='%s'>%s</a>\n" % (url, url)
         # Send
         kwargs = {
-                "to_addrs": contacts,
-                "subject": subject,
-                "msg_body": body,
-                "msg_html": html
-                }
+            "to_addrs": contacts,
+            "subject": subject,
+            "msg_body": body,
+            "msg_html": html
+            }
         self.mailer(**kwargs)
 
     ###### Implementation Details
@@ -626,10 +652,10 @@ class ProjectData:
         # the set object as that gave me trouble with the YAML, but plain lists
         # do fine.)
         exp_info = {
-                "sample_names": [],
-                "tasks": [],
-                "contacts": dict()
-                }
+            "sample_names": [],
+            "tasks": [],
+            "contacts": dict()
+            }
         for row in exp_info_full:
             if row["Project"] == self.name:
                 sample_name = row["Sample_Name"].strip()
@@ -639,7 +665,7 @@ class ProjectData:
                 for task in row["Tasks"]:
                     if not task in exp_info["tasks"]:
                         exp_info["tasks"].append(task)
-        return(exp_info)
+        return exp_info
 
     def _setup_task_status(self):
         tasks = self.experiment_info["tasks"][:]
@@ -648,7 +674,7 @@ class ProjectData:
         task_status["pending"] = tasks
         task_status["completed"] = []
         task_status["current"] = ""
-        return(task_status)
+        return task_status
 
     def _normalize_tasks(self, tasks):
         """Add default and dependency tasks and order as needed."""
@@ -667,8 +693,8 @@ class ProjectData:
         # order and verify.  We'll get a ValueError from index() if any of
         # these are not found.
         indexes = [ProjectData.TASKS.index(t) for t in tasks]
-        tasks = [t for _,t in sorted(zip(indexes, tasks))]
-        return(tasks)
+        tasks = [t for _, t in sorted(zip(indexes, tasks))]
+        return tasks
 
     def _deps_for(self, task, total=None):
         """Get all dependent tasks (including indirect) for one task."""
@@ -680,7 +706,7 @@ class ProjectData:
             if dep not in total:
                 total.update(self._deps_for(dep, total))
             total.add(dep)
-        return(total)
+        return total
 
     def _run_task(self, task):
         """Process the next pending task."""
@@ -689,7 +715,7 @@ class ProjectData:
         self.logger.debug(msg)
 
         self._metadata["task_output"][task] = {}
-        
+
         # No-op: do nothing!
         if task == ProjectData.TASK_NOOP:
             pass
@@ -729,7 +755,7 @@ class ProjectData:
 
         # Upload the zip archive to Box
         elif task == ProjectData.TASK_UPLOAD:
-            url = self.uploader(path = self.path_pack)
+            url = self.uploader(path=self.path_pack)
             self._metadata["task_output"][task] = {"url": url}
 
         # Email contacts with link to Box download

@@ -4,17 +4,12 @@ Utility functions used throughout the package.
 These are largely just wrappers for filesystem operations or text manipulation.
 """
 
-import sys
 from pathlib import Path
 import re
 import os
 import time
 import warnings
-import logging
-from distutils.dir_util import copy_tree
 import yaml
-from . import illumina
-from .illumina import run
 
 def slugify(text, mask="_"):
     """Create a short, simple text string from the given input text."""
