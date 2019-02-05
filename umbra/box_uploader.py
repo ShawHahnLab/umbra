@@ -55,16 +55,16 @@ class BoxUploader:
         self._load_creds()
         try:
             self._init_client()
-        except boxsdk.exception.BoxAPIException as e:
+        except boxsdk.exception.BoxAPIException as exception:
             # If (and only if) the problem is authentication, try getting new
             # access and refresh tokens.
-            if e.status == 400 and not self.config.get("strict_auth"):
-                msg = "Authentication failure.  Try re-connecting with Box in"
-                msg += " a browser with the URL shown."
-                self.logger.critical(msg)
+            if exception.status == 400 and not self.config.get("strict_auth"):
+                self.logger.critical(
+                    ("Authentication failure.  Try re-connecting with Box in"
+                     " a browser with the URL shown."))
                 self._janky_auth_trick()
             else:
-                raise e
+                raise exception
 
     def _load_creds(self):
         self.creds = yaml_load(self.creds_store_path)
@@ -83,24 +83,23 @@ class BoxUploader:
             access_token=self.creds["user_access_token"],
             refresh_token=self.creds["user_refresh_token"])
         self.client = boxsdk.Client(self.oauth)
-        me = self.client.user(user_id='me').get()
-        self.max_upload_size = int(me["max_upload_size"])
-        self.logger.info('User: %s' % me['login'])
-        self.logger.info('Max upload size in bytes: %d' % self.max_upload_size)
+        user_info = self.client.user(user_id='me').get()
+        self.max_upload_size = int(user_info["max_upload_size"])
+        self.logger.info('User: %s', user_info['login'])
+        self.logger.info('Max upload size in bytes: %d', self.max_upload_size)
 
     def _init_upload_folder(self):
         folder_id = self.config.get("folder_id", 0)
         self.folder = self.client.folder(folder_id)
         name = self.folder.get()['name']
-        msg = "Upload folder: %d (%s)" % (folder_id, name)
-        self.logger.info(msg)
+        self.logger.info("Upload folder: %d (%s)", folder_id, name)
 
     def _store_tokens(self, access_token, refresh_token):
         """Callback to store new access/refresh tokens to disk."""
         self.creds["user_access_token"] = access_token
         self.creds["user_refresh_token"] = refresh_token
-        with open(self.creds_store_path, "w") as f:
-            f.write(yaml.dump(self.creds))
+        with open(self.creds_store_path, "w") as fout:
+            fout.write(yaml.dump(self.creds))
         self.logger.info("Tokens refreshed.")
 
     def upload(self, path, name=None):
@@ -117,7 +116,7 @@ class BoxUploader:
         # first.
         box_file = self.folder.upload(str(path), name)
         url = box_file.get_shared_link_download_url(access="open")
-        self.logger.info("File uploaded: %s" % str(path))
+        self.logger.info("File uploaded: %s", str(path))
         return url
 
     def _list(self, chunk=100):
@@ -175,7 +174,7 @@ class BoxUploader:
         self.oauth = boxsdk.OAuth2(client_id=self.creds["client_id"],
                                    client_secret=self.creds["client_secret"])
         auth_url = self.oauth.get_authorization_url(self.creds["redirect_uri"])[0]
-        self.logger.critical("Auth URL: " + auth_url)
+        self.logger.critical("Auth URL: %s", auth_url)
         code = scrape_log_for_code(log_path)
         access_token, refresh_token = self.oauth.authenticate(code)
         self._store_tokens(access_token, refresh_token)
@@ -197,16 +196,16 @@ def _parse_log_line(line):
     #       src IP   X  user   time    request  status   bytes     referer   agent
     fmt = r'([0-9.]+) - (.+) \[(.+)\] "([^"]+)" ([0-9]+) ([0-9]+) "([^"]+)" "([^"]+)"'
     fmt_date = "%d/%b/%Y:%H:%M:%S %z"
-    m = re.match(fmt, line)
+    match = re.match(fmt, line)
     logentry = {}
-    logentry["IP"] = m.group(1)
-    logentry["User"] = m.group(2)
-    logentry["Time"] = datetime.datetime.strptime(m.group(3), fmt_date)
-    logentry["Request"] = m.group(4)
-    logentry["Status"] = m.group(5)
-    logentry["Bytes"] = int(m.group(6))
-    logentry["Referer"] = m.group(7)
-    logentry["User Agent"] = m.group(8)
+    logentry["IP"] = match.group(1)
+    logentry["User"] = match.group(2)
+    logentry["Time"] = datetime.datetime.strptime(match.group(3), fmt_date)
+    logentry["Request"] = match.group(4)
+    logentry["Status"] = match.group(5)
+    logentry["Bytes"] = int(match.group(6))
+    logentry["Referer"] = match.group(7)
+    logentry["User Agent"] = match.group(8)
     return logentry
 
 def scrape_log_for_code(log_path):
@@ -215,12 +214,12 @@ def scrape_log_for_code(log_path):
     # "tail -n 0 -f" will give all lines written to the file after the tail
     # process starts.
     # Based on: https://stackoverflow.com/a/12523371/6073858
-    f = subprocess.Popen(['tail', '-n', '0', '-f', log_path],
-                         stdout=subprocess.PIPE)
+    pipes = subprocess.Popen(['tail', '-n', '0', '-f', log_path],
+                             stdout=subprocess.PIPE)
     while True:
-        line = f.stdout.readline()
+        line = pipes.stdout.readline()
         logentry = _parse_log_line(line)
         if box_url_suffix in logentry["Referer"]:
-            m = re.search('code=([^ ]*) ', logentry["Request"])
-            code = m.group(1)
+            match = re.search('code=([^ ]*) ', logentry["Request"])
+            code = match.group(1)
             return code

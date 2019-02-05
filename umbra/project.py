@@ -202,16 +202,15 @@ class ProjectData:
         self.path_pack = Path(dp_pack) / (self.work_dir + ".zip")
         if not self.readonly:
             if self.path_proc.exists() and self.path_proc.glob("*"):
-                msg = (
-                    "Processing directory exists and is not empty: %s" %
+                self.logger.warning(
+                    "Processing directory exists and is not empty: %s",
                     str(self.path_proc))
-                self.logger.warning(msg)
-                msg = "Marking project readonly: %s" % self.work_dir
-                self.logger.warning(msg)
+                self.logger.warning(
+                    "Marking project readonly: %s", self.work_dir)
                 self.readonly = True
             else:
                 self.save_metadata()
-        self.logger.info("ProjectData initialized: %s" % self.work_dir)
+        self.logger.info("ProjectData initialized: %s", self.work_dir)
 
     def _init_work_dir_name(self):
         txt_date = datestamp(self.alignment.run.rta_complete["Date"])
@@ -336,7 +335,7 @@ class ProjectData:
 
         This function will block until processing is complete.  Calling process
         if readyonly=True or status != NONE raises ProjectError."""
-        self.logger.info("ProjectData processing: %s" % self.work_dir)
+        self.logger.info("ProjectData processing: %s", self.work_dir)
         if self.readonly:
             raise ProjectError("ProjectData is read-only")
         elif self.status != ProjectData.NONE:

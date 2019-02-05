@@ -68,7 +68,7 @@ class Mailer:
 
         This will connect to the SMTP server (with authentication if enabled
         for the object), format and send a single message, and disconnect."""
-        self.logger.debug('Preparing message: "%s"' % subject)
+        self.logger.debug('Preparing message: "%s"', subject)
         if isinstance(to_addrs, str):
             to_addrs = [to_addrs]
         # From address can be set already or given here.  Either way, if it was
@@ -83,7 +83,7 @@ class Mailer:
             msg["Reply-To"] = reply_to
         if to_addrs:
             msg["To"] = ", ".join(to_addrs)
-        self.logger.debug('Connecting over SMTP for message: "%s"' % subject)
+        self.logger.debug('Connecting over SMTP for message: "%s"', subject)
         if self.cc_addrs:
             msg["CC"] = ", ".join(self.cc_addrs)
         if msg_html:
@@ -101,13 +101,13 @@ class Mailer:
         # If there are no receipients, don't actually try to send.  If there
         # are recipients but no "To:" addresses, just warn.
         if not recipients:
-            logmsg = 'No receipients given, skipping message: "%s"' % subject
-            self.logger.error(logmsg)
+            self.logger.error(
+                'No receipients given, skipping message: "%s"', subject)
             return msg
         if not to_addrs:
-            logmsg = 'No "To:" addresses given for message: "%s"' % subject
-            self.logger.warning(logmsg)
-        self.logger.debug('Connecting over SMTP for message: "%s"' % subject)
+            self.logger.warning(
+                'No "To:" addresses given for message: "%s"', subject)
+        self.logger.debug('Connecting over SMTP for message: "%s"', subject)
         with smtplib.SMTP(self.host, port=self.port) as smtp:
             if self.ssl:
                 context = ssl.create_default_context()
@@ -115,7 +115,7 @@ class Mailer:
             if self.auth:
                 smtp.login(self.__user, self.__password)
             # Send and quit
-            self.logger.debug('Sending message: "%s"' % subject)
+            self.logger.debug('Sending message: "%s"', subject)
             # "Note: The from_addr and to_addrs parameters are used to construct
             # the message envelope used by the transport agents. sendmail does
             # not modify the message headers in any way."
@@ -123,5 +123,5 @@ class Mailer:
             # inside the msg object, even though we're also giving it
             # explicitly to smtp.sendmail.
             smtp.sendmail(from_addr, recipients, msg.as_string())
-        self.logger.info('Message sent: "%s"' % subject)
+        self.logger.info('Message sent: "%s"', subject)
         return msg

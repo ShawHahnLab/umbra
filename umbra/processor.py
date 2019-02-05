@@ -143,7 +143,7 @@ class IlluminaProcessor:
         self.logger.debug("refresh started")
         # Refresh existing runs
         for run in self.runs:
-            self.logger.debug("refresh run: %s" % run.run_id)
+            self.logger.debug("refresh run: %s", run.run_id)
             run.refresh()
         # Load new runs, with callback _proc_new_alignment
         self._load_new_runs()
@@ -190,11 +190,11 @@ class IlluminaProcessor:
         finish_up = False
         cmd = None
         self._queue_cmd = queue.Queue()
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
-        signal.signal(signal.SIGHUP, self._signal_handler)
-        signal.signal(signal.SIGUSR1, self._signal_handler)
-        signal.signal(signal.SIGUSR2, self._signal_handler)
+        signal.signal(signal.SIGINT, self._cb_signal_handler)
+        signal.signal(signal.SIGTERM, self._cb_signal_handler)
+        signal.signal(signal.SIGHUP, self._cb_signal_handler)
+        signal.signal(signal.SIGUSR1, self._cb_signal_handler)
+        signal.signal(signal.SIGUSR2, self._cb_signal_handler)
         self.logger.debug("starting processing loop")
         while not finish_up:
             self.logger.debug("starting process cycle")
@@ -315,8 +315,10 @@ class IlluminaProcessor:
         self._threads = []
         if not self.readonly:
             for i in range(self.nthreads):
+                self.logger.debug("Starting thread %d", i)
                 thread = threading.Thread(target=self._worker, daemon=True)
                 self._threads.append(thread)
+        self.logger.debug("Initialized job queue and worker threads")
 
     def _init_completion_queue(self):
         self._queue_completion = queue.Queue()
@@ -341,13 +343,13 @@ class IlluminaProcessor:
         # Now, check each threshold if it was specified.  Careful to check for
         # None here because a literal zero should be taken as its own meaning.
         if min_age is not None and (time_now - time_change < min_age):
-            self.logger.debug("skipping run; timestamp too new:.../%s" % run_dir.name)
+            self.logger.debug("skipping run; timestamp too new:.../%s", run_dir.name)
             return run
         if max_age is not None and (time_now - time_change > max_age):
-            self.logger.debug("skipping run; timestamp too old:.../%s" % run_dir.name)
+            self.logger.debug("skipping run; timestamp too old:.../%s", run_dir.name)
             return run
         try:
-            self.logger.debug("loading new run:.../%s" % run_dir.name)
+            self.logger.debug("loading new run:.../%s", run_dir.name)
             run = illumina.run.Run(
                 run_dir,
                 strict=True,
@@ -356,9 +358,9 @@ class IlluminaProcessor:
         except Exception as exception:
             # ValueError for unrecognized or mismatched directories
             if isinstance(exception, ValueError):
-                self.logger.debug("skipped unrecognized run: %s" % run_dir)
+                self.logger.debug("skipped unrecognized run: %s", run_dir)
             else:
-                self.logger.critical("Error while loading run %s" % run_dir)
+                self.logger.critical("Error while loading run %s", run_dir)
                 raise exception
         return run
 
@@ -366,14 +368,14 @@ class IlluminaProcessor:
         try:
             while True:
                 proj = self._queue_completion.get_nowait()
-                self.logger.debug("Filing project in completed set: \"%s\"" %
-                                  proj.work_dir)
+                self.logger.debug(
+                    "Filing project in completed set: \"%s\"", proj.work_dir)
                 self.projects["active"].remove(proj)
                 self.projects["completed"].add(proj)
         except queue.Empty:
             pass
 
-    def _signal_handler(self, sig, frame):
+    def _cb_signal_handler(self, sig, frame):
         """Receive and process OS signals.
 
         This will just toggle variables to inform watch_and_process of what it
@@ -381,32 +383,29 @@ class IlluminaProcessor:
         program will exit without waiting."""
         if sig in [signal.SIGINT, signal.SIGTERM]:
             if not self.is_finishing_up():
-                msg = "Signal caught (%s), finishing up" % sig
-                self.logger.warning(msg)
+                self.logger.warning(
+                    "Signal caught (%s), finishing up", sig)
                 self.finish_up()
             else:
-                msg = "Second signal caught (%s), stopping now" % sig
-                self.logger.error(msg)
+                self.logger.error(
+                    "Second signal caught (%s), stopping now", sig)
                 sys.exit(1)
         elif sig in [signal.SIGHUP]:
             msg = "Signal caught (%s),"
             msg += " re-loading all data after current tasks finish."
-            msg = msg % sig
-            self.logger.warning(msg)
+            self.logger.warning(msg, sig)
             #self._reload = True
             self._queue_cmd.put("reload")
         elif sig in [signal.SIGUSR1]:
             msg = "Signal caught (%s),"
             msg += " decreasing loglevel (increasing verbosity)."
-            msg = msg % sig
             self._loglevel_shift(-10)
-            self.logger.warning(msg)
+            self.logger.warning(msg, sig)
         elif sig in [signal.SIGUSR2]:
             msg = "Signal caught (%s),"
             msg += " increasing loglevel (decreasing verbosity)."
-            msg = msg % sig
             self._loglevel_shift(10)
-            self.logger.warning(msg)
+            self.logger.warning(msg, sig)
 
     def _loglevel_shift(self, step):
         """Change the root logger's level by a relative amount.
@@ -417,7 +416,7 @@ class IlluminaProcessor:
         lvl_current = logger.getEffectiveLevel()
         lvl_new = max(0, lvl_current + step)
         self.logger.warning(
-            "Changing loglevel: %d -> %d" % (lvl_current, lvl_new))
+            "Changing loglevel: %d -> %d", lvl_current, lvl_new)
         logger.setLevel(lvl_new)
 
     def _proc_new_alignment(self, aln):
@@ -426,7 +425,7 @@ class IlluminaProcessor:
         Any new projects will be marked active and enqueued for processing.
         Any projects with previously-created metadata on disk will be marked
         inactive and not processed."""
-        self.logger.debug("proccesing new alignment: %s" % aln.path)
+        self.logger.debug("proccesing new alignment: %s", aln.path)
         projs = project.ProjectData.from_alignment(
             alignment=aln,
             path_exp=self.path_exp,
@@ -479,8 +478,8 @@ class IlluminaProcessor:
                 self.mailer(**kwargs)
             finally:
                 self.logger.debug(
-                    "Declaring project done: \"%s\"" % proj.work_dir)
+                    "Declaring project done: \"%s\"", proj.work_dir)
                 self._queue_jobs.task_done()
                 self.logger.debug(
-                    "Placing project on completion queue: \"%s\"" % proj.work_dir)
+                    "Placing project on completion queue: \"%s\"", proj.work_dir)
                 self._queue_completion.put(proj)

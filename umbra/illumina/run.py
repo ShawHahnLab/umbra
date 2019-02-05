@@ -70,10 +70,6 @@ class Run:
         except FileNotFoundError:
             self.completed_job_info = None
 
-    @property
-    def valid(self):
-        return hasattr(self, "run_info")
-
     def refresh(self):
         """Check for run completion and any new or completed alignments.
 

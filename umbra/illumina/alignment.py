@@ -112,6 +112,10 @@ class Alignment:
 
     @property
     def samples(self):
+        """A copy of sample data from the sample sheet.
+
+        This is a list of dictionaries using Sample_ID as the keys.  See
+        illumina.util.load_sample_sheet for more info."""
         data = self.sample_sheet["Data"]
         newdata = [row.copy() for row in data]
         return newdata

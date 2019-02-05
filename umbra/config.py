@@ -34,12 +34,14 @@ def layer_configs(paths):
         if Path(path).exists():
             try:
                 cfg = yaml_load(path)
-                logger.info("Configuration loaded from %s" % path)
+                logger.info(
+                    "Configuration loaded from %s", path)
             except yaml.parser.ParserError as exception:
-                logger.critical("Configuration parse error while loading %s" % path)
+                logger.critical(
+                    "Configuration parse error while loading %s", path)
                 raise exception
         else:
-            logger.info("Configuration file not found at %s" % path)
+            logger.info("Configuration file not found at %s", path)
             cfg = {}
         update_tree(config, cfg)
     return config
