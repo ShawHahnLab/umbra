@@ -1,9 +1,21 @@
-from .util import *
+"""
+A read-only interface to an Illumina "Alignment" directory within a run.
+
+See the Alignment class for usage.
+"""
+
 import gzip
-import time
+import re
+from pathlib import Path
+from .util import load_sample_sheet, load_xml
 
 class Alignment:
-    """An "Alignment" (FASTQ generation) within a run."""
+    """An "Alignment" (FASTQ generation) within a run.
+
+    This is the output of the FASTQGeneration workflow that runs on the
+    sequencer, consisting of a specific sample sheet and set of demultiplexed
+    fastq.gz files. This can happen multiple times per run, even though the
+    .bcl files and other output form Real Time Analysis are the same."""
 
     def __init__(self, path, run=None, completion_callback=None):
         self.run = run
@@ -22,13 +34,13 @@ class Alignment:
             dirs = [d for d in path.glob("*") if d.is_dir() and filt(d)]
             # If there are no subdirectories this doesn't look like a MiniSeq alignment
             if not dirs:
-                raise(ValueError('Not a recognized Illumina alignment: "%s"' % path))
+                raise ValueError('Not a recognized Illumina alignment: "%s"' % path)
             try:
                 self.path_sample_sheet = (dirs[0]/"SampleSheetUsed.csv").resolve(strict=True)
             # If both possible sample sheet paths threw FileNotFound, we won't
             # consider this input path to be an alignment directory.
             except FileNotFoundError:
-                raise(ValueError('Not a recognized Illumina alignment: "%s"' % path))
+                raise ValueError('Not a recognized Illumina alignment: "%s"' % path)
             self.path_fastq = dirs[0] / "Fastq"
             self.path_checkpoint = dirs[0]/"Checkpoint.txt"
             self.path_job_info = dirs[0]/"CompletedJobInfo.xml"
@@ -45,7 +57,7 @@ class Alignment:
 
     def refresh(self):
         """Reload alignment status from disk.
-        
+
         If the alignment has just completed, and a callback function was
         provided during instantiation, call it."""
         if not self.complete:
@@ -65,53 +77,55 @@ class Alignment:
                 idx = self.run.alignments.index(self)
             except ValueError:
                 idx = len(self.run.alignments)
-            return(idx)
-        return(None)
+            return idx
+        return None
 
     @property
     def complete(self):
         """Is the alignment complete?"""
-        return(getattr(self, "checkpoint", None) == 3)
+        return getattr(self, "checkpoint", None) == 3
 
     @property
     def experiment(self):
         """Experiment name given in sample sheet."""
-        h = self.sample_sheet["Header"]
+        hdr = self.sample_sheet["Header"]
         # MiSeq vs MiniSeq
-        exp = h.get("Experiment_Name") or h.get("Experiment Name")
-        return(exp)
+        exp = hdr.get("Experiment_Name") or hdr.get("Experiment Name")
+        return exp
 
     @property
     def sample_numbers(self):
         """Ordered list of all sample numbers (indexed from one).
-        
+
         Note that the sample number (the integer after the "S" in filenames) is
         not the same thing as the Sample_ID values given in a sample sheet,
         though they may happen to have the same values in a run."""
         num_range = range(len(self.sample_sheet["Data"]))
         nums = [i+1 for i in num_range]
-        return(nums)
+        return nums
 
     @property
     def sample_names(self):
         """Ordered list of all sample names."""
         names = [row["Sample_Name"] for row in self.sample_sheet["Data"]]
-        return(names)
+        return names
 
     @property
     def samples(self):
         data = self.sample_sheet["Data"]
         newdata = [row.copy() for row in data]
-        return(newdata)
+        return newdata
 
-    def sample_files_for_num(self, sample_num,
-            fmt = "{sname}_S{snum}_L{lane:03d}_R{rp}_001.fastq.gz"):
+    def sample_files_for_num(
+            self,
+            sample_num,
+            fmt="{sname}_S{snum}_L{lane:03d}_R{rp}_001.fastq.gz"):
         """Predict filenames (no paths) for the given sample number."""
         samples = self.samples
         try:
             sample = samples[int(sample_num)-1]
         except IndexError:
-            raise ValueError("Sample number not found: %s" % sample_id)
+            raise ValueError("Sample number not found: %s" % sample_num)
         sname = sample["Sample_Name"].strip()
         # If there's a name defined, mask all the special characters we know
         # of and trim them from both ends.
@@ -123,7 +137,7 @@ class Alignment:
         # SEE: 171026_M00281_0285_000000000-BGM65
         if not sname:
             sname = sample["Sample_ID"]
-        sname = re.sub("[/+#_ .\-]+", "-", sname)
+        sname = re.sub(r"[/+#_ .\-]+", "-", sname)
         sname = re.sub("-+$", "", sname)
         sname = re.sub("^-+", "", sname)
         fields = {"sname": sname, "snum": sample_num, "lane": 1, "rp": 1}
@@ -131,42 +145,42 @@ class Alignment:
         for r_idx in range(len(self.sample_sheet["Reads"])):
             fields["rp"] = r_idx + 1
             fps.append(fmt.format(**fields))
-        return(fps)
+        return fps
 
-    def sample_paths_for_num(self, sample_num, strict = True):
+    def sample_paths_for_num(self, sample_num, strict=True):
         """Locate files (absolute Paths) for the given sample number on disk."""
         filenames = self.sample_files_for_num(sample_num)
         fps = []
         for filename in filenames:
-            fp = (self.path_fastq / filename).resolve(strict = strict)
-            fps.append(fp)
-        return(fps)
+            fpath = (self.path_fastq / filename).resolve(strict=strict)
+            fps.append(fpath)
+        return fps
 
-    def sample_paths(self, strict = True):
+    def sample_paths(self, strict=True):
         """Create dictionary mapping each sample name to list of file paths."""
         sample_paths = {}
         for s_num, s_name in zip(self.sample_numbers, self.sample_names):
             sps = self.sample_paths_for_num(s_num, strict)
             sample_paths[s_name] = sps
-        return(sample_paths)
+        return sample_paths
 
     def _make_dummy_files(self):
         """Create blank fastq.gz files in place of any missing ones."""
         # This is used in building test directories.
-        s_paths = self.sample_paths(strict = False)
+        s_paths = self.sample_paths(strict=False)
         for paths in s_paths.values():
             for path in paths:
                 if not path.exists():
-                    with gzip.open(path, "wb") as f:
+                    with gzip.open(path, "wb"):
                         pass
 
     def _load_checkpoint(self, path):
         """Load the number from a Checkpoint.txt file, or None if not found."""
         try:
-            with open(path) as f:
-                data = f.read().strip()
+            with open(path) as fin:
+                data = fin.read().strip()
         except FileNotFoundError:
             data = None
         else:
             data = int(data)
-        return(data)
+        return data

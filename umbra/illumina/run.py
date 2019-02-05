@@ -1,12 +1,26 @@
-from .util import *
-from .alignment import Alignment
+"""
+A read-only interface to an Illumina run directory.
+
+See the Run class for usage.
+"""
+
 import warnings
 import logging
+import datetime
+import time
+import re
+from pathlib import Path
+from .util import load_xml, load_csv
+from .alignment import Alignment
 
 class Run:
     """A single Illumina sequencing run, based on a directory tree."""
 
-    def __init__(self, path, strict=None, alignment_callback=None,
+    def __init__(
+            self,
+            path,
+            strict=None,
+            alignment_callback=None,
             min_alignment_dir_age=None):
         self.logger = logging.getLogger(__name__)
         # Setup run path
@@ -24,7 +38,7 @@ class Run:
             msg = 'Not a recognized Illumina run: "%s"' % path
             # strict behavior: raise an error
             if strict or strict is None:
-                raise(ValueError(msg))
+                raise ValueError(msg)
             else:
                 warnings.warn(msg)
                 self.invalid = True
@@ -58,37 +72,38 @@ class Run:
 
     @property
     def valid(self):
-        return(hasattr(self, "run_info"))
+        return hasattr(self, "run_info")
 
     def refresh(self):
         """Check for run completion and any new or completed alignments.
-        
+
         Aside from RTAComplete.txt and the Alignment directories, nothing else
         is checked.  If other files may have changed, instatiate a new Run
         object."""
         if not self.rta_complete:
-            fp = self.path/"RTAComplete.txt"
-            self.rta_complete = self._load_rta_complete(fp)
+            fpath = self.path/"RTAComplete.txt"
+            self.rta_complete = self._load_rta_complete(fpath)
         self._refresh_alignments()
 
     def _refresh_alignments(self):
         # First refresh any existing alignments
-        [al.refresh() for al in self.alignments]
+        for aln in self.alignments:
+            aln.refresh()
         # Load from expected paths, using patterns for MiSeq and MiniSeq
         al_loc1 = self.path.glob("Data/Intensities/BaseCalls/Alignment*")
         al_loc2 = self.path.glob("Alignment*")
         al_loc = list(al_loc1) + list(al_loc2)
         # Filter out those already loaded and process new ones
-        al_loc_known = [al.path for al in self.alignments]
+        al_loc_known = [aln.path for aln in self.alignments]
         is_new = lambda d: not d in al_loc_known
         al_loc = [d for d in al_loc if is_new(d)]
-        al = [self._alignment_setup(d) for d in al_loc]
+        aln = [self._alignment_setup(d) for d in al_loc]
         # Filter out any blanks.  These were either not recognized as
         # alignments or skipped as too new and potentially unfinished (and
         # logged appropriately) below.
-        al = [a for a in al if a]
+        aln = [a for a in aln if a]
         # Merge new ones into existing list
-        self.alignments += al
+        self.alignments += aln
 
     def _alignment_setup(self, path):
         # Try loading an alignment directory, but skip if the alignment
@@ -101,20 +116,20 @@ class Run:
         time_now = time.time()
         if min_age is not None and (time_now - time_change < min_age):
             msg = "skipping alignment; timestamp too new:.../%s/.../%s" % (
-                    self.path.name, path.name)
+                self.path.name, path.name)
             self.logger.debug(msg)
-            return(None)
+            return None
         try:
-            al = Alignment(path, self, self.alignment_callback)
-        except ValueError as e:
+            aln = Alignment(path, self, self.alignment_callback)
+        except ValueError:
             warnings.warn("Alignment not recognized: %s" % path)
-            return(None)
+            return None
         else:
-            return(al)
+            return aln
 
     def _load_rta_complete(self, path):
         """Parse an RTAComplete.txt file.
-        
+
         Creates a dictionary with the Date and Illumina Real-Time Analysis
         software version.  This file should exist if real-time analysis that
         does basecalling and generates BCL files has finished.
@@ -122,34 +137,35 @@ class Run:
         try:
             data = load_csv(path)[0]
         except FileNotFoundError:
-            return(None)
+            return None
         date_pad = lambda txt: "/".join([x.zfill(2) for x in txt.split("/")])
         time_pad = lambda txt: ":".join([x.zfill(2) for x in txt.split(":")])
         # MiniSeq (RTA 2x?)
         # RTA 2.8.6 completed on 3/17/2017 8:19:33 AM
         if len(data) == 1:
-            m = re.match("(RTA [0-9.]+) completed on ([^ ]+) (.+)", data[0])
-            version = m.group(1)
-            date_str_date = date_pad(m.group(2))
-            date_str_time = time_pad(m.group(3))
+            match = re.match("(RTA [0-9.]+) completed on ([^ ]+) (.+)", data[0])
+            version = match.group(1)
+            date_str_date = date_pad(match.group(2))
+            date_str_time = time_pad(match.group(3))
             date_str = date_str_date + " " + date_str_time
             fmt = '%m/%d/%Y %I:%M:%S %p'
             date_obj = datetime.datetime.strptime(date_str, fmt)
         # MiSeq (RTA 1x?)
-        # 11/2/2017,03:08:24.972,Illumina RTA 1.18.54 
+        # 11/2/2017,03:08:24.972,Illumina RTA 1.18.54
         else:
             date_str_date = date_pad(data[0])
-            date_str = date_str_date + " " + data[1] 
+            date_str = date_str_date + " " + data[1]
             fmt = '%m/%d/%Y %H:%M:%S.%f'
             date_obj = datetime.datetime.strptime(date_str, fmt)
             version = data[2]
-        return({"Date": date_obj, "Version": version})
+        return {"Date": date_obj, "Version": version}
 
     @property
     def run_id(self):
-        return(self.run_info.find('Run').attrib["Id"])
+        """The run identifier as defined in the RunInfo XML."""
+        return self.run_info.find('Run').attrib["Id"]
 
     @property
     def complete(self):
         """Is the run complete?"""
-        return(self.rta_complete is not None)
+        return self.rta_complete is not None
