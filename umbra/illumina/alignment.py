@@ -83,7 +83,11 @@ class Alignment:
 
     @property
     def sample_numbers(self):
-        """Ordered list of all sample numbers (indexed from one)."""
+        """Ordered list of all sample numbers (indexed from one).
+        
+        Note that the sample number (the integer after the "S" in filenames) is
+        not the same thing as the Sample_ID values given in a sample sheet,
+        though they may happen to have the same values in a run."""
         num_range = range(len(self.sample_sheet["Data"]))
         nums = [i+1 for i in num_range]
         return(nums)
