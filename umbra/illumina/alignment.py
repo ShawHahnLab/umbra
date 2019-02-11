@@ -7,7 +7,7 @@ See the Alignment class for usage.
 import gzip
 import re
 from pathlib import Path
-from .util import load_sample_sheet, load_xml
+from .util import load_sample_sheet, load_xml, load_checkpoint
 
 class Alignment:
     """An "Alignment" (FASTQ generation) within a run.
@@ -61,7 +61,7 @@ class Alignment:
         If the alignment has just completed, and a callback function was
         provided during instantiation, call it."""
         if not self.complete:
-            self.checkpoint = self._load_checkpoint(self.path_checkpoint)
+            self.checkpoint = load_checkpoint(self.path_checkpoint)
             if self.complete and self.completion_callback:
                 self.completion_callback(self)
 
@@ -177,14 +177,3 @@ class Alignment:
                 if not path.exists():
                     with gzip.open(path, "wb"):
                         pass
-
-    def _load_checkpoint(self, path):
-        """Load the number from a Checkpoint.txt file, or None if not found."""
-        try:
-            with open(path) as fin:
-                data = fin.read().strip()
-        except FileNotFoundError:
-            data = None
-        else:
-            data = int(data)
-        return data

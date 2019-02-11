@@ -5,6 +5,7 @@ These are largely just wrappers for filesystem operations or text manipulation.
 """
 
 import xml.etree.ElementTree
+import datetime
 import csv
 import re
 
@@ -86,4 +87,48 @@ def load_sample_sheet(path):
         samples.append({k: v for k, v in zip(cols, row)})
     data["Data"] = samples
 
+    return data
+
+def load_rta_complete(path):
+    """Parse an RTAComplete.txt file.
+
+    Creates a dictionary with the Date and Illumina Real-Time Analysis
+    software version.  This file should exist for a run if real-time analysis
+    that does basecalling and generates BCL files has finished.
+    """
+    try:
+        data = load_csv(path)[0]
+    except FileNotFoundError:
+        return None
+    date_pad = lambda txt: "/".join([x.zfill(2) for x in txt.split("/")])
+    time_pad = lambda txt: ":".join([x.zfill(2) for x in txt.split(":")])
+    # MiniSeq (RTA 2x?)
+    # RTA 2.8.6 completed on 3/17/2017 8:19:33 AM
+    if len(data) == 1:
+        match = re.match("(RTA [0-9.]+) completed on ([^ ]+) (.+)", data[0])
+        version = match.group(1)
+        date_str_date = date_pad(match.group(2))
+        date_str_time = time_pad(match.group(3))
+        date_str = date_str_date + " " + date_str_time
+        fmt = '%m/%d/%Y %I:%M:%S %p'
+        date_obj = datetime.datetime.strptime(date_str, fmt)
+    # MiSeq (RTA 1x?)
+    # 11/2/2017,03:08:24.972,Illumina RTA 1.18.54
+    else:
+        date_str_date = date_pad(data[0])
+        date_str = date_str_date + " " + data[1]
+        fmt = '%m/%d/%Y %H:%M:%S.%f'
+        date_obj = datetime.datetime.strptime(date_str, fmt)
+        version = data[2]
+    return {"Date": date_obj, "Version": version}
+
+def load_checkpoint(path):
+    """Load the number from a Checkpoint.txt file, or None if not found."""
+    try:
+        with open(path) as fin:
+            data = fin.read().strip()
+    except FileNotFoundError:
+        data = None
+    else:
+        data = int(data)
     return data

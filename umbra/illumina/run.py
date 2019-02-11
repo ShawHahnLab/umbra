@@ -6,12 +6,12 @@ See the Run class for usage.
 
 import warnings
 import logging
-import datetime
 import time
-import re
 from pathlib import Path
-from .util import load_xml, load_csv
+from .util import load_xml, load_rta_complete
 from .alignment import Alignment
+
+LOGGER = logging.getLogger(__name__)
 
 class Run:
     """A single Illumina sequencing run, based on a directory tree."""
@@ -22,7 +22,6 @@ class Run:
             strict=None,
             alignment_callback=None,
             min_alignment_dir_age=None):
-        self.logger = logging.getLogger(__name__)
         # Setup run path
         path = Path(path).resolve()
         self.path = path
@@ -78,7 +77,7 @@ class Run:
         object."""
         if not self.rta_complete:
             fpath = self.path/"RTAComplete.txt"
-            self.rta_complete = self._load_rta_complete(fpath)
+            self.rta_complete = load_rta_complete(fpath)
         self._refresh_alignments()
 
     def _refresh_alignments(self):
@@ -113,7 +112,7 @@ class Run:
         if min_age is not None and (time_now - time_change < min_age):
             msg = "skipping alignment; timestamp too new:.../%s/.../%s" % (
                 self.path.name, path.name)
-            self.logger.debug(msg)
+            LOGGER.debug(msg)
             return None
         try:
             aln = Alignment(path, self, self.alignment_callback)
@@ -123,38 +122,6 @@ class Run:
         else:
             return aln
 
-    def _load_rta_complete(self, path):
-        """Parse an RTAComplete.txt file.
-
-        Creates a dictionary with the Date and Illumina Real-Time Analysis
-        software version.  This file should exist if real-time analysis that
-        does basecalling and generates BCL files has finished.
-        """
-        try:
-            data = load_csv(path)[0]
-        except FileNotFoundError:
-            return None
-        date_pad = lambda txt: "/".join([x.zfill(2) for x in txt.split("/")])
-        time_pad = lambda txt: ":".join([x.zfill(2) for x in txt.split(":")])
-        # MiniSeq (RTA 2x?)
-        # RTA 2.8.6 completed on 3/17/2017 8:19:33 AM
-        if len(data) == 1:
-            match = re.match("(RTA [0-9.]+) completed on ([^ ]+) (.+)", data[0])
-            version = match.group(1)
-            date_str_date = date_pad(match.group(2))
-            date_str_time = time_pad(match.group(3))
-            date_str = date_str_date + " " + date_str_time
-            fmt = '%m/%d/%Y %I:%M:%S %p'
-            date_obj = datetime.datetime.strptime(date_str, fmt)
-        # MiSeq (RTA 1x?)
-        # 11/2/2017,03:08:24.972,Illumina RTA 1.18.54
-        else:
-            date_str_date = date_pad(data[0])
-            date_str = date_str_date + " " + data[1]
-            fmt = '%m/%d/%Y %H:%M:%S.%f'
-            date_obj = datetime.datetime.strptime(date_str, fmt)
-            version = data[2]
-        return {"Date": date_obj, "Version": version}
 
     @property
     def run_id(self):
