@@ -156,8 +156,6 @@ class IlluminaProcessor:
 
     def start(self):
         """Start the worker threads."""
-        # You're wrong, pylint, running is defined (indirectly) in __init__.
-        # pylint: disable=attribute-defined-outside-init
         self.running = True
         for thread in self._threads:
             try:
@@ -233,7 +231,7 @@ class IlluminaProcessor:
         # processing Group first
         alignment_to_projects = {}
         project_to_group = {}
-        for key in self.projects.keys():
+        for key in self.projects:
             for proj in self.projects[key]:
                 if not proj.alignment in alignment_to_projects.keys():
                     alignment_to_projects[proj.alignment] = []
@@ -271,7 +269,11 @@ class IlluminaProcessor:
         return entries
 
     def report(self, out_file=sys.stdout, max_width=60):
-        """ Render a CSV-formatted report to the given file handle."""
+        """ Render a CSV-formatted report to the given file handle.
+
+        max_width: maximum column width in characters.  Strings beyond this
+        length will be truncated and displayed with "..."  Set to 0 for no
+        maximum."""
         entries = self.create_report()
         writer = csv.DictWriter(out_file, IlluminaProcessor.REPORT_FIELDS)
         writer.writeheader()
@@ -279,13 +281,17 @@ class IlluminaProcessor:
             entry2 = entry
             for key in entry2:
                 data = str(entry2[key])
-                if max_width > 0 and len(data) > max_width:
+                if 0 < max_width < len(data):
                     data = data[0:(max_width-3)] + "..."
                 entry2[key] = data
             writer.writerow(entry2)
 
     def save_report(self, path, max_width=60):
-        """ Render a CSV-formatted report to the given file path."""
+        """ Render a CSV-formatted report to the given file path.
+
+        max_width: maximum column width in characters.  Strings beyond this
+        length will be truncated and displayed with "..."  Set to 0 for no
+        maximum."""
         mkparent(path)
         with open(path, "w") as fout:
             self.report(fout, max_width)
@@ -456,6 +462,7 @@ class IlluminaProcessor:
         This function is intended for use in separate worker threads, so any
         exceptions raised during project data processing are logged but not
         re-raised."""
+        # pylint: disable=broad-except
         while True:
             proj = self._queue_jobs.get()
             try:

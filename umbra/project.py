@@ -425,11 +425,11 @@ class ProjectData:
                 paths = self.sample_paths[samp]
                 if len(paths) > 2:
                     raise ProjectError("trimming can't handle >2 files per sample")
-                for i in range(len(paths)):
+                for i, path in enumerate(paths):
                     adapter = illumina.util.ADAPTERS["Nextera"][i]
-                    fastq_in = str(paths[i])
+                    fastq_in = str(path)
                     fastq_out = self.task_path(
-                        paths[i],
+                        path,
                         "trimmed",
                         ".trimmed.fastq",
                         r1only=False)

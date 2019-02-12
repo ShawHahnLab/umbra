@@ -35,6 +35,9 @@ class BoxUploader:
     optional custom name.  An existing file with the same name in Box will
     cause an exception."""
 
+    # pylint: disable=too-few-public-methods
+    # a BoxUpoader uploads.  We don't need more public methods than that.
+
     # These dict keys must appear in the credentials file.  user_access_token
     # and user_refresh_token can be missing.
     REQUIRED_FIELDS = ["client_id", "client_secret", "redirect_uri"]

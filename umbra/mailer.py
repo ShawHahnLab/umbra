@@ -27,6 +27,10 @@ class Mailer:
     localhost.  Connection details, SSL, auth, and the apparent From address
     can be customized."""
 
+    # pylint: disable=too-few-public-methods
+    # (What's wrong with just having one public method?  A Mailer instance
+    # mails.  That's it.)
+
     def __init__(
             self, host="localhost", port=25,
             use_ssl=False, auth=False, user=None, password=None, from_addr=None,
