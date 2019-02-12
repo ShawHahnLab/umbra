@@ -1,9 +1,17 @@
-from .util import *
+"""
+Helper functions for working with experiment metadata CSV files.
+
+These help further parse the spreadsheet fields into lists and dictionaries to
+define processing options.
+"""
+
 import csv
+import re
+from . import illumina
 
 def _parse_contacts(text):
     """Create a dictionary of name/email pairs from contact text.
-    
+
     For example:
     "Name <email@example.com>, Someone Else <user@site.gov>"
     is parsed into:
@@ -18,11 +26,11 @@ def _parse_contacts(text):
         # There's a horrible rabbit hole to go down trying to figure out
         # parsing email addresses with regular expressions.  I don't care.
         # This is enough for us.
-        m = re.match(" *([\w ]* *[\w]+) *<(.*@.*)>", chunk)
-        name = m.group(1)
-        email = m.group(2)
+        match = re.match(r" *([\w ]* *[\w]+) *<(.*@.*)>", chunk)
+        name = match.group(1)
+        email = match.group(2)
         contacts[name] = email
-    return(contacts)
+    return contacts
 
 def load_metadata(path):
     """Load an Experiment metadata spreadsheet."""
@@ -30,4 +38,4 @@ def load_metadata(path):
     for row in info:
         row["Tasks"] = row["Tasks"].split()
         row["Contacts"] = _parse_contacts(row["Contacts"])
-    return(info)
+    return info
