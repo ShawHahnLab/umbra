@@ -17,7 +17,7 @@ from . import project
 from .box_uploader import BoxUploader
 from .mailer import Mailer
 from .config import update_tree
-from . import illumina
+from .illumina.run import Run
 from .util import yaml_load, mkparent
 
 class IlluminaProcessor:
@@ -356,7 +356,7 @@ class IlluminaProcessor:
             return run
         try:
             self.logger.debug("loading new run:.../%s", run_dir.name)
-            run = illumina.run.Run(
+            run = Run(
                 run_dir,
                 strict=True,
                 alignment_callback=self._proc_new_alignment,
