@@ -183,7 +183,10 @@ def _setup_systemd(service_path, path_exec, uid, gid):
         "TimeoutStopSec": stop_timeout,
         "StandardOutput": "syslog",
         "StandardError": "syslog",
-        "SyslogIdentifier": "umbra"
+        "SyslogIdentifier": "umbra",
+        # by default allow full access for group.  (Systemd's default-default
+        # is 0022, disallow write for group and other).
+        "UMask": "0002"
         }
     service["Install"] = {
         "WantedBy": "multi-user.target"
