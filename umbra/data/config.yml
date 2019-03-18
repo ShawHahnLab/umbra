@@ -42,6 +42,18 @@ paths:
   packaged: "packaged"
 
 ##############################################################################
+# Task configuration options. The Box and Mailer options are handled
+# separately; see sections below.
+# Paths here are relative to a particular project's processing directory.
+task_options:
+  # Subdirectory to use for implicitly-required (not explicitly requested for
+  # the project) task output directories.  By default these are stored
+  # side-by-side on the top level with the rest of the per-task directories.
+  implicit_tasks_path: ""
+  # Subdirectory to use for per-task log files.
+  log_path: "logs"
+
+##############################################################################
 # Options for the report displayed during the "report" action.
 report:
   max_width: 60
