@@ -874,6 +874,60 @@ class TestProjectDataNoSamples(TestProjectDataOneTask):
         self.assertEqual(self.proj.task_current, "")
 
 
+class TestProjectDataPathConfig(TestProjectDataOneTask):
+    """Test that Custom output paths work for logs and implicit tasks.
+
+    This should enable us to have just task directories we explicitly requested
+    at the top level of the processed directory, stashing any implicit ones
+    (dependencies or defaults) in a single subdirectory, and logs in a specific
+    subdirectory.
+    """
+
+    def setUpVars(self):
+        # merge needs trim.  This way we'll check both implicit-via-defaults
+        # and implicit-via-dependencies.
+        self.task = "merge"
+        self.tasks_run = ["trim", self.task] + DEFAULT_TASKS
+        super().setUpVars()
+
+    def setUpProj(self):
+        self.tasks_config  = {
+                "log_path": "RunDiagnostics/logs",
+                "implicit_tasks_path": "RunDiagnostics/ImplicitTasks"
+                }
+        projs = ProjectData.from_alignment(self.alignment,
+                self.path_exp,
+                self.path_status,
+                self.path_proc,
+                self.path_pack,
+                self.uploader,
+                self.mailer,
+                config = self.tasks_config)
+        for proj in projs:
+            if proj.name == self.project_name:
+                self.proj = proj
+
+    def test_process(self):
+        super().test_process()
+        self.check_log()
+        metadata_path = self.proj.path_proc / self.tasks_config["implicit_tasks_path"] / "Metadata"
+        self.assertTrue(metadata_path.exists())
+        trim_path_default = self.proj.path_proc / "trimmed"
+        trim_path = (self.proj.path_proc /
+                self.tasks_config["implicit_tasks_path"] /
+                "trimmed")
+        merge_path = self.proj.path_proc / "PairedReads"
+        # Trim path should have changed.  Merge path should have been left the
+        # same.
+        self.assertFalse(trim_path_default.exists())
+        self.assertTrue(trim_path.exists())
+        self.assertTrue(merge_path.exists())
+
+    def check_log(self):
+        logpath = self.proj.path_proc / self.tasks_config["log_path"] / ("log_"+self.task+".txt")
+        self.assertTrue(logpath.exists())
+
+
 class TestProjectDataBlank(TestProjectDataOneTask):
     # TODO test with no tasks at all
     # this just needs to confim that the TASK_NULL code correctly inserts
