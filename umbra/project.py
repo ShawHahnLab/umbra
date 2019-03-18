@@ -103,7 +103,8 @@ class ProjectData:
 
     @staticmethod
     def from_alignment(alignment, path_exp, dp_align, dp_proc, dp_pack,
-                       uploader, mailer, nthreads=1, readonly=False):
+                       uploader, mailer, nthreads=1, readonly=False,
+                       config=None):
         """Make set of ProjectData objects from alignment/experiment table.
 
         This is called from IlluminaProcessor and so is protected from a set of
@@ -149,7 +150,8 @@ class ProjectData:
                     mailer=mailer,
                     exp_path=exp_path,
                     nthreads=nthreads,
-                    readonly=readonly)
+                    readonly=readonly,
+                    config=config)
                 try:
                     proj.sample_paths = sample_paths
                 except ProjectError:
@@ -165,7 +167,8 @@ class ProjectData:
 
     def __init__(
             self, name, path, dp_proc, dp_pack, alignment, exp_info_full,
-            uploader, mailer, exp_path=None, nthreads=1, readonly=False):
+            uploader, mailer, exp_path=None, nthreads=1, readonly=False,
+            config=None):
 
         self.logger = logging.getLogger(__name__)
         self.name = name
@@ -175,6 +178,10 @@ class ProjectData:
         self.nthreads = nthreads # max threads to give tasks
         self.uploader = uploader # callback to upload zip file
         self.mailer = mailer # callback to send email
+        # general configuration including per-task options
+        self.config = config
+        if self.config is None:
+            self.config = {}
         # TODO phred score should really be a property of the Illumina
         # alignment data, since it depends on the software generating the
         # fastqs.
@@ -398,22 +405,40 @@ class ProjectData:
     def copy_run(self):
         """Copy the run directory into the processing directory."""
         src = str(self.alignment.run.path)
-        dest = str(self.path_proc / self.alignment.run.run_id)
+        dest = str(self._task_dir_parent(self.TASK_COPY) /
+                   self.alignment.run.run_id)
         copy_tree(src, dest)
 
-    def task_path(self, readfile, subdir, suffix="", r1only=True):
+    def _task_dir_parent(self, taskname):
+        """Give processing parent path for a given task.
+
+        This will take into account configuration settings for the project and
+        the specific task, if present.  If all defaults are set this will just
+        be the processing directory.
+        """
+        path_implicit = "."
+        if taskname not in self.experiment_info["tasks"]:
+            path_implicit = self.config.get("implicit_tasks_path", ".")
+        path = (self.path_proc / path_implicit).resolve()
+        return path
+
+    def task_path(self, readfile, taskname, subdir, suffix="", r1only=True):
         """Give readfile-related path, following the originals' name."""
         pat = "(.*_L[0-9]+_)R([12])(_001)\\.fastq\\.gz"
         if r1only:
             name = re.sub(pat, "\\1R\\3" + suffix, readfile.name)
         else:
             name = re.sub(pat, "\\1R\\2\\3" + suffix, readfile.name)
-        fastq_out = self.path_proc / subdir / name
+        fastq_out = self._task_dir_parent(taskname) / subdir / name
         mkparent(fastq_out)
         return fastq_out
 
     def _log_path(self, task):
-        path = self.path_proc / "logs" / ("log_" + str(task) + ".txt")
+        # TODO set up sane handling of defaults, using the package's config
+        # file.
+        path = (self.path_proc /
+                self.config.get("log_path", "logs") /
+                ("log_" + str(task) + ".txt")).resolve()
         mkparent(path)
         return path
 
@@ -429,9 +454,10 @@ class ProjectData:
                     adapter = illumina.util.ADAPTERS["Nextera"][i]
                     fastq_in = str(path)
                     fastq_out = self.task_path(
-                        path,
-                        "trimmed",
-                        ".trimmed.fastq",
+                        readfile=path,
+                        taskname=self.TASK_TRIM,
+                        subdir="trimmed",
+                        suffix=".trimmed.fastq",
                         r1only=False)
                     args = ["cutadapt", "-a", adapter, "-o", fastq_out, fastq_in]
                     # Call cutadapt with each file.  If the exit status is
@@ -462,9 +488,10 @@ class ProjectData:
                     paths = self.sample_paths[samp]
                     if len(paths) != 2:
                         raise ProjectError("merging needs 2 files per sample")
-                    get_tp = lambda p: self.task_path(p, "trimmed", ".trimmed.fastq", r1only=False)
+                    get_tp = lambda p: self.task_path(p, "trim", "trimmed", ".trimmed.fastq", r1only=False)
                     fqs_in = [get_tp(p) for p in paths]
                     fq_out = self.task_path(paths[0],
+                                            "merge",
                                             "PairedReads",
                                             ".merged.fastq")
                     self._merge_pair(fq_out, fqs_in)
@@ -549,15 +576,18 @@ class ProjectData:
                     # Set up paths to use
                     paths = self.sample_paths[samp]
                     fq_merged = self.task_path(paths[0],
+                                               self.TASK_MERGE,
                                                "PairedReads",
                                                ".merged.fastq")
                     fq_contigs = self.task_path(paths[0],
+                                                self.TASK_ASSEMBLE,
                                                 "ContigsGeneious",
                                                 ".contigs.fastq")
                     fq_combo = self.task_path(paths[0],
+                                              self.TASK_ASSEMBLE,
                                               "CombinedGeneious",
                                               ".contigs_reads.fastq")
-                    spades_dir = self.task_path(paths[0], "assembled")
+                    spades_dir = self.task_path(paths[0], self.TASK_ASSEMBLE, "assembled")
                     # Assemble and post-process: create FASTQ version for all
                     # contigs above a given length, using altered sequence
                     # descriptions, and then combine with the original reads.
@@ -590,7 +620,7 @@ class ProjectData:
 
     def copy_metadata(self):
         """Copy metadata spreadsheets and YAML into working directory."""
-        dest = self.path_proc / "Metadata"
+        dest = self._task_dir_parent(self.TASK_METADATA) / "Metadata"
         dest.mkdir(exist_ok=True)
         paths = []
         paths.append(self.alignment.path_sample_sheet) # Sample Sheet
