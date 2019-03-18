@@ -892,17 +892,17 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
 
     def setUpProj(self):
         self.tasks_config  = {
-                "log_path": "RunDiagnostics/logs",
-                "implicit_tasks_path": "RunDiagnostics/ImplicitTasks"
-                }
+            "log_path": "RunDiagnostics/logs",
+            "implicit_tasks_path": "RunDiagnostics/ImplicitTasks"
+            }
         projs = ProjectData.from_alignment(self.alignment,
-                self.path_exp,
-                self.path_status,
-                self.path_proc,
-                self.path_pack,
-                self.uploader,
-                self.mailer,
-                config = self.tasks_config)
+            self.path_exp,
+            self.path_status,
+            self.path_proc,
+            self.path_pack,
+            self.uploader,
+            self.mailer,
+            config = self.tasks_config)
         for proj in projs:
             if proj.name == self.project_name:
                 self.proj = proj
@@ -914,8 +914,8 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
         self.assertTrue(metadata_path.exists())
         trim_path_default = self.proj.path_proc / "trimmed"
         trim_path = (self.proj.path_proc /
-                self.tasks_config["implicit_tasks_path"] /
-                "trimmed")
+            self.tasks_config["implicit_tasks_path"] /
+            "trimmed")
         merge_path = self.proj.path_proc / "PairedReads"
         # Trim path should have changed.  Merge path should have been left the
         # same.
