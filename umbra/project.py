@@ -63,6 +63,7 @@ class ProjectData:
     TASK_MERGE    = "merge"    # interleave trimmed R1/R2 reads
     TASK_ASSEMBLE = "assemble" # contig assembly
     TASK_MANUAL   = "manual"   # manual intervention step
+    TASK_GENEIOUS = "geneious" # special manual case
     TASK_METADATA = "metadata" # copy metadata to working dir
     TASK_PACKAGE  = "package"  # package in zip file
     TASK_UPLOAD   = "upload"   # upload to Box
@@ -77,6 +78,7 @@ class ProjectData:
         TASK_MERGE,
         TASK_ASSEMBLE,
         TASK_MANUAL,
+        TASK_GENEIOUS,
         TASK_METADATA,
         TASK_PACKAGE,
         TASK_UPLOAD,
@@ -87,7 +89,8 @@ class ProjectData:
         TASK_EMAIL: [TASK_UPLOAD],
         TASK_UPLOAD: [TASK_PACKAGE],
         TASK_MERGE: [TASK_TRIM],
-        TASK_ASSEMBLE: [TASK_MERGE]
+        TASK_ASSEMBLE: [TASK_MERGE],
+        TASK_GENEIOUS: [TASK_ASSEMBLE]
         }
 
     # We'll always include these tasks:
@@ -772,6 +775,12 @@ class ProjectData:
         # directory.
         elif task == ProjectData.TASK_MANUAL:
             while not (self.path_proc / "Manual").exists():
+                time.sleep(1)
+
+        # Wait for a "Geneious" subdirectory to appear in the processing
+        # directory.
+        elif task == ProjectData.TASK_GENEIOUS:
+            while not (self.path_proc / "Geneious").exists():
                 time.sleep(1)
 
         # Copy over metadata to working directory
