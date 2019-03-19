@@ -780,6 +780,16 @@ class ProjectData:
         # Wait for a "Geneious" subdirectory to appear in the processing
         # directory.
         elif task == ProjectData.TASK_GENEIOUS:
+            # Override the implicit task hiding for this specific case.  This
+            # is brittle but should work for the time being.
+            paths_move = [
+                self._task_dir_parent(self.TASK_MERGE)/"PairedReads",
+                self._task_dir_parent(self.TASK_ASSEMBLE)/"ContigsGeneious",
+                self._task_dir_parent(self.TASK_ASSEMBLE)/"CombinedGeneious"
+                ]
+            for p in paths_move:
+                if p.parent != self.path_proc:
+                    shutil.move(str(p), str(self.path_proc))
             while not (self.path_proc / "Geneious").exists():
                 time.sleep(1)
 
