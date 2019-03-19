@@ -588,11 +588,6 @@ class TestProjectDataGeneious(TestProjectDataOneTask):
     marker appears and then will continue processing.
     """
 
-    #def setUp(self):
-    #    self.task = "geneious"
-    #    self.tasks_run = ["trim", "merge", "assemble", "geneious"] + DEFAULT_TASKS
-    #    super().setUp()
-
     def setUpVars(self):
         self.task = "geneious"
         self.tasks_run = ["trim", "merge", "assemble", "geneious"] + DEFAULT_TASKS
@@ -616,15 +611,6 @@ class TestProjectDataGeneious(TestProjectDataOneTask):
 
     def finish_manual(self):
         (self.proj.path_proc / "Geneious").mkdir()
-
-    #def test_process(self):
-    #    # It should finish as long as it finds the Geneious directory
-    #    t = threading.Timer(1, self.finish_manual)
-    #    t.start()
-    #    super().test_process()
-    #    self.assertTrue((self.proj.path_proc / "PairedReads").exists())
-    #    self.assertTrue((self.proj.path_proc / "ContigsGeneious").exists())
-    #    self.assertTrue((self.proj.path_proc / "CombinedGeneious").exists())
 
     def test_process(self):
         # It should finish as long as it finds the Geneious directory
