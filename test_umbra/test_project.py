@@ -581,6 +581,62 @@ class TestProjectDataManual(TestProjectDataOneTask):
         super().test_process()
 
 
+class TestProjectDataGeneious(TestProjectDataOneTask):
+    """ Test for single-task "geneious".
+
+    Test that a ProjectData with a geneious task specified will wait until a
+    marker appears and then will continue processing.
+    """
+
+    #def setUp(self):
+    #    self.task = "geneious"
+    #    self.tasks_run = ["trim", "merge", "assemble", "geneious"] + DEFAULT_TASKS
+    #    super().setUp()
+
+    def setUpVars(self):
+        self.task = "geneious"
+        self.tasks_run = ["trim", "merge", "assemble", "geneious"] + DEFAULT_TASKS
+        super().setUpVars()
+
+    def setUpProj(self):
+        self.tasks_config  = {
+            "implicit_tasks_path": "RunDiagnostics/ImplicitTasks"
+            }
+        projs = ProjectData.from_alignment(self.alignment,
+            self.path_exp,
+            self.path_status,
+            self.path_proc,
+            self.path_pack,
+            self.uploader,
+            self.mailer,
+            config = self.tasks_config)
+        for proj in projs:
+            if proj.name == self.project_name:
+                self.proj = proj
+
+    def finish_manual(self):
+        (self.proj.path_proc / "Geneious").mkdir()
+
+    #def test_process(self):
+    #    # It should finish as long as it finds the Geneious directory
+    #    t = threading.Timer(1, self.finish_manual)
+    #    t.start()
+    #    super().test_process()
+    #    self.assertTrue((self.proj.path_proc / "PairedReads").exists())
+    #    self.assertTrue((self.proj.path_proc / "ContigsGeneious").exists())
+    #    self.assertTrue((self.proj.path_proc / "CombinedGeneious").exists())
+
+    def test_process(self):
+        # It should finish as long as it finds the Geneious directory
+        t = threading.Timer(1, self.finish_manual)
+        t.start()
+        super().test_process()
+        # Despite the config, these directories should now be at the top level.
+        self.assertTrue((self.proj.path_proc / "PairedReads").exists())
+        self.assertTrue((self.proj.path_proc / "ContigsGeneious").exists())
+        self.assertTrue((self.proj.path_proc / "CombinedGeneious").exists())
+
+
 class TestProjectDataMetadata(TestProjectDataOneTask):
     """ Test for single-task "metadata".
 
