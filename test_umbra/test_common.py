@@ -78,8 +78,6 @@ class TestBase(unittest.TestCase):
         prefix = "https://domain.box.com/shared/static/"
         # Box uses 32 lowercase alphanumeric characters (a-z, 0-9).  Not sure
         # what its method is but I'll just do an md5sum here.
-        checksum = "c9qce8ormkrma3yiy4t009ej9socz2xo"
-        #checksum = hashlib.md5(Path(path).name.encode("utf-8")).hexdigest()
         checksum = md5(Path(path).name)
         suffix = Path(path).suffix
         url = prefix + checksum + suffix

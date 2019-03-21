@@ -721,7 +721,7 @@ class TestProjectDataUpload(TestProjectDataOneTask):
 
 
 class TestProjectDataEmail(TestProjectDataOneTask):
-    """ Test for single-task "upload".
+    """ Test for single-task "email".
 
     The mailer here is a stub that just records the email parameters given to
     it, so this doesn't test much, just that the message was constructed as
@@ -758,8 +758,40 @@ class TestProjectDataEmail(TestProjectDataOneTask):
         self.assertEqual(m["to_addrs"], to_addrs_exp)
 
 
+class TestProjectDataEmailOneName(TestProjectDataEmail):
+    """What should happen if the email task just has one name?
+
+    No difference.
+    """
+
+    def setUp(self):
+        self.contacts_str = "Name <name@example.com>"
+        self.contacts = {"Name": "name@example.com"}
+        self.to_addrs_exp = ["Name <name@example.com>"]
+        super().setUp()
+
+
+class TestProjectDataEmailNoName(TestProjectDataEmail):
+    """What should happen if the email task just has a plain email address?
+
+    This should use the first part of the address as the contact dict key and
+    in the work_dir text, but nothing much else should change.
+    """
+
+    def setUp(self):
+        self.contacts_str = "name@example.com"
+        self.contacts = {"name": "name@example.com"}
+        self.to_addrs_exp = ["name <name@example.com>"]
+        # (Very slightly different workdir (lowercase "name") and thus download
+        # URL and thus message checksums)
+        self.work_dir_exp = "2018-01-01-TestProject-name"
+        self.msg_body = "30c16605d9b5f3ddfb14ac50260c5812"
+        self.msg_html = "a58d68ea9d8e188b6764df254e680e96"
+        super().setUp()
+
+
 class TestProjectDataEmailNoContacts(TestProjectDataEmail):
-    """What should happen if the email task is run with no contact info?
+    """What should happen if the email task is run with no contact info at all?
     
     Nothing much different here.  The mailer should still be called as usual
     (it might have recipients it always appends) with the expected arguments.

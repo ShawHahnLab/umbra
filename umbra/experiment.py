@@ -27,8 +27,15 @@ def _parse_contacts(text):
         # parsing email addresses with regular expressions.  I don't care.
         # This is enough for us.
         match = re.match(r" *([\w ]* *[\w]+) *<(.*@.*)>", chunk)
-        name = match.group(1)
-        email = match.group(2)
+        if match:
+            # First case, Name [Lastname] <email@something>
+            name = match.group(1)
+            email = match.group(2)
+        else:
+            # Second case, just email@something
+            match = re.match(r"([^@]*)(@[^@])", chunk)
+            name = match.group(1)
+            email = chunk
         contacts[name] = email
     return contacts
 
