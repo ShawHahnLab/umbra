@@ -949,7 +949,7 @@ class TestProjectDataNoSamples(TestProjectDataOneTask):
 
 
 class TestProjectDataPathConfig(TestProjectDataOneTask):
-    """Test that Custom output paths work for logs and implicit tasks.
+    """Test custom output paths for logs and implicitly-dependent tasks.
 
     This should enable us to have just task directories we explicitly requested
     at the top level of the processed directory, stashing any implicit ones
@@ -1000,6 +1000,43 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
     def check_log(self):
         logpath = self.proj.path_proc / self.tasks_config["log_path"] / ("log_"+self.task+".txt")
         self.assertTrue(logpath.exists())
+
+
+class TestProjectDataImplicitTasks(TestProjectDataOneTask):
+    """Test custom output paths for other implicit (non-dependency) tasks.
+
+    In live usage processing failed because a late-running task (metadata)
+    assumed the parent directories were already created.
+    """
+
+    def setUpVars(self):
+        self.task = "trim"
+        super().setUpVars()
+
+    def setUpProj(self):
+        self.tasks_config  = {
+            "implicit_tasks_path": "RunDiagnostics/ImplicitTasks"
+            }
+        projs = ProjectData.from_alignment(self.alignment,
+            self.path_exp,
+            self.path_status,
+            self.path_proc,
+            self.path_pack,
+            self.uploader,
+            self.mailer,
+            config = self.tasks_config)
+        for proj in projs:
+            if proj.name == self.project_name:
+                self.proj = proj
+
+    def test_process(self):
+        super().test_process()
+        self.check_log()
+        metadata_path = self.proj.path_proc / self.tasks_config["implicit_tasks_path"] / "Metadata"
+        self.assertTrue(metadata_path.exists())
+        # Trim path should not have changed.
+        trim_path = self.proj.path_proc / "trimmed"
+        self.assertTrue(trim_path.exists())
 
 
 class TestProjectDataBlank(TestProjectDataOneTask):
