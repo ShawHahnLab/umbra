@@ -624,7 +624,7 @@ class ProjectData:
     def copy_metadata(self):
         """Copy metadata spreadsheets and YAML into working directory."""
         dest = self._task_dir_parent(self.TASK_METADATA) / "Metadata"
-        dest.mkdir(exist_ok=True)
+        dest.mkdir(parents=True, exist_ok=True)
         paths = []
         paths.append(self.alignment.path_sample_sheet) # Sample Sheet
         paths.append(self.path) # Metadata YAML file (as it currently stands)
