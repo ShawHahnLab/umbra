@@ -15,3 +15,6 @@ structures on disk.  The experiment module contains helper functions for
 matching the Experiment field from a sample sheet with a matching set of
 metadata on disk.
 """
+
+from . import config
+CONFIG = config.layer_configs([config.path_for_config()])

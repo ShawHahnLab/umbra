@@ -11,6 +11,9 @@ import time
 import warnings
 import yaml
 
+class ProjectError(Exception):
+    """Any sort of project-related exception."""
+
 def slugify(text, mask="_"):
     """Create a short, simple text string from the given input text."""
     pat = "[^A-Za-z0-9-_]"

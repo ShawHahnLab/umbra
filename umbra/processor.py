@@ -442,7 +442,7 @@ class IlluminaProcessor:
             mailer=self.mailer,
             nthreads=self.nthreads_per_project,
             readonly=self.readonly,
-            config=self.config.get("task_options", {}))
+            conf=self.config.get("task_options", {}))
         for proj in projs:
             suffix = ""
             if proj.readonly or proj.status == project.ProjectData.FAILED:

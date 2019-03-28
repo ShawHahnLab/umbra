@@ -604,7 +604,7 @@ class TestProjectDataGeneious(TestProjectDataOneTask):
             self.path_pack,
             self.uploader,
             self.mailer,
-            config = self.tasks_config)
+            conf = self.tasks_config)
         for proj in projs:
             if proj.name == self.project_name:
                 self.proj = proj
@@ -976,7 +976,7 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
             self.path_pack,
             self.uploader,
             self.mailer,
-            config = self.tasks_config)
+            conf = self.tasks_config)
         for proj in projs:
             if proj.name == self.project_name:
                 self.proj = proj
@@ -1024,7 +1024,7 @@ class TestProjectDataImplicitTasks(TestProjectDataOneTask):
             self.path_pack,
             self.uploader,
             self.mailer,
-            config = self.tasks_config)
+            conf = self.tasks_config)
         for proj in projs:
             if proj.name == self.project_name:
                 self.proj = proj
