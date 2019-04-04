@@ -5,11 +5,14 @@ Add-on tasks should be subclasses of the base class Task.  Tasks are
 instantiated by ProjectData objects for individual datasets.
 """
 
+# https://docs.python.org/3/reference/datamodel.html
+
 import re
 import importlib
 import pkgutil
 import sys
 import logging
+import inspect
 from pathlib import Path
 from ..util import mkparent
 
@@ -49,6 +52,21 @@ def __load_task_classes():
                 globals()[name] = getattr(mod, name)
 
 
+# pylint: disable=invalid-name,too-few-public-methods
+class classproperty():
+    """
+    Based on:
+    https://stackoverflow.com/a/5192374
+    https://stackoverflow.com/a/5191224
+    """
+
+    def __init__(self, func):
+        self.func = func
+
+    def __get__(self, obj, owner):
+        return self.func(owner)
+
+
 # pylint: disable=invalid-name
 class __TaskParent(type):
     """A class for Task classes.
@@ -57,30 +75,55 @@ class __TaskParent(type):
     There's nothing much to see here, you probably want Task instead.
     """
 
+    def __lt__(cls, cls_other):
+        """Define "<" operator which allows easy task sorting by order."""
+        # https://stackoverflow.com/a/4010558
+        return cls.order < cls_other.order
+
+    def __gt__(cls, cls_other):
+        """Define ">" operator."""
+        return cls.order > cls_other.order
+
+    def __ge__(cls, cls_other):
+        """Define ">=" operator."""
+        return cls.order >= cls_other.order
+
+    def __le__(cls, cls_other):
+        """Define "<=" operator."""
+        return cls.order <= cls_other.order
+
     def __new__(cls, clsname, superclasses, attrs):
         # Define a name attribute for the class.  I'm doing it this roundabout
         # meta way so that we can easily have each Task class have a name
         # attribute (and not just each instance of the class) automatically.
-        attrs["name"] = clsname
-        name = clsname.replace("Task", "", 1).lower()
-        if name != "":
-            attrs["name"] = name
-        # Store a reference to the original module the class came from.  Useful
-        # when we have a mix of built-in and custom tasks.
-        # TODO hmm, doesn't work quite right yet.  Everything shows up as here.
-        # Maybe because of my namespace-mangling magic?  Or because the package
-        # path really is always the same?
-        #attrs["task_module"] = Path(package.__path__[0])
+        name = clsname.lower()
+        name = name.replace("task", "", 1) or name
+        attrs["name"] = name
 
-        def task_module():
-            package = sys.modules[__package__]
-            print(dir(package))
-            print(__file__)
-            print(__name__)
-            print(__path__)
-            print('')
+        def __get_source_path(cls):
+            """A reference to the Path of the module the class came from.
 
-        attrs["task_module"] = task_module
+            For built-in tasks, relative to the package. For custom tasks,
+            absolute path.
+            """
+            # Useful when we have a mix of built-in and custom tasks.
+            # Note that I think we need to define this as a function so it
+            # refers to the correct module at run-time.
+            # https://stackoverflow.com/a/12154601
+            parent = Path(__file__).parent
+            path = Path(inspect.getfile(cls))
+            try:
+                path = path.relative_to(parent)
+            except ValueError:
+                pass
+            return path
+
+        attrs["__get_source_path"] = __get_source_path
+        attrs["source_path"] = classproperty(__get_source_path)
+        attrs["__lt__"] = cls.__lt__
+        attrs["__gt__"] = cls.__gt__
+        attrs["__le__"] = cls.__le__
+        attrs["__ge__"] = cls.__ge__
 
         return type.__new__(cls, clsname, superclasses, attrs)
 
@@ -96,16 +139,6 @@ class Task(metaclass=__TaskParent):
     information.
     """
 
-    @property
-    def name(self):
-        """Name of this task, based on its class."""
-        return self.__class__.name
-
-    def __lt__(self, other):
-        """Define "<" operator which allows easy task sorting by order."""
-        # https://stackoverflow.com/a/4010558
-        return self.order < other.order
-
     # Task execution order.
     # A higher number means run later than tasks with lower numbers.  This
     # default setting will run after the core processing tasks but before the
@@ -118,6 +151,13 @@ class Task(metaclass=__TaskParent):
     # property; there is no real resolution of dependencies in a graph-like
     # way.)
     dependencies = []
+
+    @classproperty
+    def summary(cls):
+        """Brief text summary of main Task attributes."""
+        fmt = "name: %s\norder: %s\ndependencies: %s\nsource_path: %s"
+        info = fmt % (cls.name, cls.order, ", ".join(cls.dependencies), cls.source_path)
+        return info
 
     @property
     def log_path(self):
