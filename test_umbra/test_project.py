@@ -510,6 +510,7 @@ class TestProjectDataMerge(TestProjectDataOneTask):
             self.assertEqual(seq_obs, seq_pair)
 
 
+@unittest.skip("not yet implemented")
 class TestProjectDataMergeSingleEnded(TestProjectDataMerge):
     """ Test for single-task "merge" for a singled-ended Run.
 
@@ -518,27 +519,21 @@ class TestProjectDataMergeSingleEnded(TestProjectDataMerge):
     pass
 
 
-class TestProjectDataAssemble(TestProjectDataOneTask):
-    """ Test for single-task "assemble".
+class TestProjectDataSpades(TestProjectDataOneTask):
+    """Test for single-task "spades".
 
     This will automatically run the trim and merge tasks, and then build
-    contigs de-novo from the reads with SPAdes.  The contigs will be filtered
-    to just those greater than a minimum length, renamed to match the sample
-    names, and converted to FASTQ for easy combining with the reads.  (This is
-    the ContigsGeneious subdirectory.)  Those modified contigs will also be
-    concatenated with the original merged reads (CombinedGeneious
-    subdirectory)."""
+    contigs de-novo from the reads with SPAdes.
+    """
 
     def setUp(self):
-        self.task = "assemble"
+        self.task = "spades"
         # trim and merge are dependencies of assemble.
         self.tasks_run = ["trim", "merge", self.task] + DEFAULT_TASKS
         super().setUp()
 
     def test_process(self):
-        """Test that the merge task completed as expected."""
-        # Let's set up a detailed example in one file pair, to make sure the
-        # merging itself worked (separately testing trimming above).
+        """Test that the spades task completed as expected."""
         seq_pair = ["ACTG" * 10, "CAGT" * 10]
         self.fake_fastq(seq_pair)
         # The basics
@@ -547,6 +542,31 @@ class TestProjectDataAssemble(TestProjectDataOneTask):
         # Next, check that we have the output we expect from spades.  Ideally
         # we should have a true test but right now we get no contigs built.
 
+
+class TestProjectDataAssemble(TestProjectDataOneTask):
+    """ Test for single-task "assemble".
+
+    This will automatically run the trim/merge/spades tasks, and then
+    post-process the contigs: The contigs will be filtered to just those
+    greater than a minimum length, renamed to match the sample names, and
+    converted to FASTQ for easy combining with the reads.  (This is the
+    ContigsGeneious subdirectory.)  Those modified contigs will also be
+    concatenated with the original merged reads (CombinedGeneious
+    subdirectory).
+    """
+
+    def setUp(self):
+        self.task = "assemble"
+        # trim and merge are dependencies of assemble.
+        self.tasks_run = ["trim", "merge", "spades", self.task] + DEFAULT_TASKS
+        super().setUp()
+
+    def test_process(self):
+        """Test that the assemble task completed as expected."""
+        seq_pair = ["ACTG" * 10, "CAGT" * 10]
+        self.fake_fastq(seq_pair)
+        # The basics
+        super().test_process()
         # We should have one file each in ContigsGeneious and CombinedGeneious
         # per sample.
         dirpath_contigs = self.proj.path_proc / "ContigsGeneious"
@@ -592,7 +612,7 @@ class TestProjectDataGeneious(TestProjectDataOneTask):
 
     def setUpVars(self):
         self.task = "geneious"
-        self.tasks_run = ["trim", "merge", "assemble", "geneious"] + DEFAULT_TASKS
+        self.tasks_run = ["trim", "merge", "spades", "assemble", "geneious"] + DEFAULT_TASKS
         super().setUpVars()
 
     def setUpProj(self):
