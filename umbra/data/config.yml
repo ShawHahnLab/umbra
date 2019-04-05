@@ -52,6 +52,17 @@ task_options:
   implicit_tasks_path: ""
   # Subdirectory to use for per-task log files.
   log_path: "logs"
+  # These tasks will always be executed
+  task_defaults: ["metadata", "email"]
+  # These tasks will be executed if no tasks at all are specified
+  task_null: ["copy"]
+  # These are specific per-task options
+  tasks:
+    assemble:
+      # Min length of contigs to keep in filtered Geneious-ready form
+      contig_length_min: 255
+      # FASTQ quality score encoding offset
+      phred_offset: 33
 
 ##############################################################################
 # Options for the report displayed during the "report" action.
