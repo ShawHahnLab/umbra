@@ -50,6 +50,9 @@ task_options:
   # the project) task output directories.  By default these are stored
   # side-by-side on the top level with the rest of the per-task directories.
   implicit_tasks_path: ""
+  # List of task names whose output should always be kept at the top level (if
+  # present) whether explicitly or implicitly included.
+  always_explicit_tasks: [ ]
   # Subdirectory to use for per-task log files.
   log_path: "logs"
   # These tasks will always be executed
