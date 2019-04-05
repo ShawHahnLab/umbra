@@ -22,7 +22,7 @@ DEFAULT_TASKS = ["metadata", "package", "upload", "email"]
 
 class TestProjectData(TestBase):
     """Main tests for ProjectData.
-    
+
     This became unwieldy pretty fast.  Merge into TestProjectDataOneTask,
     maybe."""
 
@@ -72,7 +72,7 @@ class TestProjectData(TestBase):
 
     def test_metadata(self):
         """Test that the project metadata is set up as expected.
-        
+
         These are edging toward private attributes but it's easier here to just
         check them all in one go, at least until that's more cleaned up."""
 
@@ -181,7 +181,7 @@ class TestProjectData(TestBase):
 
 class TestProjectDataOneTask(TestBase):
     """Base class for one-project-one-task tests.
-    
+
     This handles the noop case and can be subclassed for other cases.  This
     base class only sets certain attribute values if they haven't already been
     overridden."""
@@ -287,12 +287,16 @@ class TestProjectDataOneTask(TestBase):
         return(paths)
 
     def check_log(self):
+        """Does the log file exist?
+
+        It always should if a task was run for a project.
+        """
         logpath = self.proj.path_proc / "logs" / ("log_"+self.task+".txt")
         self.assertTrue(logpath.exists())
 
     def check_zipfile(self, files_exp):
         """Check that filenames are present in the zipfile.
-        
+
         This will also check for the YAML metadata file in the expected hidden
         location."""
         with zipfile.ZipFile(self.proj.path_pack, "r") as z:
@@ -370,6 +374,7 @@ class TestProjectDataOneTask(TestBase):
         self.assertEqual(self.proj.tasks_pending, [])
         self.assertEqual(self.proj.tasks_completed, self.tasks_run)
         self.assertEqual(self.proj.task_current, "")
+        self.check_log()
 
 
 class TestProjectDataFail(TestProjectDataOneTask):
@@ -409,7 +414,7 @@ class TestProjectDataCopy(TestProjectDataOneTask):
         # The top-level work directory should contain the run directory and the
         # default Metadata directory.
         dirpath = self.proj.path_proc
-        dir_exp = sorted(["Metadata", self.run.run_id])
+        dir_exp = sorted(["Metadata", "logs", self.run.run_id])
         dir_obs = sorted([x.name for x in (dirpath.glob("*"))])
         self.assertEqual(dir_obs, dir_exp)
         # The files in the top-level of the run directory should match, too.
@@ -457,7 +462,6 @@ class TestProjectDataTrim(TestProjectDataOneTask):
             with open(fp, "r") as f:
                 seq_obs = f.readlines()[1].strip()
                 self.assertEqual(seq_obs, seq_exp)
-        self.check_log()
 
 
 class TestProjectDataMerge(TestProjectDataOneTask):
@@ -504,7 +508,6 @@ class TestProjectDataMerge(TestProjectDataOneTask):
             data = f.readlines()
             seq_obs = [data[i].strip() for i in [1,5]]
             self.assertEqual(seq_obs, seq_pair)
-        self.check_log()
 
 
 class TestProjectDataMergeSingleEnded(TestProjectDataMerge):
@@ -517,7 +520,7 @@ class TestProjectDataMergeSingleEnded(TestProjectDataMerge):
 
 class TestProjectDataAssemble(TestProjectDataOneTask):
     """ Test for single-task "assemble".
-    
+
     This will automatically run the trim and merge tasks, and then build
     contigs de-novo from the reads with SPAdes.  The contigs will be filtered
     to just those greater than a minimum length, renamed to match the sample
@@ -556,7 +559,6 @@ class TestProjectDataAssemble(TestProjectDataOneTask):
         combo_exp = self.expected_paths(".contigs_reads.fastq", r1only=True)
         self.assertEqual(contigs_obs, contigs_exp)
         self.assertEqual(combo_obs, combo_exp)
-        self.check_log()
 
 
 class TestProjectDataManual(TestProjectDataOneTask):
@@ -792,7 +794,7 @@ class TestProjectDataEmailNoName(TestProjectDataEmail):
 
 class TestProjectDataEmailNoContacts(TestProjectDataEmail):
     """What should happen if the email task is run with no contact info at all?
-    
+
     Nothing much different here.  The mailer should still be called as usual
     (it might have recipients it always appends) with the expected arguments.
     (As for other cases the actual Mailer behavior is tested separately for
@@ -809,13 +811,13 @@ class TestProjectDataEmailNoContacts(TestProjectDataEmail):
         self.msg_body = "925bfb376b0a2bc2b6797ef992ddbb00"
         self.msg_html = "e2a8c65f1d67ba6abd09caf2dddbc370"
         super().setUp()
-        
+
 
 # Other ProjectData test cases
 
 class TestProjectDataFailure(TestProjectDataOneTask):
     """What should happen if an exception is raised during processing?
-    
+
     The exception should reach the caller but the ProjectData object should do
     some cleanup of its own, trying to update its status to "failed" before
     re-raising the exception.
@@ -830,7 +832,7 @@ class TestProjectDataFailure(TestProjectDataOneTask):
 
     def test_process(self):
         """Test that process() fails in the expected way.
-        
+
         It should raise an exception, but still set its status attribute in the
         process and also record the exception details."""
         with self.assertRaises(FileExistsError):
@@ -844,7 +846,7 @@ class TestProjectDataFailure(TestProjectDataOneTask):
 
 class TestProjectDataFilesExist(TestProjectDataOneTask):
     """What should happen when there are already files in the processing dir?
-    
+
     We should log a warning about it and mark the ProjectData as readonly.
     """
 
@@ -879,7 +881,7 @@ class TestProjectDataFilesExist(TestProjectDataOneTask):
 
 class TestProjectDataMissingSamples(TestProjectDataOneTask):
     """What if samples listed in metadata.csv are not in the sample sheet?
-    
+
     Aside from typos, this could come up if one experiment name and metadata
     spreadsheet matches multiple runs.  This is a bit weird and warrants a
     warning but is allowed.
@@ -910,7 +912,7 @@ class TestProjectDataMissingSamples(TestProjectDataOneTask):
 
 class TestProjectDataNoSamples(TestProjectDataOneTask):
     """What if no samples listed in metadata.csv are in the sample sheet?
-    
+
     If no samples at all are found it should be an error.  For simplicity in
     setting up multiple projects, we'll log an error and mark the project
     failed, but won't raise an exception.
@@ -983,7 +985,6 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
 
     def test_process(self):
         super().test_process()
-        self.check_log()
         metadata_path = self.proj.path_proc / self.tasks_config["implicit_tasks_path"] / "Metadata"
         self.assertTrue(metadata_path.exists())
         trim_path_default = self.proj.path_proc / "trimmed"
@@ -998,6 +999,7 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
         self.assertTrue(merge_path.exists())
 
     def check_log(self):
+        """Override default log path when checking to match config."""
         logpath = self.proj.path_proc / self.tasks_config["log_path"] / ("log_"+self.task+".txt")
         self.assertTrue(logpath.exists())
 

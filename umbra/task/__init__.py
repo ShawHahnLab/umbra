@@ -13,6 +13,8 @@ import pkgutil
 import sys
 import logging
 import inspect
+import subprocess
+import traceback
 from pathlib import Path
 from ..util import mkparent
 
@@ -165,7 +167,6 @@ class Task(metaclass=__TaskParent):
         path = (self.proj.path_proc /
                 self.proj.config.get("log_path", "logs") /
                 ("log_" + self.name + ".txt")).resolve()
-        mkparent(path)
         return path
 
     @property
@@ -182,11 +183,16 @@ class Task(metaclass=__TaskParent):
 
         When a task is created it will be given a dictionary of configuration
         information and a project data object with a bundle of run information
-        and metadata.  If you override __init__ be sure to handle this part or
+        and metadata.  If you override __init__ be sure to
         super().__init__(config, proj).
         """
         self.config = config
         self.proj = proj
+        self.logf = None
+
+    def __del__(self):
+        if self.logf:
+            self.logf.close()
 
     def run(self):
         """The core functionality for the task.
@@ -206,6 +212,22 @@ class Task(metaclass=__TaskParent):
         cause trouble (no arbitrary objects).  The None object is fine.
         """
         raise NotImplementedError
+
+    def runcmd(self, args, stdout=None, stderr=None):
+        """A simple wrapper to execute a command.
+
+        This will call the command specified by the list of arguments, with the
+        standard output and standard error streams defaulting to the task's
+        open log file.  Any non-zero exit code will result in a
+        subprocess.CalledProcessError being raised.  See also: subprocess.run.
+        """
+        if not stdout:
+            self.log_setup()
+            stdout = self.logf
+        if not stderr:
+            self.log_setup()
+            stderr = self.logf
+        subprocess.run(args, stdout=stdout, stderr=stderr, check=True)
 
     @property
     def sample_paths(self):
@@ -235,5 +257,27 @@ class Task(metaclass=__TaskParent):
             path_implicit = self.proj.config.get("implicit_tasks_path", ".")
         path = (self.proj.path_proc / path_implicit).resolve()
         return path
+
+    def log_setup(self):
+        """Open the log file for writing."""
+        mkparent(self.log_path)
+        try:
+            if not self.logf.writable():
+                self.logf = open(self.log_path, "w")
+        except AttributeError:
+            self.logf = open(self.log_path, "w")
+
+    def runwrapper(self):
+        """Setup/cleanup around each Task's run method.
+
+        Don't worry about this one, just override run().
+        """
+        self.log_setup()
+        try:
+            return self.run()
+        except Exception as exception:
+            msg = traceback.format_exc()
+            self.logf.write(msg + "\n")
+            raise exception
 
 __load_task_classes()

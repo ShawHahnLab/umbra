@@ -386,8 +386,8 @@ class ProjectData:
         tasks = []
         for taskname in tasknames:
             cls = tasks_all[taskname]
-            config = self.config["tasks"].get(taskname, {})
-            obj = cls(config, self)
+            task_config = self.config["tasks"].get(taskname, {})
+            obj = cls(task_config, self)
             tasks.append(obj)
         # Sort by the order attribute of each task.
         tasks = sorted(tasks)
@@ -422,4 +422,4 @@ class ProjectData:
         if not taskobj:
             # This should never happen (so it probably will).
             raise ProjectError("task \"%s\" not recognized" % taskname)
-        self._metadata["task_output"][taskname] = taskobj.run() or {}
+        self._metadata["task_output"][taskname] = taskobj.runwrapper() or {}
