@@ -976,7 +976,8 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
     This should enable us to have just task directories we explicitly requested
     at the top level of the processed directory, stashing any implicit ones
     (dependencies or defaults) in a single subdirectory, and logs in a specific
-    subdirectory.
+    subdirectory.  We can also override that implicit task setting on a
+    per-task basis; see TestProjectDataExplicitTasks.
     """
 
     def setUpVars(self):
@@ -1053,8 +1054,46 @@ class TestProjectDataImplicitTasks(TestProjectDataOneTask):
 
     def test_process(self):
         super().test_process()
-        self.check_log()
         metadata_path = self.proj.path_proc / self.tasks_config["implicit_tasks_path"] / "Metadata"
+        self.assertTrue(metadata_path.exists())
+        # Trim path should not have changed.
+        trim_path = self.proj.path_proc / "trimmed"
+        self.assertTrue(trim_path.exists())
+
+
+class TestProjectDataExplicitTasks(TestProjectDataOneTask):
+    """Test custom output paths for "always explicit" tasks.
+
+    If we listed a task in always_explicit_tasks it should not be affected by
+    implicit_tasks_path, no matter if it was implicitly or explicitly required.
+    """
+
+    def setUpVars(self):
+        self.task = "trim"
+        super().setUpVars()
+
+    def setUpProj(self):
+        self.tasks_config = {
+            "implicit_tasks_path": "RunDiagnostics/ImplicitTasks",
+            "always_explicit_tasks": ["metadata"]
+            }
+        projs = ProjectData.from_alignment(self.alignment,
+                                           self.path_exp,
+                                           self.path_status,
+                                           self.path_proc,
+                                           self.path_pack,
+                                           self.uploader,
+                                           self.mailer,
+                                           conf=self.tasks_config)
+        for proj in projs:
+            if proj.name == self.project_name:
+                self.proj = proj
+
+    def test_process(self):
+        super().test_process()
+        # Despite the implicit tasks path given, we should have overridden that
+        # here and kept Metadata at the top.
+        metadata_path = self.proj.path_proc / "Metadata"
         self.assertTrue(metadata_path.exists())
         # Trim path should not have changed.
         trim_path = self.proj.path_proc / "trimmed"

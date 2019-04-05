@@ -253,7 +253,9 @@ class Task(metaclass=__TaskParent):
         be the processing directory.
         """
         path_implicit = "."
-        if taskname not in self.proj.experiment_info["tasks"]:
+        implicit = taskname not in self.proj.experiment_info["tasks"]
+        explicit = taskname in self.proj.config.get("always_explicit_tasks", [])
+        if implicit and not explicit:
             path_implicit = self.proj.config.get("implicit_tasks_path", ".")
         path = (self.proj.path_proc / path_implicit).resolve()
         return path
