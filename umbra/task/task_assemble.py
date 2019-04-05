@@ -4,11 +4,14 @@ import re
 from Bio import SeqIO
 from umbra import task
 
+
 class TaskAssemble(task.Task):
     """Assemble contigs from all samples.
 
     This handles de-novo assembly with Spades and some of our own
     post-processing."""
+
+    # pylint: disable=no-member
 
     order = 13
     dependencies = ["spades", "merge"]

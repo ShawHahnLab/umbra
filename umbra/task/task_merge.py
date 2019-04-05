@@ -8,6 +8,7 @@ from umbra.util import ProjectError
 class TaskMerge(task.Task):
     """Interleave forward and reverse reads for each sample."""
 
+    # pylint: disable=no-member
     order = 11
     dependencies = ["trim"]
 

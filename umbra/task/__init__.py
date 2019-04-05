@@ -141,6 +141,14 @@ class Task(metaclass=__TaskParent):
     information.
     """
 
+    # The inheritance and introspection going on here is pretty weird and it
+    # confuses pylint (it'll complain about missing members when they really
+    # are there if you check them on live objects).  Maybe there are clever
+    # ways to fix this but I'm just turning off the no-member check in each
+    # task class where it comes up, like so:
+    # pylint: disable=no-member
+    # maybe relevant? https://stackoverflow.com/q/38087760
+
     # Task execution order.
     # A higher number means run later than tasks with lower numbers.  This
     # default setting will run after the core processing tasks but before the

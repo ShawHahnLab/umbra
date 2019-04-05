@@ -7,6 +7,7 @@ from umbra import task
 class TaskMetadata(task.Task):
     """Copy metadata spreadsheets and YAML into working directory."""
 
+    # pylint: disable=no-member
     order = 1000
 
     def run(self):

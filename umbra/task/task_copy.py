@@ -6,6 +6,7 @@ from umbra import task
 class TaskCopy(task.Task):
     """Copy the run directory into the processing directory."""
 
+    # pylint: disable=no-member
     order = 2
 
     def run(self):

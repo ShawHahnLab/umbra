@@ -89,7 +89,10 @@ class Alignment:
     def experiment(self):
         """Experiment name given in sample sheet."""
         hdr = self.sample_sheet["Header"]
-        # MiSeq vs MiniSeq
+        # I've seen both versions across multiple MiSeqs, but just the space
+        # one for MiniSeq, where the machine creates its own sample sheet from
+        # a separate input spreadsheet.  Maybe Illumina's parsing is flexible
+        # but officially it prefers the space?
         exp = hdr.get("Experiment_Name") or hdr.get("Experiment Name")
         return exp
 

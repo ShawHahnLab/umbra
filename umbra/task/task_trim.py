@@ -8,6 +8,7 @@ from umbra import task
 class TaskTrim(task.Task):
     """Trim adapters from raw fastq.gz files."""
 
+    # pylint: disable=no-member
     order = 10
 
     def run(self):
