@@ -253,12 +253,25 @@ class Task(metaclass=__TaskParent):
         be the processing directory.
         """
         path_implicit = "."
-        implicit = taskname not in self.proj.experiment_info["tasks"]
-        explicit = taskname in self.proj.config.get("always_explicit_tasks", [])
-        if implicit and not explicit:
+        if self._task_is_implicit(taskname):
             path_implicit = self.proj.config.get("implicit_tasks_path", ".")
         path = (self.proj.path_proc / path_implicit).resolve()
         return path
+
+    def _task_is_implicit(self, taskname):
+        """True if a task was implicitly included, False otherwise.
+
+        If tasks are in the list given for a project, are in the
+        always_explicit_tasks list, or are in the task_null list, they are
+        considered explicitly-requested.  Other cases (e.g. dependencies of
+        explicit tasks or the default tasks) are considered implicit.  This can
+        affect the output file paths for a given task.
+        """
+        explicit_tasks = (
+            self.proj.experiment_info["tasks"] +
+            self.proj.config.get("always_explicit_tasks", []) +
+            self.proj.config.get("task_null", []))
+        return taskname not in explicit_tasks
 
     def log_setup(self):
         """Open the log file for writing."""
