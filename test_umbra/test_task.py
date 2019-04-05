@@ -2,12 +2,13 @@
 """
 Tests for Task objects (and classes!)
 
-Right now this mostly just tests the weird inheritance and other aspects of
-tasks, and test_project.py has more "live" testing.
+Right now this mostly just tests the weird Python inheritance and other aspects
+of tasks, and test_project.py has more "live" testing for actual task code.
 """
 
+import unittest
+from pathlib import Path
 from umbra import task
-from .test_common import *
 
 class TestTaskModule(unittest.TestCase):
     """Tests on the task module."""
@@ -72,6 +73,7 @@ class TestTaskClass(unittest.TestCase):
         """Test sorting on tasks and all related operators.
 
         These should work on Tasks as instances or classes."""
+        # pylint: disable=abstract-method
         class Task2(task.Task):
             """Another Task class that should come later."""
             order = 200
@@ -102,5 +104,6 @@ class TestTask(TestTaskClass):
         self.thing = task.Task({}, None)
 
     def test_run(self):
+        """Test that the run method is left unimplemented by default."""
         with self.assertRaises(NotImplementedError):
             self.thing.run()
