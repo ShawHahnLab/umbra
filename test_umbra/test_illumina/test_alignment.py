@@ -1,4 +1,11 @@
-from .test_common import *
+import unittest
+import os
+from shutil import move
+from tempfile import TemporaryDirectory
+from pathlib import Path
+from distutils.dir_util import copy_tree
+from .test_common import RUN_IDS, PATH_RUNS
+from umbra.illumina.run import Alignment
 
 class TestAlignment(unittest.TestCase):
     """Test an Alignment in a typical case (MiSeq, paired-end)."""

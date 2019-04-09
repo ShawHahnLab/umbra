@@ -1,11 +1,4 @@
-import warnings
-import datetime
-from tempfile import TemporaryDirectory
-from shutil import move
-import os
-from ..test_common import *
-
-from umbra.illumina.run import Run, Alignment
+from ..test_common import PATH_DATA
 
 RUN_IDS = {
         "MiSeq":       "180101_M00000_0000_000000000-XXXXX",
