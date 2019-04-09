@@ -5,10 +5,11 @@ Tests for Mailer objects.
 This uses a temporary SMTP server to receive and check "sent" messages.
 """
 
-from .test_common import *
+import unittest
 import pwd
 import socket
 import os
+import re
 import smtpd
 import smtplib
 import asyncore

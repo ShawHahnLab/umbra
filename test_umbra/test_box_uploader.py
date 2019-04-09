@@ -6,9 +6,11 @@ If a file with real Box API credentials are supplied via the configuration, a
 live test will be run, over the Box API.  Otherwise Box tests are skipped.
 """
 
-from .test_common import *
 import urllib.request
+import unittest
+from tempfile import NamedTemporaryFile
 from umbra.box_uploader import BoxUploader
+from .test_common import CONFIG
 
 config = CONFIG.get("box", {})
 

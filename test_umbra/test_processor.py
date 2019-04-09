@@ -7,13 +7,20 @@ correctly, dispatches processing to appropriate ProjectData objects, and
 coordinates simultaneous processing between multiple projects.
 """
 
-from .test_common import *
+import unittest
 import copy
 import io
+import re
 import warnings
 import threading
+import logging
+from pathlib import Path
+from distutils.dir_util import copy_tree, remove_tree, mkpath
+from distutils.file_util import copy_file
+from tempfile import TemporaryDirectory
 from umbra.processor import IlluminaProcessor
 from umbra.project import ProjectData
+from .test_common import TestBase, CONFIG, md5
 
 class TestIlluminaProcessor(TestBase):
     """Main tests for IlluminaProcessor."""

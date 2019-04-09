@@ -3,8 +3,10 @@
 Tests for config module functions.
 """
 
-from .test_common import *
+import unittest
+from pathlib import Path
 from umbra import config
+import umbra.config
 
 class TestConfig(unittest.TestCase):
 
