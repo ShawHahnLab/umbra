@@ -27,15 +27,17 @@ class TestIlluminaProcessor(TestBase):
 
     def setUp(self):
         self.setUpTmpdir()
-        self.setUpConfig()
-        self.setUpProcessor()
+        self.set_up_config()
+        self.set_up_processor()
         self.setUpVars()
 
-    def setUpConfig(self):
+    def set_up_config(self):
+        """Initialize config object to give to IlluminaProcessor."""
         if not hasattr(self, "config"):
             self.config = CONFIG
 
-    def setUpProcessor(self):
+    def set_up_processor(self):
+        """Initialize IlluminaProcessor for testing."""
         self.proc = IlluminaProcessor(self.path, self.config)
 
     def setUpVars(self):
@@ -52,22 +54,23 @@ class TestIlluminaProcessor(TestBase):
         self.report_path = Path(self.tmpdir.name) / "report.csv"
         # The header entries we expect to see in the CSV report text.
         self.report_fields = [
-                "RunId",
-                "RunPath",
-                "Alignment",
-                "Experiment",
-                "AlignComplete",
-                "Project",
-                "WorkDir",
-                "Status",
-                "NSamples",
-                "NFiles",
-                "Group"]
+            "RunId",
+            "RunPath",
+            "Alignment",
+            "Experiment",
+            "AlignComplete",
+            "Project",
+            "WorkDir",
+            "Status",
+            "NSamples",
+            "NFiles",
+            "Group"]
 
     def _proj_names(self, category):
-        return(sorted([p.name for p in self.proc.projects[category]]))
+        return sorted([p.name for p in self.proc.projects[category]])
 
     def test_load(self):
+        """Test load method for loading directory of run data."""
         # Start with an empty set
         self.assertEqual(self.proc.runs, set([]))
         self.proc.load(wait=True)
@@ -117,17 +120,17 @@ class TestIlluminaProcessor(TestBase):
 
     def _load_maybe_warning(self):
         if self.warn_msg:
-            with self.assertWarns(Warning) as cm:
+            with self.assertWarns(Warning) as _:
                 self.proc.load(wait=True)
         else:
             with warnings.catch_warnings():
                 self.proc.load(wait=True)
 
     def _watch_and_process_maybe_warning(self):
-        t = threading.Timer(1, self.proc.finish_up)
-        t.start()
+        timer = threading.Timer(1, self.proc.finish_up)
+        timer.start()
         if self.warn_msg:
-            with self.assertWarns(Warning) as cm:
+            with self.assertWarns(Warning) as _:
                 self.proc.watch_and_process(poll=1, wait=True)
         else:
             with warnings.catch_warnings():
@@ -147,11 +150,13 @@ class TestIlluminaProcessor(TestBase):
         txt = "\n".join([flatten(row) for row in report])
         try:
             self.assertEqual(md5(txt), self.report_md5)
-        except AssertionError as e:
+        except AssertionError as err:
             print(txt)
-            raise(e)
+            raise err
 
-    def _check_csv(self, txt):
+    def _check_csv(self, txt, report_md5=None):
+        if not report_md5:
+            report_md5 = self.report_md5
         lines = txt.split("\n")
         fields_txt = ",".join(self.report_fields)
         header = lines.pop(0)
@@ -160,10 +165,10 @@ class TestIlluminaProcessor(TestBase):
         txt = re.sub(",[^,]+/runs/[^,]+,", ",", "\n".join(lines))
         txt = txt.strip()
         try:
-            self.assertEqual(md5(txt), self.report_md5)
-        except AssertionError as e:
+            self.assertEqual(md5(txt), report_md5)
+        except AssertionError as err:
             print(txt)
-            raise(e)
+            raise err
 
     def test_report(self):
         """Test that report() renders a report to CSV."""
@@ -178,11 +183,12 @@ class TestIlluminaProcessor(TestBase):
         """Test that save_report() renders a report to a CSV file."""
         self._load_maybe_warning()
         self.proc.save_report(self.report_path)
-        with open(self.report_path) as f:
-            txt = f.read()
+        with open(self.report_path) as f_in:
+            txt = f_in.read()
         self._check_csv(txt)
 
     def test_watch_and_process(self):
+        """Test the main watch_and_process loop."""
         self._watch_and_process_maybe_warning()
         # By default no report is generated.  It needs to be configured
         # explicitly.
@@ -190,7 +196,7 @@ class TestIlluminaProcessor(TestBase):
 
     def test_refresh_new_alignment(self):
         """A new alignment directory appears for an existing Run.
-        
+
         We'll step through each possible filesystem situation separately and
         make sure the loader can handle it."""
         if not self.num_runs:
@@ -214,7 +220,7 @@ class TestIlluminaProcessor(TestBase):
             # Create empty Alignment directory, as if it's just starting off
             # and hasn't received any data yet
             mkpath(align_orig)
-            with self.assertWarns(Warning) as cm:
+            with self.assertWarns(Warning) as _:
                 self.proc.refresh()
             # Third run still has no alignments since the sample sheet isn't
             # there yet, and that's a defining feature for an Alignment,
@@ -236,7 +242,7 @@ class TestIlluminaProcessor(TestBase):
 class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
     """Test case for a second run directory for an existing Run."""
 
-    def setUpProcessor(self):
+    def set_up_processor(self):
         # including one run that's a duplicate, but it should not become active
         # when the project data is loaded.
         run_orig = str(self.path_runs/"180102_M00000_0000_000000000-XXXXX")
@@ -256,42 +262,42 @@ class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
     def test_load(self):
         # One run dir in particular is named oddly and is a duplicate of the
         # original run.
-        with self.assertWarns(Warning) as cm:
-            ws = cm.warnings
+        with self.assertWarns(Warning) as warning_context:
+            warn_list = warning_context.warnings
             self.proc.load(wait=True)
-            self.assertEqual(len(ws), 1)
-            self.assertEqual(str(ws[0].message), self.warn_msg)
+            self.assertEqual(len(warn_list), 1)
+            self.assertEqual(str(warn_list[0].message), self.warn_msg)
         # Now we have loaded runs
         self.assertEqual(len(self.proc.runs), self.num_runs)
 
     def test_refresh(self):
         """Basic scenario for refresh(): a new run directory appears."""
-        with self.assertWarns(Warning) as cm:
+        with self.assertWarns(Warning) as warning_context:
             super().test_refresh()
-            ws = cm.warnings
-            self.assertEqual(len(ws), 1)
-            self.assertEqual(str(ws[0].message), self.warn_msg)
+            warn_list = warning_context.warnings
+            self.assertEqual(len(warn_list), 1)
+            self.assertEqual(str(warn_list[0].message), self.warn_msg)
 
     def test_refresh_new_alignment(self):
         """A new alignment directory appears for an existing Run (with duplicate).
-        
+
         This should be the same situation as the regular version, but with an
         extra warning about that mismatched run."""
-        with self.assertWarns(Warning) as cm:
+        with self.assertWarns(Warning) as warning_context:
             super().test_refresh_new_alignment()
-            ws = cm.warnings
-            self.assertEqual(len(ws), 1)
-            self.assertEqual(str(ws[0].message), self.warn_msg)
+            warn_list = warning_context.warnings
+            self.assertEqual(len(warn_list), 1)
+            self.assertEqual(str(warn_list[0].message), self.warn_msg)
 
 
 class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
     """Test case for a read-only instance of IlluminaProcessor.
-    
+
     In this mode, IlluminaProcessor will still support the same methods as
     usual, but processing is never started on new ProjectData objects since the
     worker threads aren't run."""
 
-    def setUpConfig(self):
+    def set_up_config(self):
         self.config = copy.deepcopy(CONFIG)
         self.config["readonly"] = True
 
@@ -302,7 +308,7 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
 
     def test_refresh(self):
         """Basic scenario for refresh(): a new run directory appears.
-        
+
         ProjectData objects are readonly since the processor is readonly, and
         they get marked inactive."""
         with TemporaryDirectory() as stash:
@@ -334,8 +340,9 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
 
 
 class TestIlluminaProcessorReportConfig(TestIlluminaProcessor):
+    """Test customization of the report configuration."""
 
-    def setUpConfig(self):
+    def set_up_config(self):
         self.config = copy.deepcopy(CONFIG)
         self.config["save_report"] = {}
         path = Path(self.tmpdir.name) / "report.csv"
@@ -343,24 +350,25 @@ class TestIlluminaProcessorReportConfig(TestIlluminaProcessor):
         self.config["save_report"]["max_width"] = 60
 
     def test_watch_and_process(self):
-        # watch_and_process will automatically call start(), and this wrapper
-        # will wait, so we'll get a completed ProjectData for one case.
-        # Need an MD5 for a slightly different report in that case
-        self.report_md5 = "c815570da24ce8e556d8e50b454a8eb1"
+        # watch_and_process will automatically call start(), and the wrapper
+        # used in the test below will wait, so we'll get a completed
+        # ProjectData for one case.  Need an MD5 for a slightly different
+        # report in that case.
+        report_md5 = "c815570da24ce8e556d8e50b454a8eb1"
         self._watch_and_process_maybe_warning()
         # If a report was configured, it should exist
-        with open(self.report_path) as f:
-            txt = f.read()
-        self._check_csv(txt)
+        with open(self.report_path) as f_in:
+            txt = f_in.read()
+        self._check_csv(txt, report_md5)
 
 
 class TestIlluminaProcessorMinRunAge(TestIlluminaProcessor):
     """Test case for a required min run age for IlluminaProcessor.
-    
+
     With this feature enabled, runs newer than a fixed age (by ctime on the run
     directory) will be skipped."""
 
-    def setUpConfig(self):
+    def set_up_config(self):
         self.config = copy.deepcopy(CONFIG)
         self.config["min_age"] = 60 # seconds
 
@@ -396,47 +404,47 @@ class TestIlluminaProcessorMinRunAge(TestIlluminaProcessor):
 
 class TestIlluminaProcessorMinRunAgeZero(TestIlluminaProcessor):
     """Test case #2 for a required min run age for IlluminaProcessor.
-    
+
     This time runs should be loaded since they're old enough to pass the
     filter."""
 
-    def setUpConfig(self):
+    def set_up_config(self):
         self.config = copy.deepcopy(CONFIG)
         self.config["min_age"] = 0
 
 
 class TestIlluminaProcessorMaxRunAgeZero(TestIlluminaProcessorMinRunAge):
     """Test case for a max allowed run age for IlluminaProcessor.
-    
+
     With this feature enabled, runs older than a fixed age (by ctime on the run
     directory) will be skipped.  This inherits from the minimum-age test case
     since we can re-use the behavior of a high min-age to test a low
     max-age."""
 
-    def setUpConfig(self):
+    def set_up_config(self):
         self.config = copy.deepcopy(CONFIG)
         self.config["max_age"] = 0
 
 
 class TestIlluminaProcessorMaxRunAge(TestIlluminaProcessorMinRunAgeZero):
     """Test case #2 for a max allowed run age for IlluminaProcessor.
-    
+
     This time runs should be loaded since they're new enough to pass the
     filter."""
 
-    def setUpConfig(self):
+    def set_up_config(self):
         self.config = copy.deepcopy(CONFIG)
         self.config["max_age"] = 60
 
 
 class TestIlluminaProcessorFailure(TestIlluminaProcessor):
     """Test case for a processing failure.
-    
+
     When processing for a project fails, log messages and an email alert should
     be generated, and the processing status should be set to
     ProjectData.FAILED.  (The processor then moves on with no interruption.)"""
 
-    def setUpConfig(self):
+    def set_up_config(self):
         self.config = copy.deepcopy(CONFIG)
         self.config["mailer"]["to_addrs_on_error"] = ["admin@example.com"]
 
@@ -449,13 +457,13 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
         # Previously I used a write-protected file to cause it to fail, but now
         # we do more upfront checking so a contrived failure is the easiest
         # way.
-        fp = self.path_exp / "Partials_1_1_18/metadata.csv"
-        with open(fp) as f:
-            lines = f.readlines()
+        fp_md = self.path_exp / "Partials_1_1_18/metadata.csv"
+        with open(fp_md) as f_in:
+            lines = f_in.readlines()
         failify = lambda line: re.sub(",[A-Za-z]*$", ",fail", line)
         lines = [lines[0]] + [failify(line) for line in lines[1:]]
-        with open(fp, "w") as f:
-            f.writelines(lines)
+        with open(fp_md, "w") as f_out:
+            f_out.writelines(lines)
 
     def test_refresh(self):
         """Test that project failure during refresh is logged as expected."""
@@ -463,7 +471,7 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
         # On refresh, the processing failure should be caught and filed as a
         # log message.
         self.proc.start()
-        with self.assertLogs(level = logging.ERROR) as cm:
+        with self.assertLogs(level=logging.ERROR):
             self.proc.refresh(wait=True)
         # A mail should have been "sent"
         self.assertEqual(len(self.mails), 1)
@@ -479,11 +487,11 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
     def _watch_and_process_maybe_warning(self):
         # watch_and_process() should log an error when it calls refresh(), as
         # tested above.
-        t = threading.Timer(1, self.proc.finish_up)
-        t.start()
-        with self.assertLogs(level = logging.ERROR) as cm:
+        timer = threading.Timer(1, self.proc.finish_up)
+        timer.start()
+        with self.assertLogs(level=logging.ERROR):
             if self.warn_msg:
-                with self.assertWarns(Warning) as cm:
+                with self.assertWarns(Warning):
                     self.proc.watch_and_process(poll=1, wait=True)
             else:
                 with warnings.catch_warnings():

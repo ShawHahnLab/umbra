@@ -3,21 +3,12 @@ Common test code shared with the real tests.  Not much to see here.
 """
 
 import unittest
-from tempfile import TemporaryDirectory, NamedTemporaryFile
-from distutils.dir_util import copy_tree, remove_tree, mkpath
-from distutils.file_util import copy_file
+from tempfile import TemporaryDirectory
+from distutils.dir_util import copy_tree
 from pathlib import Path
-import logging
-import re
-import csv
 import hashlib
 import sys
-
-import umbra
-from umbra import (illumina,  util)
-from umbra.project import (ProjectData, ProjectError)
-from umbra.illumina.run import Run
-from umbra.illumina.alignment import Alignment
+from umbra import util
 
 PATH_ROOT = Path(__file__).parent
 PATH_DATA = PATH_ROOT / "data"
@@ -34,7 +25,7 @@ def md5(text):
         text = text.encode("utf-8")
     except AttributeError:
         pass
-    return(hashlib.md5(text).hexdigest())
+    return hashlib.md5(text).hexdigest()
 
 class TestBase(unittest.TestCase):
     """Some setup/teardown shared with the real test classes."""
@@ -54,11 +45,11 @@ class TestBase(unittest.TestCase):
         self.tmpdir = TemporaryDirectory()
         copy_tree(PATH_DATA, self.tmpdir.name)
         self.path = Path(self.tmpdir.name)
-        self.path_runs   = Path(self.tmpdir.name) / "runs"
-        self.path_exp    = Path(self.tmpdir.name) / "experiments"
+        self.path_runs = Path(self.tmpdir.name) / "runs"
+        self.path_exp = Path(self.tmpdir.name) / "experiments"
         self.path_status = Path(self.tmpdir.name) / "status"
-        self.path_proc   = Path(self.tmpdir.name) / "processed"
-        self.path_pack   = Path(self.tmpdir.name) / "packaged"
+        self.path_proc = Path(self.tmpdir.name) / "processed"
+        self.path_pack = Path(self.tmpdir.name) / "packaged"
         self.path_report = Path(self.tmpdir.name) / "report.csv"
 
     def setUpVars(self):
@@ -73,7 +64,7 @@ class TestBase(unittest.TestCase):
 
     def uploader(self, path):
         """Mock of Box uploader function.
-        
+
         This generates a Box-like URL for a supposedly-successful upload."""
         prefix = "https://domain.box.com/shared/static/"
         # Box uses 32 lowercase alphanumeric characters (a-z, 0-9).  Not sure
@@ -81,13 +72,13 @@ class TestBase(unittest.TestCase):
         checksum = md5(Path(path).name)
         suffix = Path(path).suffix
         url = prefix + checksum + suffix
-        return(url)
+        return url
 
     def mailer(self, **kwargs):
         """Mock of Mailer.mail function.
-        
+
         This accepts email parameters and just stores them."""
         if not hasattr(self, "mails"):
             self.mails = []
         self.mails.append(kwargs)
-        return(kwargs)
+        return kwargs
