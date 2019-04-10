@@ -122,7 +122,7 @@ class BoxUploader:
         self.logger.info("File uploaded: %s", str(path))
         return url
 
-    def _list(self, chunk=100):
+    def list(self, chunk=100):
         """List of file and folder objects in the uploader folder."""
         offset = 0
         items = self.folder.get_items(chunk)

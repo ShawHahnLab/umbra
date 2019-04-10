@@ -29,11 +29,12 @@ class TestBoxUploader(unittest.TestCase):
             raise unittest.SkipTest(msg)
 
     def tearDown(self):
-        for item in self.box._list():
+        for item in self.box.list():
             item.delete()
 
     def test_upload(self):
         """Test uploading a file to Box."""
+        self.assertEqual(len(self.box.list()), 0)
         data_exp = b"test_upload\n"
         with NamedTemporaryFile() as ftmp:
             ftmp.write(data_exp)
@@ -42,6 +43,7 @@ class TestBoxUploader(unittest.TestCase):
         with urllib.request.urlopen(url) as furl:
             data_obs = furl.read()
         self.assertEqual(data_obs, data_exp)
+        self.assertEqual(len(self.box.list()), 1)
 
 
 if __name__ == '__main__':
