@@ -21,9 +21,9 @@ import threading
 import logging
 from pathlib import Path
 import yaml
-from umbra import (illumina, util)
+from umbra import illumina, util
 from umbra.illumina.run import Run
-from umbra.project import (ProjectData, ProjectError)
+from umbra.project import ProjectData, ProjectError
 from .test_common import TestBase, md5
 
 DEFAULT_TASKS = ["metadata", "package", "upload", "email"]
@@ -34,24 +34,24 @@ class TestProjectData(TestBase):
     This became unwieldy pretty fast.  Merge into TestProjectDataOneTask,
     maybe."""
 
-    def setUp(self):
-        self.setUpTmpdir()
+    def set_up_vars(self):
+        super().set_up_vars()
         # pylint: disable=invalid-name
         # (don't blame me, pylint, I didn't make unittest)
         self.maxDiff = None
-        self.runobj = Run(self.path_runs / "180101_M00000_0000_000000000-XXXXX")
+        self.runobj = Run(self.paths["runs"] / "180101_M00000_0000_000000000-XXXXX")
         self.alignment = self.runobj.alignments[0]
         self.projs = ProjectData.from_alignment(
             self.alignment,
-            self.path_exp,
-            self.path_status,
-            self.path_proc,
-            self.path_pack,
+            self.paths["exp"],
+            self.paths["status"],
+            self.paths["proc"],
+            self.paths["pack"],
             self.uploader,
             self.mailer)
         # switch to dictionary to make these easier to work with
         self.projs = {p.name: p for p in self.projs}
-        self.exp_path = str(self.path_exp / "Partials_1_1_18" / "metadata.csv")
+        self.exp_path = str(self.paths["exp"] / "Partials_1_1_18" / "metadata.csv")
         # Make sure we have what we expect before the real tests
         self.assertEqual(
             sorted(self.projs.keys()),
@@ -59,7 +59,7 @@ class TestProjectData(TestBase):
 
     def test_attrs(self):
         """Test various ProjectData properties."""
-        path_stat = self.path_status / self.runobj.run_id / "0"
+        path_stat = self.paths["status"] / self.runobj.run_id / "0"
         self.assertEqual(self.projs["STR"].name, "STR")
         self.assertEqual(self.projs["STR"].alignment, self.alignment)
         self.assertEqual(self.projs["STR"].path, path_stat / "STR.yml")
@@ -139,7 +139,7 @@ class TestProjectData(TestBase):
         md_se["work_dir"] = "2018-01-01-Something_Else-Someone-Jesse"
         md_str["work_dir"] = "2018-01-01-STR-Jesse"
 
-        fastq = self.path_runs/"180101_M00000_0000_000000000-XXXXX/Data/Intensities/BaseCalls"
+        fastq = self.paths["runs"]/"180101_M00000_0000_000000000-XXXXX/Data/Intensities/BaseCalls"
         fps = {
             "1086S1_01": [str(fastq/"1086S1-01_S1_L001_R1_001.fastq.gz"),
                           str(fastq/"1086S1-01_S1_L001_R2_001.fastq.gz")],
@@ -205,8 +205,8 @@ class TestProjectDataOneTask(TestBase):
     overridden."""
 
     def setUp(self):
-        self.setUpTmpdir()
-        self.setUpVars()
+        self.set_up_tmpdir()
+        self.set_up_vars()
         self.set_up_run()
         # modify project spreadsheet, then create ProjectData
         self.write_test_experiment()
@@ -216,8 +216,8 @@ class TestProjectDataOneTask(TestBase):
             self.set_up_pre_project()
         self.set_up_proj()
 
-    def setUpVars(self):
-        super().setUpVars()
+    def set_up_vars(self):
+        super().set_up_vars()
         if not hasattr(self, "task"):
             self.task = "noop"
         # pylint: disable=invalid-name
@@ -228,7 +228,7 @@ class TestProjectDataOneTask(TestBase):
             self.rundir = "180101_M00000_0000_000000000-XXXXX"
         if not hasattr(self, "exp_name"):
             self.exp_name = "Partials_1_1_18"
-        self.exp_path = str(self.path_exp / self.exp_name / "metadata.csv")
+        self.exp_path = str(self.paths["exp"] / self.exp_name / "metadata.csv")
         # Note the write_test_experiment below using this name.
         self.project_name = "TestProject"
         if not hasattr(self, "tasks_run"):
@@ -245,7 +245,7 @@ class TestProjectDataOneTask(TestBase):
 
     def set_up_run(self):
         """Set up run object to use for ProjectData tested."""
-        self.runobj = Run(self.path_runs / self.rundir)
+        self.runobj = Run(self.paths["runs"] / self.rundir)
         self.alignment = self.runobj.alignments[0]
 
     def write_test_experiment(self):
@@ -269,10 +269,10 @@ class TestProjectDataOneTask(TestBase):
         # projects under this run+alignment)
         projs = ProjectData.from_alignment(
             self.alignment,
-            self.path_exp,
-            self.path_status,
-            self.path_proc,
-            self.path_pack,
+            self.paths["exp"],
+            self.paths["status"],
+            self.paths["proc"],
+            self.paths["pack"],
             self.uploader,
             self.mailer)
         for proj in projs:
@@ -343,7 +343,7 @@ class TestProjectDataOneTask(TestBase):
 
     def test_attrs(self):
         """Test various ProjectData properties."""
-        path_stat = self.path_status / self.runobj.run_id / "0"
+        path_stat = self.paths["status"] / self.runobj.run_id / "0"
         self.assertEqual(self.proj.name, self.project_name)
         self.assertEqual(self.proj.alignment, self.alignment)
         self.assertEqual(
@@ -649,10 +649,10 @@ class TestProjectDataGeneious(TestProjectDataOneTask):
     marker appears and then will continue processing.
     """
 
-    def setUpVars(self):
+    def set_up_vars(self):
         self.task = "geneious"
         self.tasks_run = ["trim", "merge", "spades", "assemble", "geneious"] + DEFAULT_TASKS
-        super().setUpVars()
+        super().set_up_vars()
 
     def set_up_proj(self):
         self.tasks_config = {
@@ -660,10 +660,10 @@ class TestProjectDataGeneious(TestProjectDataOneTask):
             }
         projs = ProjectData.from_alignment(
             self.alignment,
-            self.path_exp,
-            self.path_status,
-            self.path_proc,
-            self.path_pack,
+            self.paths["exp"],
+            self.paths["status"],
+            self.paths["proc"],
+            self.paths["pack"],
             self.uploader,
             self.mailer,
             conf=self.tasks_config)
@@ -922,7 +922,7 @@ class TestProjectDataFilesExist(TestProjectDataOneTask):
         """Hook to be run before initializing the ProjectData object itself."""
         # Put something inside the processing directory that will trip up
         # ProjectData initialization.
-        (self.path_proc / self.work_dir_exp / "subdir").mkdir(parents=True)
+        (self.paths["proc"] / self.work_dir_exp / "subdir").mkdir(parents=True)
 
     def test_readonly(self):
         """Test that readonly=True."""
@@ -949,8 +949,8 @@ class TestProjectDataMissingSamples(TestProjectDataOneTask):
     warning but is allowed.
     """
 
-    def setUpVars(self):
-        super().setUpVars()
+    def set_up_vars(self):
+        super().set_up_vars()
         # Include an extra sample in the experiment metadata spreadsheet that
         # won't be in the run data.
         self.sample_names = [
@@ -962,10 +962,10 @@ class TestProjectDataMissingSamples(TestProjectDataOneTask):
         with self.assertLogs(level=logging.WARNING):
             projs = ProjectData.from_alignment(
                 self.alignment,
-                self.path_exp,
-                self.path_status,
-                self.path_proc,
-                self.path_pack,
+                self.paths["exp"],
+                self.paths["status"],
+                self.paths["proc"],
+                self.paths["pack"],
                 self.uploader,
                 self.mailer)
         for proj in projs:
@@ -981,8 +981,8 @@ class TestProjectDataNoSamples(TestProjectDataOneTask):
     failed, but won't raise an exception.
     """
 
-    def setUpVars(self):
-        super().setUpVars()
+    def set_up_vars(self):
+        super().set_up_vars()
         # Include an extra sample in the experiment metadata spreadsheet that
         # won't be in the run data.
         self.sample_names = ["somethingelse1", "somethingelse2"]
@@ -991,10 +991,10 @@ class TestProjectDataNoSamples(TestProjectDataOneTask):
         with self.assertLogs(level=logging.ERROR):
             projs = ProjectData.from_alignment(
                 self.alignment,
-                self.path_exp,
-                self.path_status,
-                self.path_proc,
-                self.path_pack,
+                self.paths["exp"],
+                self.paths["status"],
+                self.paths["proc"],
+                self.paths["pack"],
                 self.uploader,
                 self.mailer)
         for proj in projs:
@@ -1024,12 +1024,12 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
     per-task basis; see TestProjectDataExplicitTasks.
     """
 
-    def setUpVars(self):
+    def set_up_vars(self):
         # merge needs trim.  This way we'll check both implicit-via-defaults
         # and implicit-via-dependencies.
         self.task = "merge"
         self.tasks_run = ["trim", self.task] + DEFAULT_TASKS
-        super().setUpVars()
+        super().set_up_vars()
 
     def set_up_proj(self):
         self.tasks_config = {
@@ -1038,10 +1038,10 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
             }
         projs = ProjectData.from_alignment(
             self.alignment,
-            self.path_exp,
-            self.path_status,
-            self.path_proc,
-            self.path_pack,
+            self.paths["exp"],
+            self.paths["status"],
+            self.paths["proc"],
+            self.paths["pack"],
             self.uploader,
             self.mailer,
             conf=self.tasks_config)
@@ -1084,9 +1084,9 @@ class TestProjectDataImplicitTasks(TestProjectDataOneTask):
     assumed the parent directories were already created.
     """
 
-    def setUpVars(self):
+    def set_up_vars(self):
         self.task = "trim"
-        super().setUpVars()
+        super().set_up_vars()
 
     def set_up_proj(self):
         self.tasks_config = {
@@ -1094,10 +1094,10 @@ class TestProjectDataImplicitTasks(TestProjectDataOneTask):
             }
         projs = ProjectData.from_alignment(
             self.alignment,
-            self.path_exp,
-            self.path_status,
-            self.path_proc,
-            self.path_pack,
+            self.paths["exp"],
+            self.paths["status"],
+            self.paths["proc"],
+            self.paths["pack"],
             self.uploader,
             self.mailer,
             conf=self.tasks_config)
@@ -1124,9 +1124,9 @@ class TestProjectDataExplicitTasks(TestProjectDataOneTask):
     implicit_tasks_path, no matter if it was implicitly or explicitly required.
     """
 
-    def setUpVars(self):
+    def set_up_vars(self):
         self.task = "trim"
-        super().setUpVars()
+        super().set_up_vars()
 
     def set_up_proj(self):
         self.tasks_config = {
@@ -1135,10 +1135,10 @@ class TestProjectDataExplicitTasks(TestProjectDataOneTask):
             }
         projs = ProjectData.from_alignment(
             self.alignment,
-            self.path_exp,
-            self.path_status,
-            self.path_proc,
-            self.path_pack,
+            self.paths["exp"],
+            self.paths["status"],
+            self.paths["proc"],
+            self.paths["pack"],
             self.uploader,
             self.mailer,
             conf=self.tasks_config)

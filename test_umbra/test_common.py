@@ -31,38 +31,43 @@ class TestBase(unittest.TestCase):
     """Some setup/teardown shared with the real test classes."""
 
     def setUp(self):
-        self.setUpTmpdir()
-        self.setUpVars()
+        self.set_up_tmpdir()
+        self.set_up_vars()
 
     def tearDown(self):
         if TMP_PAUSE:
             sys.stderr.write("\n\ntmpdir = %s\n\n" % self.tmpdir.name)
             input()
-        self.tearDownTmpdir()
+        self.tear_down_tmpdir()
 
-    def setUpTmpdir(self):
-        # Make a full copy of the testdata to a temporary location
+    def set_up_tmpdir(self):
+        """Make a full copy of the testdata to a temporary location."""
         self.tmpdir = TemporaryDirectory()
         copy_tree(PATH_DATA, self.tmpdir.name)
-        self.path = Path(self.tmpdir.name)
-        self.path_runs = Path(self.tmpdir.name) / "runs"
-        self.path_exp = Path(self.tmpdir.name) / "experiments"
-        self.path_status = Path(self.tmpdir.name) / "status"
-        self.path_proc = Path(self.tmpdir.name) / "processed"
-        self.path_pack = Path(self.tmpdir.name) / "packaged"
-        self.path_report = Path(self.tmpdir.name) / "report.csv"
+        self.paths = {
+            "top":  Path(self.tmpdir.name),
+            "runs": Path(self.tmpdir.name) / "runs",
+            "exp": Path(self.tmpdir.name) / "experiments",
+            "status": Path(self.tmpdir.name) / "status",
+            "proc": Path(self.tmpdir.name) / "processed",
+            "pack": Path(self.tmpdir.name) / "packaged",
+            "report": Path(self.tmpdir.name) / "report.csv"
+            }
 
-    def setUpVars(self):
+    def set_up_vars(self):
+        """Initial variables for testing comparisons."""
         self.mails = []
 
-    def tearDownTmpdir(self):
+    def tear_down_tmpdir(self):
+        """Clean up temporary directory on disk."""
         # There's a bug where it'll raise a PermissionError if anything
         # write-protected ended up in the tmpdir.  So don't leave anything like
         # that lying around during a test!
         # https://bugs.python.org/issue26660
         self.tmpdir.cleanup()
 
-    def uploader(self, path):
+    @staticmethod
+    def uploader(path):
         """Mock of Box uploader function.
 
         This generates a Box-like URL for a supposedly-successful upload."""
@@ -78,7 +83,5 @@ class TestBase(unittest.TestCase):
         """Mock of Mailer.mail function.
 
         This accepts email parameters and just stores them."""
-        if not hasattr(self, "mails"):
-            self.mails = []
         self.mails.append(kwargs)
         return kwargs

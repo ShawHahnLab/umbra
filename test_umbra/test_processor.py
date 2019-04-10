@@ -26,10 +26,10 @@ class TestIlluminaProcessor(TestBase):
     """Main tests for IlluminaProcessor."""
 
     def setUp(self):
-        self.setUpTmpdir()
+        self.set_up_tmpdir()
         self.set_up_config()
         self.set_up_processor()
-        self.setUpVars()
+        self.set_up_vars()
 
     def set_up_config(self):
         """Initialize config object to give to IlluminaProcessor."""
@@ -38,33 +38,36 @@ class TestIlluminaProcessor(TestBase):
 
     def set_up_processor(self):
         """Initialize IlluminaProcessor for testing."""
-        self.proc = IlluminaProcessor(self.path, self.config)
+        self.proc = IlluminaProcessor(self.paths["top"], self.config)
 
-    def setUpVars(self):
-        self.num_runs = 4
-        self.run_id = "180101_M00000_0000_000000000-XXXXX"
-        self.path_run = self.path_runs/self.run_id
-        self.warn_msg = ""
+    def set_up_vars(self):
         self.mails = []
-        # MD5 sum of the report CSV text, minus the RunPath column.
-        # This is after fulling loading the default data, but before starting
-        # processing.
-        self.report_md5 = "a6288d49f223ad85b564069701bc8b6f"
+        # This covers the expected situation checked for in the tests.
+        self.expected = {
+            "num_runs": 4,
+            "run_id": "180101_M00000_0000_000000000-XXXXX",
+            "warn_msg": "",
+            # MD5 sum of the report CSV text, minus the RunPath column.  This
+            # is after fulling loading the default data, but before starting
+            # processing.
+            "report_md5": "a6288d49f223ad85b564069701bc8b6f",
+            # The header entries we expect to see in the CSV report text.
+            "report_fields": [
+                "RunId",
+                "RunPath",
+                "Alignment",
+                "Experiment",
+                "AlignComplete",
+                "Project",
+                "WorkDir",
+                "Status",
+                "NSamples",
+                "NFiles",
+                "Group"]
+            }
+        self.path_run = self.paths["runs"] / self.expected["run_id"]
         # Temporary path to use for a report
         self.report_path = Path(self.tmpdir.name) / "report.csv"
-        # The header entries we expect to see in the CSV report text.
-        self.report_fields = [
-            "RunId",
-            "RunPath",
-            "Alignment",
-            "Experiment",
-            "AlignComplete",
-            "Project",
-            "WorkDir",
-            "Status",
-            "NSamples",
-            "NFiles",
-            "Group"]
 
     def _proj_names(self, category):
         return sorted([p.name for p in self.proc.projects[category]])
@@ -75,13 +78,15 @@ class TestIlluminaProcessor(TestBase):
         self.assertEqual(self.proc.runs, set([]))
         self.proc.load(wait=True)
         # Now we have loaded runs
-        self.assertEqual(len(self.proc.runs), self.num_runs)
+        self.assertEqual(len(self.proc.runs), self.expected["num_runs"])
         # This is different from refresh() because it will fully load in the
         # current data.  If a run directory is gone, for example, it won't be
         # in the list anymore.
         remove_tree(str(self.path_run), verbose=True)
         self.proc.load(wait=True)
-        self.assertEqual(len(self.proc.runs), max(0, self.num_runs-1))
+        self.assertEqual(
+            len(self.proc.runs),
+            max(0, self.expected["num_runs"] - 1))
 
     def test_refresh(self):
         """Basic scenario for refresh(): a new run directory appears."""
@@ -89,7 +94,7 @@ class TestIlluminaProcessor(TestBase):
         # automatically
         # Start with one run missing, stashed elsewhere
         with TemporaryDirectory() as stash:
-            run_stash = str(Path(stash)/self.run_id)
+            run_stash = str(Path(stash)/self.expected["run_id"])
             copy_tree(str(self.path_run), run_stash)
             remove_tree(self.path_run)
             # Start with an empty set
@@ -98,11 +103,11 @@ class TestIlluminaProcessor(TestBase):
             self.assertEqual(self.proc.projects, proj_exp)
             # Refresh loads a number of Runs
             self.proc.refresh()
-            self.assertEqual(len(self.proc.runs), self.num_runs-1)
+            self.assertEqual(len(self.proc.runs), self.expected["num_runs"] - 1)
             self.assertEqual(self.proc.projects, proj_exp)
             # Still just those Runs
             self.proc.refresh()
-            self.assertEqual(len(self.proc.runs), self.num_runs-1)
+            self.assertEqual(len(self.proc.runs), self.expected["num_runs"] - 1)
             self.assertEqual(self.proc.projects, proj_exp)
             # Copy run directory back
             copy_tree(run_stash, str(self.path_run))
@@ -116,10 +121,10 @@ class TestIlluminaProcessor(TestBase):
             self.assertEqual(self._proj_names("inactive"), ["STR"])
             # We should have one new completed projectdata now.
             self.assertEqual(self._proj_names("completed"), ["Something Else"])
-            self.assertEqual(len(self.proc.runs), self.num_runs)
+            self.assertEqual(len(self.proc.runs), self.expected["num_runs"])
 
     def _load_maybe_warning(self):
-        if self.warn_msg:
+        if self.expected["warn_msg"]:
             with self.assertWarns(Warning) as _:
                 self.proc.load(wait=True)
         else:
@@ -129,7 +134,7 @@ class TestIlluminaProcessor(TestBase):
     def _watch_and_process_maybe_warning(self):
         timer = threading.Timer(1, self.proc.finish_up)
         timer.start()
-        if self.warn_msg:
+        if self.expected["warn_msg"]:
             with self.assertWarns(Warning) as _:
                 self.proc.watch_and_process(poll=1, wait=True)
         else:
@@ -145,20 +150,20 @@ class TestIlluminaProcessor(TestBase):
         # good enough for this simple case.  This should create the same string
         # that report() returns (again, in this simple case).
         # Excluding RunPath since it varies.
-        fields = [f for f in self.report_fields if not f == "RunPath"]
+        fields = [f for f in self.expected["report_fields"] if not f == "RunPath"]
         flatten = lambda r: ",".join([str(r[k]) for k in fields])
         txt = "\n".join([flatten(row) for row in report])
         try:
-            self.assertEqual(md5(txt), self.report_md5)
+            self.assertEqual(md5(txt), self.expected["report_md5"])
         except AssertionError as err:
             print(txt)
             raise err
 
     def _check_csv(self, txt, report_md5=None):
         if not report_md5:
-            report_md5 = self.report_md5
+            report_md5 = self.expected["report_md5"]
         lines = txt.split("\n")
-        fields_txt = ",".join(self.report_fields)
+        fields_txt = ",".join(self.expected["report_fields"])
         header = lines.pop(0)
         self.assertEqual(header, fields_txt)
         # Excluding RunPath since it varies.
@@ -199,10 +204,10 @@ class TestIlluminaProcessor(TestBase):
 
         We'll step through each possible filesystem situation separately and
         make sure the loader can handle it."""
-        if not self.num_runs:
+        if not self.expected["num_runs"]:
             raise unittest.SkipTest("No run data expected; skipping test")
         run_id = "180102_M00000_0000_000000000-XXXXX"
-        path_run = self.path_runs/run_id
+        path_run = self.paths["runs"]/run_id
         get_run = lambda: [r for r in self.proc.runs if r.path.name == run_id][0]
         get_al = lambda: get_run().alignments
         with TemporaryDirectory() as stash:
@@ -214,7 +219,7 @@ class TestIlluminaProcessor(TestBase):
             #with self.assertWarns(Warning) as cm:
             #    self.proc.refresh()
             self.proc.refresh(wait=True)
-            self.assertEqual(len(self.proc.runs), self.num_runs)
+            self.assertEqual(len(self.proc.runs), self.expected["num_runs"])
             # Third run has no alignments yet
             self.assertEqual(len(get_al()), 0)
             # Create empty Alignment directory, as if it's just starting off
@@ -245,19 +250,19 @@ class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
     def set_up_processor(self):
         # including one run that's a duplicate, but it should not become active
         # when the project data is loaded.
-        run_orig = str(self.path_runs/"180102_M00000_0000_000000000-XXXXX")
-        run_dup = str(self.path_runs/"run-files-custom-name")
+        run_orig = str(self.paths["runs"]/"180102_M00000_0000_000000000-XXXXX")
+        run_dup = str(self.paths["runs"]/"run-files-custom-name")
         copy_tree(run_orig, run_dup)
-        self.proc = IlluminaProcessor(self.path, self.config)
+        self.proc = IlluminaProcessor(self.paths["top"], self.config)
 
-    def setUpVars(self):
-        super().setUpVars()
-        self.num_runs = 5
-        self.warn_msg = "Run directory does not match Run ID: "
-        self.warn_msg += "run-files-custom-name / "
-        self.warn_msg += "180102_M00000_0000_000000000-XXXXX"
+    def set_up_vars(self):
+        super().set_up_vars()
+        self.expected["num_runs"] = 5
+        self.expected["warn_msg"] = "Run directory does not match Run ID: "
+        self.expected["warn_msg"] += "run-files-custom-name / "
+        self.expected["warn_msg"] += "180102_M00000_0000_000000000-XXXXX"
         # There's an extra line in the report due to the duplicated run
-        self.report_md5 = "6d3a716cc86a08f382e29474847f018b"
+        self.expected["report_md5"] = "6d3a716cc86a08f382e29474847f018b"
 
     def test_load(self):
         # One run dir in particular is named oddly and is a duplicate of the
@@ -266,9 +271,11 @@ class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
             warn_list = warning_context.warnings
             self.proc.load(wait=True)
             self.assertEqual(len(warn_list), 1)
-            self.assertEqual(str(warn_list[0].message), self.warn_msg)
+            self.assertEqual(
+                str(warn_list[0].message),
+                self.expected["warn_msg"])
         # Now we have loaded runs
-        self.assertEqual(len(self.proc.runs), self.num_runs)
+        self.assertEqual(len(self.proc.runs), self.expected["num_runs"])
 
     def test_refresh(self):
         """Basic scenario for refresh(): a new run directory appears."""
@@ -276,7 +283,9 @@ class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
             super().test_refresh()
             warn_list = warning_context.warnings
             self.assertEqual(len(warn_list), 1)
-            self.assertEqual(str(warn_list[0].message), self.warn_msg)
+            self.assertEqual(
+                str(warn_list[0].message),
+                self.expected["warn_msg"])
 
     def test_refresh_new_alignment(self):
         """A new alignment directory appears for an existing Run (with duplicate).
@@ -287,7 +296,9 @@ class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
             super().test_refresh_new_alignment()
             warn_list = warning_context.warnings
             self.assertEqual(len(warn_list), 1)
-            self.assertEqual(str(warn_list[0].message), self.warn_msg)
+            self.assertEqual(
+                str(warn_list[0].message),
+                self.expected["warn_msg"])
 
 
 class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
@@ -301,10 +312,10 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
         self.config = copy.deepcopy(CONFIG)
         self.config["readonly"] = True
 
-    def setUpVars(self):
-        super().setUpVars()
+    def set_up_vars(self):
+        super().set_up_vars()
         # All projects inactive in this case
-        self.report_md5 = "513fb89c2d3341352ad34e791eae5fdf"
+        self.expected["report_md5"] = "513fb89c2d3341352ad34e791eae5fdf"
 
     def test_refresh(self):
         """Basic scenario for refresh(): a new run directory appears.
@@ -312,7 +323,7 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
         ProjectData objects are readonly since the processor is readonly, and
         they get marked inactive."""
         with TemporaryDirectory() as stash:
-            run_stash = str(Path(stash)/self.run_id)
+            run_stash = str(Path(stash)/self.expected["run_id"])
             copy_tree(str(self.path_run), run_stash)
             remove_tree(self.path_run)
             # Start with an empty set
@@ -321,11 +332,11 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
             self.assertEqual(self.proc.projects, proj_exp)
             # Refresh loads a number of Runs
             self.proc.refresh()
-            self.assertEqual(len(self.proc.runs), self.num_runs-1)
+            self.assertEqual(len(self.proc.runs), self.expected["num_runs"] - 1)
             self.assertEqual(self.proc.projects, proj_exp)
             # Still just those Runs
             self.proc.refresh()
-            self.assertEqual(len(self.proc.runs), self.num_runs-1)
+            self.assertEqual(len(self.proc.runs), self.expected["num_runs"] - 1)
             self.assertEqual(self.proc.projects, proj_exp)
             # Copy run directory back
             copy_tree(run_stash, str(self.path_run))
@@ -336,7 +347,7 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
             self.assertEqual(self._proj_names("inactive"), ["STR", "Something Else"])
             self.assertEqual(self._proj_names("completed"), [])
             self.assertEqual(self._proj_names("active"), [])
-            self.assertEqual(len(self.proc.runs), self.num_runs)
+            self.assertEqual(len(self.proc.runs), self.expected["num_runs"])
 
 
 class TestIlluminaProcessorReportConfig(TestIlluminaProcessor):
@@ -372,16 +383,16 @@ class TestIlluminaProcessorMinRunAge(TestIlluminaProcessor):
         self.config = copy.deepcopy(CONFIG)
         self.config["min_age"] = 60 # seconds
 
-    def setUpVars(self):
-        super().setUpVars()
+    def set_up_vars(self):
+        super().set_up_vars()
         # Here we don't expect any runs to be loaded since they're too new.
         # The report should be empty.
-        self.num_runs = 0
-        self.report_md5 = md5("")
+        self.expected["num_runs"] = 0
+        self.expected["report_md5"] = md5("")
 
     def test_refresh(self):
         with TemporaryDirectory() as stash:
-            run_stash = str(Path(stash)/self.run_id)
+            run_stash = str(Path(stash)/self.expected["run_id"])
             copy_tree(str(self.path_run), run_stash)
             remove_tree(self.path_run)
             # Start with an empty set
@@ -457,7 +468,7 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
         # Previously I used a write-protected file to cause it to fail, but now
         # we do more upfront checking so a contrived failure is the easiest
         # way.
-        fp_md = self.path_exp / "Partials_1_1_18/metadata.csv"
+        fp_md = self.paths["exp"] / "Partials_1_1_18/metadata.csv"
         with open(fp_md) as f_in:
             lines = f_in.readlines()
         failify = lambda line: re.sub(",[A-Za-z]*$", ",fail", line)
@@ -490,7 +501,7 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
         timer = threading.Timer(1, self.proc.finish_up)
         timer.start()
         with self.assertLogs(level=logging.ERROR):
-            if self.warn_msg:
+            if self.expected["warn_msg"]:
                 with self.assertWarns(Warning):
                     self.proc.watch_and_process(poll=1, wait=True)
             else:
