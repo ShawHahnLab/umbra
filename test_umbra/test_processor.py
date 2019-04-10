@@ -478,7 +478,6 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
 
     def test_refresh(self):
         """Test that project failure during refresh is logged as expected."""
-        self.proj_str = "2018-01-01-Something_Else-Someone-Jesse"
         # On refresh, the processing failure should be caught and filed as a
         # log message.
         self.proc.start()

@@ -18,7 +18,6 @@ from umbra.mailer import Mailer
 
 
 class StubSMTP(smtpd.SMTPServer):
-
     """Fake SMTP server to receive test messages."""
 
     @property
@@ -88,7 +87,6 @@ class StubSMTP(smtpd.SMTPServer):
 
 
 class TestMailer(unittest.TestCase):
-
     """ Test Mailer with a typical use case."""
 
     def setUp(self):
@@ -97,19 +95,27 @@ class TestMailer(unittest.TestCase):
         self.set_up_vars()
 
     def set_up_vars(self):
-        """Initialize expected values for testing."""
-        self.mail_args = {
+        """Initialize used and expected values for testing."""
+        # These are the arguments given to the mailer.
+        self.mail_args_sent = {
             "from_addr": "user1@example.com",
             "to_addrs": "user2@example.com",
             "subject": "Hi There",
             "msg_body": "A few words\nin a plaintext message",
             "msg_html": "<b><i>Ooooh HTML</i></b>"
             }
-        self.expected = dict(self.mail_args)
-        self.expected["to_addrs"] = [self.expected["to_addrs"]]
-        # The message was actually sent, right?  In certain situations we can
-        # toggle this off.
-        self.exp_sent = True
+        # These are the values to test against.
+        self.expected = {
+            # A dict of attributes for the message received.  Basically should
+            # match that sent.
+            "mail_args": dict(self.mail_args_sent),
+            # The message was actually sent, right?  In certain situations we
+            # can toggle this off.
+            "sent": True
+            }
+        # Modify expected received dict to always use a list for to_addrs.
+        exp_args = self.expected["mail_args"]
+        exp_args["to_addrs"] = [exp_args["to_addrs"]]
 
     def tearDown(self):
         # we need to explicitly clean up the socket or we'll get OSError:
@@ -139,14 +145,14 @@ class TestMailer(unittest.TestCase):
         # Test recipients
         # This should be a list of the To addresses and CC addresses (if
         # present)
-        exp = self.expected
+        exp = self.expected["mail_args"]
         to_addrs = exp.get("to_addrs", [])
         cc_addrs = exp.get("cc_addrs", [])
         msg = None
         # If it looks like no message was received, just return here.  But fail
         # if that was unexpected.
         if not hasattr(self.smtpd, "rcpttos"):
-            if self.exp_sent:
+            if self.expected["sent"]:
                 self.fail("SMTPD did not receive a message")
             return msg
         recipients = to_addrs + cc_addrs
@@ -159,7 +165,7 @@ class TestMailer(unittest.TestCase):
             self.assertEqual(msg["header"].get("To"), ", ".join(to_addrs))
         if cc_addrs:
             self.assertEqual(msg["header"].get("CC"), ", ".join(cc_addrs))
-        if "msg_html" in self.mail_args:
+        if "msg_html" in self.mail_args_sent:
             self.assertEqual(msg["body"][0]["body"][0], exp["msg_body"])
             self.assertEqual(msg["body"][1]["body"][0], exp["msg_html"])
         else:
@@ -170,18 +176,19 @@ class TestMailer(unittest.TestCase):
     def test_mail(self):
         """Test sending a message.
 
-        If self.exp_sent is True, the test will expect that a message was
-        successfully sent.  Otherwise an error is expected to have been logged.
+        If self.expected["sent"] is True, the test will expect that a message
+        was successfully sent.  Otherwise an error is expected to have been
+        logged.
         """
         failure = None
         message = None
         try:
-            if self.exp_sent:
-                self.mailer.mail(**self.mail_args)
+            if self.expected["sent"]:
+                self.mailer.mail(**self.mail_args_sent)
             else:
                 # There should be a complaint in this case
                 with self.assertLogs(level="ERROR") as logging_context:
-                    self.mailer.mail(**self.mail_args)
+                    self.mailer.mail(**self.mail_args_sent)
                 self.assertEqual(len(logging_context.output), 1)
             message = self.check_mail()
         except smtplib.SMTPException:
@@ -192,7 +199,6 @@ class TestMailer(unittest.TestCase):
 
 
 class TestMailerDefaultFrom(TestMailer):
-
     """Test Mailer without specifying the from_addr.
 
     In this case the local username and hostname will be used to construct a
@@ -200,25 +206,23 @@ class TestMailerDefaultFrom(TestMailer):
 
     def setUp(self):
         super().setUp()
-        del self.mail_args["from_addr"]
+        del self.mail_args_sent["from_addr"]
         user = pwd.getpwuid(os.getuid())[0]
         host = socket.getfqdn()
-        self.expected["from_addr"] = "%s@%s" % (user, host)
+        self.expected["mail_args"]["from_addr"] = "%s@%s" % (user, host)
 
 
 class TestMailerNoHTML(TestMailer):
-
     """Test Mailer with a plaintext message only, no HTML.
 
     The message in this case should not be multipart."""
 
     def setUp(self):
         super().setUp()
-        del self.mail_args["msg_html"]
+        del self.mail_args_sent["msg_html"]
 
 
 class TestMailerMultipleRecipients(TestMailer):
-
     """ Test Mailer giving a list of to_addrs.
 
     If a list is given, it should show up as a single header entry in the
@@ -226,12 +230,11 @@ class TestMailerMultipleRecipients(TestMailer):
 
     def setUp(self):
         super().setUp()
-        self.mail_args["to_addrs"] = ["user2@example.com", "user3@example.com"]
-        self.expected["to_addrs"] = self.mail_args["to_addrs"]
+        self.mail_args_sent["to_addrs"] = ["user2@example.com", "user3@example.com"]
+        self.expected["mail_args"]["to_addrs"] = self.mail_args_sent["to_addrs"]
 
 
 class TestMailerCCAddrs(TestMailer):
-
     """ Test Mailer giving a single address for cc_addrs."""
 
     def setUp(self):
@@ -239,7 +242,7 @@ class TestMailerCCAddrs(TestMailer):
         cc_addrs = "admin@example.com"
         self.mailer = Mailer(self.host, self.port, cc_addrs=cc_addrs)
         self.set_up_vars()
-        self.expected["cc_addrs"] = [cc_addrs]
+        self.expected["mail_args"]["cc_addrs"] = [cc_addrs]
 
 
 class TestMailerCCAddrsMulti(TestMailer):
@@ -251,7 +254,7 @@ class TestMailerCCAddrsMulti(TestMailer):
         cc_addrs = ["admin@example.com", "office@example.com"]
         self.mailer = Mailer(self.host, self.port, cc_addrs=cc_addrs)
         self.set_up_vars()
-        self.expected["cc_addrs"] = cc_addrs
+        self.expected["mail_args"]["cc_addrs"] = cc_addrs
 
 
 class TestMailerNoTo(TestMailer):
@@ -262,9 +265,9 @@ class TestMailerNoTo(TestMailer):
 
     def setUp(self):
         super().setUp()
-        self.mail_args["to_addrs"] = []
-        self.expected["to_addrs"] = []
-        self.exp_sent = False
+        self.mail_args_sent["to_addrs"] = []
+        self.expected["mail_args"]["to_addrs"] = []
+        self.expected["sent"] = False
 
 
 class TestMailerOnlyCC(TestMailer):
@@ -280,20 +283,19 @@ class TestMailerOnlyCC(TestMailer):
         cc_addrs = "admin@example.com"
         self.mailer = Mailer(self.host, self.port, cc_addrs=cc_addrs)
         self.set_up_vars()
-        self.mail_args["to_addrs"] = []
-        self.expected["to_addrs"] = []
-        self.expected["cc_addrs"] = [cc_addrs]
+        self.mail_args_sent["to_addrs"] = []
+        self.expected["mail_args"]["to_addrs"] = []
+        self.expected["mail_args"]["cc_addrs"] = [cc_addrs]
 
     def test_mail(self):
         # There should be a complaint about the lack of to_addrs
         with self.assertLogs(level="WARNING") as logging_context:
-            self.mailer.mail(**self.mail_args)
+            self.mailer.mail(**self.mail_args_sent)
         self.assertEqual(len(logging_context.output), 1)
         self.check_mail()
 
 
 class TestMailerReplyTo(TestMailer):
-
     """ Test Mailer giving a Reply-To address."""
 
     def setUp(self):
@@ -301,13 +303,13 @@ class TestMailerReplyTo(TestMailer):
         reply_to = "technician@example.com"
         self.mailer = Mailer(self.host, self.port, reply_to=reply_to)
         self.set_up_vars()
-        self.expected["reply_to"] = reply_to
+        self.expected["mail_args"]["reply_to"] = reply_to
 
     def test_mail(self):
         message = super().test_mail()
         self.assertEqual(
             message["header"].get("Reply-To"),
-            self.expected["reply_to"])
+            self.expected["mail_args"]["reply_to"])
 
 
 if __name__ == '__main__':
