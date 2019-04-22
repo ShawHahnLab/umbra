@@ -165,6 +165,7 @@ class Task(metaclass=__TaskParent):
     @classproperty
     def summary(cls):
         """Brief text summary of main Task attributes."""
+        # pylint: disable=no-self-argument
         fmt = "name: %s\norder: %s\ndependencies: %s\nsource_path: %s"
         info = fmt % (cls.name, cls.order, ", ".join(cls.dependencies), cls.source_path)
         return info
@@ -235,6 +236,7 @@ class Task(metaclass=__TaskParent):
         if not stderr:
             self.log_setup()
             stderr = self.logf
+        LOGGER.debug("runcmd: %s", str(args))
         subprocess.run(args, stdout=stdout, stderr=stderr, check=True)
 
     @property
@@ -242,18 +244,26 @@ class Task(metaclass=__TaskParent):
         """Dict mapping sample names to filesystem paths."""
         return self.proj.sample_paths
 
-    def task_path(self, readfile, taskname, subdir, suffix="", r1only=True):
-        """Give readfile-related path, following the originals' name."""
+    @staticmethod
+    def read_file_product(readfile, suffix="", merged=True):
+        """Give a readfile-related filename, following the originals' name.
+
+        For example, starting with an orignal sample filename like:
+        somesample_S1_L001_R1_001.fastq.gz
+        After we strip off the .fastq.gz, append a different suffix, and
+        optionally remove the R1/R2 signifier, we could have:
+        somesample_S1_L001_R1_001.trimmed.fastq
+        or:
+        somesample_S1_L001_R_001.merged.fastq
+        """
         pat = "(.*_L[0-9]+_)R([12])(_001)\\.fastq\\.gz"
-        if r1only:
+        if merged:
             name = re.sub(pat, "\\1R\\3" + suffix, readfile.name)
         else:
             name = re.sub(pat, "\\1R\\2\\3" + suffix, readfile.name)
-        fastq_out = self._task_dir_parent(taskname) / subdir / name
-        mkparent(fastq_out)
-        return fastq_out
+        return name
 
-    def _task_dir_parent(self, taskname):
+    def task_dir_parent(self, taskname):
         """Give processing parent path for a given task.
 
         This will take into account configuration settings for the project and

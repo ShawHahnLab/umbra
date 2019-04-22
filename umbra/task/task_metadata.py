@@ -11,7 +11,7 @@ class TaskMetadata(task.Task):
     order = 1000
 
     def run(self):
-        dest = self._task_dir_parent(self.name) / "Metadata"
+        dest = self.task_dir_parent(self.name) / "Metadata"
         dest.mkdir(parents=True, exist_ok=True)
         paths = []
         paths.append(self.proj.alignment.path_sample_sheet) # Sample Sheet

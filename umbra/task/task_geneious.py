@@ -17,9 +17,9 @@ class TaskGeneious(task.Task):
         # Override the implicit task hiding for this specific case.  This
         # is brittle but should work for the time being.
         paths_move = [
-            self._task_dir_parent("merge")/"PairedReads",
-            self._task_dir_parent("assemble")/"ContigsGeneious",
-            self._task_dir_parent("assemble")/"CombinedGeneious"
+            self.task_dir_parent("merge")/"PairedReads",
+            self.task_dir_parent("assemble")/"ContigsGeneious",
+            self.task_dir_parent("assemble")/"CombinedGeneious"
             ]
         for path in paths_move:
             if path.parent != self.proj.path_proc:
