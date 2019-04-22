@@ -62,13 +62,13 @@ class TestAlignment(unittest.TestCase):
     def test_attrs(self):
         """Test attributes from object creation"""
         self.assertEqual(
-            self.alignment.path_sample_sheet,
+            self.alignment.paths["sample_sheet"],
             self.expected["paths"]["sample_sheet"])
         self.assertEqual(
-            self.alignment.path_fastq,
+            self.alignment.paths["fastq"],
             self.expected["paths"]["fastq"])
         self.assertEqual(
-            self.alignment.path_checkpoint,
+            self.alignment.paths["checkpoint"],
             self.expected["paths"]["checkpoint"])
         self.assertEqual(sorted(self.alignment.sample_sheet.keys()), self.expected["ss_keys"])
 
@@ -84,7 +84,7 @@ class TestAlignment(unittest.TestCase):
         # An alignment is complete if Checkpoint exists and is 3, is not
         # complete otherwise.
         self.assertTrue(self.alignment.complete)
-        os.remove(self.alignment.path_checkpoint)
+        os.remove(self.alignment.paths["checkpoint"])
         alignment = Alignment(self.paths["alignment"])
         self.assertFalse(alignment.complete)
 
@@ -118,7 +118,7 @@ class TestAlignment(unittest.TestCase):
         """Test expected sample paths for one sample number"""
         aln = self.alignment
         first_files = self.expected["first_files"]
-        filepaths_exp = [aln.path_fastq / fn for fn in first_files]
+        filepaths_exp = [aln.paths["fastq"] / fn for fn in first_files]
         filepaths_obs = aln.sample_paths_for_num(1)
         self.assertEqual(filepaths_obs, filepaths_exp)
 
@@ -139,13 +139,13 @@ class TestAlignment(unittest.TestCase):
     def test_refresh(self):
         """Does refresh catch completion?"""
         # Starting without a Checkpoint.txt, alignment is marked incomplete.
-        move(str(self.alignment.path_checkpoint), str(self.paths["run"]))
+        move(str(self.alignment.paths["checkpoint"]), str(self.paths["run"]))
         alignment = Alignment(self.paths["alignment"])
         self.assertFalse(alignment.complete)
         # It doesn't update automatically.
         move(
             str(self.paths["run"] / "Checkpoint.txt"),
-            str(alignment.path_checkpoint))
+            str(alignment.paths["checkpoint"]))
         self.assertFalse(alignment.complete)
         # On refresh, it is now seen as complete.
         alignment.refresh()
@@ -176,7 +176,7 @@ class TestAlignmentFilesMissing(TestAlignment):
         """Test expected sample paths for one sample number"""
         # By default a missing file throws FileNotFound error.
         first_files = self.expected["first_files"]
-        filepaths_exp = [self.alignment.path_fastq / fn for fn in first_files]
+        filepaths_exp = [self.alignment.paths["fastq"] / fn for fn in first_files]
         move(str(filepaths_exp[1]), str(self.paths["alignment"]))
         with self.assertRaises(FileNotFoundError):
             self.alignment.sample_paths_for_num(1)
@@ -187,7 +187,7 @@ class TestAlignmentFilesMissing(TestAlignment):
 
     def test_sample_paths(self):
         """Test sample paths by sample name for all samples"""
-        path = self.alignment.path_fastq / "1086S1-01_S1_L001_R2_001.fastq.gz"
+        path = self.alignment.paths["fastq"] / "1086S1-01_S1_L001_R2_001.fastq.gz"
         move(str(path), str(self.paths["alignment"]))
         with self.assertRaises(FileNotFoundError):
             spaths = self.alignment.sample_paths()

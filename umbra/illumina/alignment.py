@@ -19,15 +19,18 @@ class Alignment:
 
     def __init__(self, path, run=None, completion_callback=None):
         self.run = run
+        # Absolute path to the Alignment directory itself
         path = Path(path).resolve()
         self.path = path
         self.completion_callback = completion_callback
+        # Absolute path to various files within the Alignment directory
+        self.paths = {}
         try:
             # MiSeq, directly in Alignment folder
-            self.path_sample_sheet = (path/"SampleSheetUsed.csv").resolve(strict=True)
-            self.path_fastq = (path / "..").resolve()
-            self.path_checkpoint = path/"Checkpoint.txt"
-            self.path_job_info = path/"CompletedJobInfo.xml"
+            self.paths["sample_sheet"] = (path/"SampleSheetUsed.csv").resolve(strict=True)
+            self.paths["fastq"] = (path / "..").resolve()
+            self.paths["checkpoint"] = path/"Checkpoint.txt"
+            self.paths["job_info"] = path/"CompletedJobInfo.xml"
         except FileNotFoundError:
             # MiniSeq, within timstamped subfolder
             filt = lambda p: re.match("[0-9]{8}_[0-9]{6}", p.name)
@@ -36,21 +39,21 @@ class Alignment:
             if not dirs:
                 raise ValueError('Not a recognized Illumina alignment: "%s"' % path)
             try:
-                self.path_sample_sheet = (dirs[0]/"SampleSheetUsed.csv").resolve(strict=True)
+                self.paths["sample_sheet"] = (dirs[0]/"SampleSheetUsed.csv").resolve(strict=True)
             # If both possible sample sheet paths threw FileNotFound, we won't
             # consider this input path to be an alignment directory.
             except FileNotFoundError:
                 raise ValueError('Not a recognized Illumina alignment: "%s"' % path)
-            self.path_fastq = dirs[0] / "Fastq"
-            self.path_checkpoint = dirs[0]/"Checkpoint.txt"
-            self.path_job_info = dirs[0]/"CompletedJobInfo.xml"
-        self.sample_sheet = load_sample_sheet(self.path_sample_sheet)
+            self.paths["fastq"] = dirs[0] / "Fastq"
+            self.paths["checkpoint"] = dirs[0]/"Checkpoint.txt"
+            self.paths["job_info"] = dirs[0]/"CompletedJobInfo.xml"
+        self.sample_sheet = load_sample_sheet(self.paths["sample_sheet"])
         # This doesn't always exist.  On our MiniSeq and one of two MiSeqs it's
         # always written, but on a newer MiSeq we only have the copy saved to
         # the root of the run directory for the most recent alignment.
         # (The Run class also has this idiom to load one if it can be found.)
         try:
-            self.completed_job_info = load_xml(self.path_job_info)
+            self.completed_job_info = load_xml(self.paths["job_info"])
         except FileNotFoundError:
             self.completed_job_info = None
         self.refresh()
@@ -61,7 +64,7 @@ class Alignment:
         If the alignment has just completed, and a callback function was
         provided during instantiation, call it."""
         if not self.complete:
-            self.checkpoint = load_checkpoint(self.path_checkpoint)
+            self.checkpoint = load_checkpoint(self.paths["checkpoint"])
             if self.complete and self.completion_callback:
                 self.completion_callback(self)
 
@@ -159,7 +162,7 @@ class Alignment:
         filenames = self.sample_files_for_num(sample_num)
         fps = []
         for filename in filenames:
-            fpath = (self.path_fastq / filename).resolve(strict=strict)
+            fpath = (self.paths["fastq"] / filename).resolve(strict=strict)
             fps.append(fpath)
         return fps
 

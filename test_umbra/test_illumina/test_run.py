@@ -70,7 +70,7 @@ class TestRun(unittest.TestCase):
     def check_refresh_alignments(self):
         """Test refreshing run Alignment directories from files on disk."""
         orig_als = self.run.alignments
-        path_checkpoint = self.run.alignments[0].path_checkpoint
+        path_checkpoint = self.run.alignments[0].paths["checkpoint"]
         move(str(path_checkpoint), str(self.path_run / "tmp.txt"))
         self.run = Run(self.path_run)
         self.assertEqual(len(self.run.alignments), len(orig_als))
