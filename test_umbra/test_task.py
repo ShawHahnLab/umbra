@@ -262,3 +262,33 @@ class TestTask(TestTaskClass):
             # opened for writing.
             self.assertTrue(self.expected["log_path"].exists())
             self.assertTrue(self.thing.logf.writable())
+
+
+class TestTaskImplicit(TestTask):
+    """Tests on a Task implicity included in processing.
+
+    The only thing that changes in this case is that the output files go to the
+    ProjectData's implicit tasks path if defined.
+    """
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        # set up a mock project object for testing
+        self.proj = unittest.mock.Mock(
+            path_proc=Path(self.tmpdir.name) / "proc",
+            nthreads=1,
+            config={
+                "implicit_tasks_path": Path(self.tmpdir.name)/"proc/implicit"},
+            sample_paths={"sample_name": ["R1.fastq.gz", "R2.fastq.gz"]},
+            # Note, no tasks are requested but we're using one named "task"
+            # in the tests here, so it should be considered implicit.
+            experiment_info={"tasks": []}
+            )
+        # Expected values during tests
+        self.expected = {
+            "nthreads": 1,
+            "log_path": self.proj.path_proc / "logs/log_task.txt",
+            "sample_paths": copy.deepcopy(self.proj.sample_paths),
+            "task_dir_parent": self.proj.path_proc / "implicit"
+            }
+        self.thing = task.Task({}, self.proj)
