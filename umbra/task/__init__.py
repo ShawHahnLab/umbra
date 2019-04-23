@@ -170,23 +170,6 @@ class Task(metaclass=__TaskParent):
         info = fmt % (cls.name, cls.order, ", ".join(cls.dependencies), cls.source_path)
         return info
 
-    @property
-    def log_path(self):
-        """Path to log file for this task."""
-        path = (self.proj.path_proc /
-                self.proj.config.get("log_path", "logs") /
-                ("log_" + self.name + ".txt")).resolve()
-        return path
-
-    @property
-    def nthreads(self):
-        """Max number of threads to be used in processing.
-
-        This is just an integer hint for any subprocesses started here.  The
-        task itself will always run within a single thread.
-        """
-        return self.proj.nthreads
-
     def __init__(self, config, proj):
         """Task object initlization.
 
@@ -202,6 +185,28 @@ class Task(metaclass=__TaskParent):
     def __del__(self):
         if self.logf:
             self.logf.close()
+
+    @property
+    def log_path(self):
+        """Path to log file for this task."""
+        path = (self.proj.path_proc /
+                self.proj.config.get("log_path", "logs") /
+                ("log_" + self.name + ".txt")).resolve()
+        return path
+
+    @property
+    def sample_paths(self):
+        """Dict mapping sample names to filesystem paths."""
+        return self.proj.sample_paths
+
+    @property
+    def nthreads(self):
+        """Max number of threads to be used in processing.
+
+        This is just an integer hint for any subprocesses started here.  The
+        task itself will always run within a single thread.
+        """
+        return self.proj.nthreads
 
     def run(self):
         """The core functionality for the task.
@@ -222,6 +227,20 @@ class Task(metaclass=__TaskParent):
         """
         raise NotImplementedError
 
+    def runwrapper(self):
+        """Setup/cleanup around each Task's run method.
+
+        Don't worry about this one, just override run().
+        """
+        self.log_setup()
+        try:
+            return self.run()
+        except Exception as exception:
+            msg = traceback.format_exc()
+            self.logf.write(msg + "\n")
+            self.logf.close()
+            raise exception
+
     def runcmd(self, args, stdout=None, stderr=None):
         """A simple wrapper to execute a command.
 
@@ -239,11 +258,6 @@ class Task(metaclass=__TaskParent):
         LOGGER.debug("runcmd: %s", str(args))
         subprocess.run(args, stdout=stdout, stderr=stderr, check=True)
 
-    @property
-    def sample_paths(self):
-        """Dict mapping sample names to filesystem paths."""
-        return self.proj.sample_paths
-
     @staticmethod
     def read_file_product(readfile, suffix="", merged=True):
         """Give a readfile-related filename, following the originals' name.
@@ -257,6 +271,8 @@ class Task(metaclass=__TaskParent):
         somesample_S1_L001_R_001.merged.fastq
         """
         pat = "(.*_L[0-9]+_)R([12])(_001)\\.fastq\\.gz"
+        # work with plain strings as well as paths
+        readfile = Path(readfile)
         if merged:
             name = re.sub(pat, "\\1R\\3" + suffix, readfile.name)
         else:
@@ -300,17 +316,5 @@ class Task(metaclass=__TaskParent):
         except AttributeError:
             self.logf = open(self.log_path, "w")
 
-    def runwrapper(self):
-        """Setup/cleanup around each Task's run method.
-
-        Don't worry about this one, just override run().
-        """
-        self.log_setup()
-        try:
-            return self.run()
-        except Exception as exception:
-            msg = traceback.format_exc()
-            self.logf.write(msg + "\n")
-            raise exception
 
 __load_task_classes()
