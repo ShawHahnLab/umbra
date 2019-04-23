@@ -1,12 +1,14 @@
-from .test_common import *
-from umbra.illumina import util
-
 """
 Tests for illumina.util helper functions.
 
 These currently just test load_csv against the complexities that come up with
 loading real-life CSV files.  (There are more than I ever would have expected.)
 """
+
+import unittest
+import csv
+from umbra.illumina import util
+from .test_common import PATH_OTHER
 
 class TestLoadCSV(unittest.TestCase):
     """Base test case for a CSV file."""
@@ -43,7 +45,7 @@ class TestLoadCSVWindows(TestLoadCSV):
 
 class TestLoadCSVMac(TestLoadCSV):
     """Test CSV loading with \\r line endings.
-    
+
     Yes this does still come up (CSV export in Microsoft Office on Mac OS)."""
 
     def setUp(self):
@@ -75,7 +77,7 @@ class TestLoadCSVUTF8BOM(TestLoadCSV):
 
 class TestLoadCSVMissing(TestLoadCSV):
     """Test CSV loading for a nonexistent file.
-    
+
     Any attempt should raise FileNotFoundError."""
 
     def setUp(self):

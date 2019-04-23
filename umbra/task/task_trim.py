@@ -8,6 +8,7 @@ from umbra import task
 class TaskTrim(task.Task):
     """Trim adapters from raw fastq.gz files."""
 
+    # pylint: disable=no-member
     order = 10
 
     def run(self):
@@ -19,12 +20,14 @@ class TaskTrim(task.Task):
             for i, path in enumerate(paths):
                 adapter = ADAPTERS["Nextera"][i]
                 fastq_in = str(path)
-                fastq_out = self.task_path(
-                    readfile=path,
-                    taskname=self.name,
-                    subdir="trimmed",
-                    suffix=".trimmed.fastq",
-                    r1only=False)
+                fastq_out = (
+                    self.task_dir_parent(self.name) /
+                    "trimmed" /
+                    self.read_file_product(
+                        path,
+                        ".trimmed.fastq",
+                        merged=False))
+                task.mkparent(fastq_out)
                 args = ["cutadapt", "-a", adapter, "-o", fastq_out, fastq_in]
                 # Call cutadapt with each file.  If the exit status is
                 # nonzero or if the expected output file is missing, this will

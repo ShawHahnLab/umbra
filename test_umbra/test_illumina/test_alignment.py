@@ -1,4 +1,18 @@
-from .test_common import *
+"""
+Test umbra.illumina.alignment
+
+More specifically, test the Alignment class that represents a specific
+subdirectory of an Illumina run directory on disk.
+"""
+
+import unittest
+import os
+from shutil import move
+from tempfile import TemporaryDirectory
+from pathlib import Path
+from distutils.dir_util import copy_tree
+from umbra.illumina.run import Alignment
+from .test_common import RUN_IDS, PATH_RUNS
 
 class TestAlignment(unittest.TestCase):
     """Test an Alignment in a typical case (MiSeq, paired-end)."""
@@ -6,113 +20,141 @@ class TestAlignment(unittest.TestCase):
     def setUp(self):
         if not hasattr(self, "run_id"):
             self.run_id = RUN_IDS["MiSeq"]
-        self.setUpFiles()
-        self.setUpVars()
-        self.setUpAlignment()
+        self.set_up_files()
+        self.set_up_vars()
+        self.set_up_alignment()
 
-    def setUpVars(self):
-        self.num_samples = 35
-        self.first_files = [
+    def set_up_files(self):
+        """Make a full copy of one run to a temp location."""
+        self.tmpdir = TemporaryDirectory()
+        self.paths = {}
+        self.paths["run"] = Path(self.tmpdir.name) / self.run_id
+        copy_tree(str(PATH_RUNS / self.run_id), str(self.paths["run"]))
+
+    def set_up_vars(self):
+        """Initialize paths and expected values for testing."""
+        al_path = (
+            self.paths["run"] /
+            "Data/Intensities/BaseCalls/Alignment")
+        self.paths["alignment"] = al_path
+        self.expected = {
+            "num_samples": 35,
+            "first_files": [
                 "1086S1-01_S1_L001_R1_001.fastq.gz",
                 "1086S1-01_S1_L001_R2_001.fastq.gz"
-                ]
-        self.experiment_exp = "Partials_1_1_18"
-        self.path_al = self.path_run / "Data/Intensities/BaseCalls/Alignment"
-        self.path_sample_sheet = self.path_al / "SampleSheetUsed.csv"
-        self.path_fastq = (self.path_al/ "..").resolve()
-        self.path_checkpoint = self.path_al / "Checkpoint.txt"
-        self.ss_keys_exp = ["Data", "Header", "Reads", "Settings"]
+                ],
+            "experiment": "Partials_1_1_18",
+            "ss_keys": ["Data", "Header", "Reads", "Settings"],
+            "paths": {
+                "sample_sheet": al_path / "SampleSheetUsed.csv",
+                "fastq": (al_path / "..").resolve(),
+                "checkpoint": al_path / "Checkpoint.txt"
+                }
+            }
 
-    def setUpFiles(self):
-        # Make a full copy of one run to a temp location
-        self.tmpdir = TemporaryDirectory()
-        self.path_run = Path(self.tmpdir.name) / self.run_id
-        copy_tree(str(PATH_RUNS / self.run_id), str(self.path_run))
-
-    def setUpAlignment(self):
-        self.al = Alignment(self.path_al)
+    def set_up_alignment(self):
+        """Initialize alignment object for testing."""
+        self.alignment = Alignment(self.paths["alignment"])
 
     def tearDown(self):
         self.tmpdir.cleanup()
 
     def test_attrs(self):
         """Test attributes from object creation"""
-        self.assertEqual(self.al.path_sample_sheet, self.path_sample_sheet)
-        self.assertEqual(self.al.path_fastq,        self.path_fastq)
-        self.assertEqual(self.al.path_checkpoint,   self.path_checkpoint)
-        self.assertEqual(sorted(self.al.sample_sheet.keys()), self.ss_keys_exp)
+        self.assertEqual(
+            self.alignment.paths["sample_sheet"],
+            self.expected["paths"]["sample_sheet"])
+        self.assertEqual(
+            self.alignment.paths["fastq"],
+            self.expected["paths"]["fastq"])
+        self.assertEqual(
+            self.alignment.paths["checkpoint"],
+            self.expected["paths"]["checkpoint"])
+        self.assertEqual(sorted(self.alignment.sample_sheet.keys()), self.expected["ss_keys"])
 
     def test_index(self):
         """Test that the index within the Run's list of Alignments is correct.
-        
+
         For an Alignment without a Run, there is no index defined.
         """
-        self.assertIsNone(self.al.index)
+        self.assertIsNone(self.alignment.index)
 
     def test_complete(self):
         """Is an Alignment complete?"""
         # An alignment is complete if Checkpoint exists and is 3, is not
         # complete otherwise.
-        self.assertTrue(self.al.complete)
-        os.remove(self.al.path_checkpoint)
-        self.al = Alignment(self.path_al)
-        self.assertFalse(self.al.complete)
+        self.assertTrue(self.alignment.complete)
+        os.remove(self.alignment.paths["checkpoint"])
+        alignment = Alignment(self.paths["alignment"])
+        self.assertFalse(alignment.complete)
 
     def test_experiment(self):
         """Is the Experiment name available?"""
-        self.assertEqual(self.al.experiment, self.experiment_exp)
+        self.assertEqual(self.alignment.experiment, self.expected["experiment"])
 
     def test_sample_numbers(self):
-        nums = [i+1 for i in range(self.num_samples)]
-        self.assertEqual(self.al.sample_numbers, nums)
+        """Test for expected number of samples."""
+        nums = [i+1 for i in range(self.expected["num_samples"])]
+        self.assertEqual(self.alignment.sample_numbers, nums)
 
     def test_sample_names(self):
-        self.assertEqual(len(self.al.sample_names), self.num_samples)
+        """Test existence (not content, currently) of sample names."""
+        self.assertEqual(
+            len(self.alignment.sample_names),
+            self.expected["num_samples"])
 
     def test_samples(self):
-        data = self.al.sample_sheet["Data"]
-        self.assertEqual(self.al.samples, data)
+        """Test for consistency of sample metadata with sample sheet."""
+        data = self.alignment.sample_sheet["Data"]
+        self.assertEqual(self.alignment.samples, data)
 
     def test_sample_files_for_num(self):
         """Test expected sample filenames for one sample number"""
         # This run is paired-end so we should get two read files per sample.
-        filenames_observed = self.al.sample_files_for_num(1)
-        self.assertEqual(filenames_observed, self.first_files)
+        filenames_observed = self.alignment.sample_files_for_num(1)
+        self.assertEqual(filenames_observed, self.expected["first_files"])
 
     def test_sample_paths_for_num(self):
         """Test expected sample paths for one sample number"""
-        filepaths_exp = [ self.al.path_fastq / fn for fn in self.first_files]
-        filepaths_obs = self.al.sample_paths_for_num(1)
+        aln = self.alignment
+        first_files = self.expected["first_files"]
+        filepaths_exp = [aln.paths["fastq"] / fn for fn in first_files]
+        filepaths_obs = aln.sample_paths_for_num(1)
         self.assertEqual(filepaths_obs, filepaths_exp)
 
     def test_sample_paths(self):
         """Test sample paths by sample name for all samples"""
-        sp = self.al.sample_paths()
+        aln = self.alignment
+        spaths = aln.sample_paths()
         # The keys are sample names
-        self.assertEqual(sorted(sp.keys()), sorted(self.al.sample_names))
+        self.assertEqual(
+            sorted(spaths.keys()),
+            sorted(aln.sample_names))
         # The values are sample paths
-        v = [self.al.sample_paths_for_num(n) for n in self.al.sample_numbers]
-        k = self.al.sample_names
-        sp_exp = {k: v for k,v in zip(k, v)}
-        self.assertEqual(sp, sp_exp)
+        vals = [aln.sample_paths_for_num(n) for n in aln.sample_numbers]
+        keys = aln.sample_names
+        spaths_exp = {k: v for k, v in zip(keys, vals)}
+        self.assertEqual(spaths, spaths_exp)
 
     def test_refresh(self):
         """Does refresh catch completion?"""
         # Starting without a Checkpoint.txt, alignment is marked incomplete.
-        move(str(self.al.path_checkpoint), str(self.path_run))
-        self.al = Alignment(self.path_al)
-        self.assertFalse(self.al.complete)
+        move(str(self.alignment.paths["checkpoint"]), str(self.paths["run"]))
+        alignment = Alignment(self.paths["alignment"])
+        self.assertFalse(alignment.complete)
         # It doesn't update automatically.
-        move(str(self.path_run / "Checkpoint.txt"), str(self.al.path_checkpoint))
-        self.assertFalse(self.al.complete)
+        move(
+            str(self.paths["run"] / "Checkpoint.txt"),
+            str(alignment.paths["checkpoint"]))
+        self.assertFalse(alignment.complete)
         # On refresh, it is now seen as complete.
-        self.al.refresh()
-        self.assertTrue(self.al.complete)
+        alignment.refresh()
+        self.assertTrue(alignment.complete)
 
 
 class TestAlignmentSingleEnded(TestAlignment):
     """Test an Alignment for a non-paired-end Run.
-    
+
     The only thing that should be different here is that the run files will
     only have R1, no R2."""
 
@@ -120,11 +162,11 @@ class TestAlignmentSingleEnded(TestAlignment):
         self.run_id = RUN_IDS["Single"]
         super().setUp()
 
-    def setUpVars(self):
-        super().setUpVars()
-        self.num_samples = 4
-        self.first_files = ["GA_S1_L001_R1_001.fastq.gz"]
-        self.experiment_exp = "ExperimentSingle"
+    def set_up_vars(self):
+        super().set_up_vars()
+        self.expected["num_samples"] = 4
+        self.expected["first_files"] = ["GA_S1_L001_R1_001.fastq.gz"]
+        self.expected["experiment"] = "ExperimentSingle"
 
 
 class TestAlignmentFilesMissing(TestAlignment):
@@ -133,30 +175,33 @@ class TestAlignmentFilesMissing(TestAlignment):
     def test_sample_paths_for_num(self):
         """Test expected sample paths for one sample number"""
         # By default a missing file throws FileNotFound error.
-        filepaths_exp = [ self.al.path_fastq / fn for fn in self.first_files]
-        move(str(filepaths_exp[1]), str(self.path_al))
+        first_files = self.expected["first_files"]
+        filepaths_exp = [self.alignment.paths["fastq"] / fn for fn in first_files]
+        move(str(filepaths_exp[1]), str(self.paths["alignment"]))
         with self.assertRaises(FileNotFoundError):
-            self.al.sample_paths_for_num(1)
-        # Unless we give strict = False.  The same names are returned but one
+            self.alignment.sample_paths_for_num(1)
+        # Unless we give strict=False.  The same names are returned but one
         # of them doesn't exist.
-        filepaths_obs = self.al.sample_paths_for_num(1, strict = False)
+        filepaths_obs = self.alignment.sample_paths_for_num(1, strict=False)
         self.assertEqual(filepaths_obs, filepaths_exp)
 
     def test_sample_paths(self):
         """Test sample paths by sample name for all samples"""
-        path = self.al.path_fastq / "1086S1-01_S1_L001_R2_001.fastq.gz"
-        move(str(path), str(self.path_al))
+        path = self.alignment.paths["fastq"] / "1086S1-01_S1_L001_R2_001.fastq.gz"
+        move(str(path), str(self.paths["alignment"]))
         with self.assertRaises(FileNotFoundError):
-            sp = self.al.sample_paths()
-        sp = self.al.sample_paths(strict = False)
+            spaths = self.alignment.sample_paths()
+        spaths = self.alignment.sample_paths(strict=False)
         # The keys are sample names
-        self.assertEqual(sorted(sp.keys()), sorted(self.al.sample_names))
+        self.assertEqual(
+            sorted(spaths.keys()),
+            sorted(self.alignment.sample_names))
         # The values are sample paths
-        nums = self.al.sample_numbers
-        v = [self.al.sample_paths_for_num(n, False) for n in nums]
-        k = self.al.sample_names
-        sp_exp = {k: v for k,v in zip(k, v)}
-        self.assertEqual(sp, sp_exp)
+        nums = self.alignment.sample_numbers
+        vals = [self.alignment.sample_paths_for_num(n, False) for n in nums]
+        keys = self.alignment.sample_names
+        spaths_exp = {k: v for k, v in zip(keys, vals)}
+        self.assertEqual(spaths, spaths_exp)
 
 
 class TestAlignmentMiniSeq(TestAlignment):
@@ -166,19 +211,20 @@ class TestAlignmentMiniSeq(TestAlignment):
         self.run_id = RUN_IDS["MiniSeq"]
         super().setUp()
 
-    def setUpVars(self):
-        self.num_samples = 5
-        self.first_files = [
-                "TL3833-2-3_S1_L001_R1_001.fastq.gz",
-                "TL3833-2-3_S1_L001_R2_001.fastq.gz"
-                ]
-        self.experiment_exp = "MiniSeqExperiment"
-        subdir = "20180103_110937"
-        self.path_al = self.path_run / "Alignment_1"
-        self.path_sample_sheet = self.path_al / subdir / "SampleSheetUsed.csv"
-        self.path_fastq = self.path_al / subdir / "Fastq"
-        self.path_checkpoint = self.path_al / subdir / "Checkpoint.txt"
-        self.ss_keys_exp = ["Data", "Header", "Reads"]
+    def set_up_vars(self):
+        super().set_up_vars()
+        self.expected["num_samples"] = 5
+        self.expected["first_files"] = [
+            "TL3833-2-3_S1_L001_R1_001.fastq.gz",
+            "TL3833-2-3_S1_L001_R2_001.fastq.gz"
+            ]
+        self.expected["experiment"] = "MiniSeqExperiment"
+        self.expected["ss_keys"] = ["Data", "Header", "Reads"]
+        self.paths["alignment"] = self.paths["run"] / "Alignment_1"
+        subpath = self.paths["alignment"] / "20180103_110937"
+        self.expected["paths"]["sample_sheet"] = subpath / "SampleSheetUsed.csv"
+        self.expected["paths"]["fastq"] = subpath / "Fastq"
+        self.expected["paths"]["checkpoint"] = subpath / "Checkpoint.txt"
 
 
 if __name__ == '__main__':

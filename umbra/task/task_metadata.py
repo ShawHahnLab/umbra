@@ -7,13 +7,14 @@ from umbra import task
 class TaskMetadata(task.Task):
     """Copy metadata spreadsheets and YAML into working directory."""
 
+    # pylint: disable=no-member
     order = 1000
 
     def run(self):
-        dest = self._task_dir_parent(self.name) / "Metadata"
+        dest = self.task_dir_parent(self.name) / "Metadata"
         dest.mkdir(parents=True, exist_ok=True)
         paths = []
-        paths.append(self.proj.alignment.path_sample_sheet) # Sample Sheet
+        paths.append(self.proj.alignment.paths["sample_sheet"]) # Sample Sheet
         paths.append(self.proj.path) #  Project metadata YAML file (as it currently stands)
         for path in paths:
             shutil.copy(path, dest)

@@ -11,20 +11,24 @@ class TaskSpades(task.Task):
     This handles de-novo assembly with Spades and some of our own
     post-processing."""
 
+    # pylint: disable=no-member
     order = 12
     dependencies = ["merge"]
 
     def run(self):
         for samp in self.sample_paths.keys():
             paths = self.sample_paths[samp]
-            fq_merged = self.task_path(paths[0],
-                                       "merge",
-                                       "PairedReads",
-                                       ".merged.fastq")
-            spades_dir = self.task_path(paths[0], self.name, "assembled")
-            fa_contigs = self._assemble_reads(fq_merged, spades_dir)
+            fq_merged = (
+                self.task_dir_parent("merge") /
+                "PairedReads" /
+                self.read_file_product(paths[0], ".merged.fastq"))
+            spades_dir = (
+                self.task_dir_parent(self.name) /
+                "assembled" /
+                self.read_file_product(paths[0]))
+            self.assemble_reads(fq_merged, spades_dir)
 
-    def _assemble_reads(self, fq_in, dir_out):
+    def assemble_reads(self, fq_in, dir_out):
         """Assemble a pair of read files with SPAdes.
 
         This runs spades.py on a single sample, saving the output to a given
@@ -54,4 +58,3 @@ class TaskSpades(task.Task):
             self.logf.write("creating placeholder contig file.\n")
             touch(fp_out)
         return fp_out
-

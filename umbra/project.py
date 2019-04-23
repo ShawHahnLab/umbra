@@ -37,11 +37,11 @@ class ProjectData:
     """
 
     # ProjectData processing status enumerated type.
-    NONE          = "none"
-    PROCESSING    = "processing"
+    NONE = "none"
+    PROCESSING = "processing"
     PACKAGE_READY = "package-ready"
-    COMPLETE      = "complete"
-    FAILED        = "failed"
+    COMPLETE = "complete"
+    FAILED = "failed"
     STATUS = [NONE, PROCESSING, PACKAGE_READY, COMPLETE, FAILED]
 
     @staticmethod

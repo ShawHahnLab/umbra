@@ -46,10 +46,12 @@ class TestTaskClass(unittest.TestCase):
 
     def test_name(self):
         """Test that the name property is defined."""
+        # pylint: disable=no-member
         self.assertEqual(self.thing.name, "task")
 
     def test_source_path(self):
         """Test that source_path is a Path pointing to the source code."""
+        # pylint: disable=no-member
         self.assertEqual(self.thing.source_path, Path("__init__.py"))
 
     def test_order(self):
