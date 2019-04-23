@@ -13,7 +13,6 @@ that.
 import unittest
 import re
 import csv
-import hashlib
 import gzip
 import zipfile
 import warnings
@@ -295,8 +294,7 @@ class TestProjectDataOneTask(TestBase):
 
     @staticmethod
     def _fake_fastq_entry(seq, qual):
-        # TODO can I just md5(seq)? check back on this.
-        name = hashlib.md5(seq.encode("utf-8")).hexdigest()
+        name = md5(seq)
         txt = "@%s\n%s\n+\n%s\n" % (name, seq, qual)
         return txt
 
@@ -1157,21 +1155,21 @@ class TestProjectDataExplicitTasks(TestProjectDataOneTask):
         self.assertTrue(trim_path.exists())
 
 
+@unittest.skip("not yet implemented")
 class TestProjectDataBlank(TestProjectDataOneTask):
     """Test with no tasks at all.
 
     This just needs to confim that the TASK_NULL code correctly inserts "copy"
     when nothing else is specified.  put it in self.tasks_run.
     """
-    # TODO
 
 
+@unittest.skip("not yet implemented")
 class TestProjectDataAlreadyProcessing(TestBase):
     """Test project whose existing metadata points to an existant process.
 
     We should abort in that case.
     """
-    # TODO
 
 
 if __name__ == '__main__':
