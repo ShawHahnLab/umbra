@@ -7,6 +7,9 @@ of tasks, and test_project.py has more "live" testing for actual task code.
 """
 
 import unittest
+import unittest.mock
+import subprocess
+import tempfile
 from pathlib import Path
 from umbra import task
 
@@ -104,9 +107,79 @@ class TestTask(TestTaskClass):
     more."""
 
     def setUp(self):
-        self.thing = task.Task({}, None)
+        self.tmpdir = tempfile.TemporaryDirectory()
+        # set up a mock project object for testing
+        self.proj = unittest.mock.Mock(
+            path_proc=Path(self.tmpdir.name) / "proc",
+            nthreads=1,
+            config={}
+            )
+        # Expected values during tests
+        self.expected = {
+            "nthreads": 1,
+            "log_path": self.proj.path_proc / "logs/log_task.txt"
+            }
+        self.thing = task.Task({}, self.proj)
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
 
     def test_run(self):
         """Test that the run method is left unimplemented by default."""
         with self.assertRaises(NotImplementedError):
             self.thing.run()
+
+    def test_runcmd(self):
+        """Test wrapper for simple process calls.
+
+        Are commands logged as expected?  Do failing commands rais an exception
+        as expected?
+        """
+        with self.assertLogs(task.LOGGER, level="DEBUG")as logging_context:
+            self.thing.runcmd(["true"])
+            self.assertEqual(
+                logging_context.output,
+                ["DEBUG:umbra.task:runcmd: ['true']"])
+        self.assertTrue(self.expected["log_path"].exists())
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.thing.runcmd(["false"])
+
+    def test_log_path(self):
+        """Check path to log file for this task."""
+        self.assertEqual(self.thing.log_path, self.expected["log_path"])
+
+    @unittest.skip("not yet implemented")
+    def test_logf(self):
+        """Check log file object.
+
+        Does it start None and is open for writing after setup?  Closed after
+        object cleanup?
+        """
+
+    def test_nthreads(self):
+        """Check number of threads configured for processing."""
+        self.assertEqual(self.thing.nthreads, self.expected["nthreads"])
+
+    @unittest.skip("not yet implemented")
+    def test_sample_paths(self):
+        """Check dict mapping sample names to sample file paths."""
+
+    @unittest.skip("not yet implemented")
+    def test_read_file_product(self):
+        """Check conversion from read file name to alternate names."""
+
+    @unittest.skip("not yet implemented")
+    def test_task_dir_parent(self):
+        """Check parent directory for task outputs."""
+
+    @unittest.skip("not yet implemented")
+    def test_log_setup(self):
+        """Test log setup helper."""
+
+    @unittest.skip("not yet implemented")
+    def test_runwrapper(self):
+        """Test task run wrapper method.
+
+        Is the log file setup as expected?  Do exceptions get logged as
+        expected?
+        """
