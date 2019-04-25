@@ -1,13 +1,18 @@
 """
 Configuration file handling.
 """
+import os
 import logging
 import collections.abc
 from pathlib import Path
 import yaml.parser
 from .util import yaml_load
 
-SYSTEM_CONFIG = "/etc/umbra.yml"
+__ENV_CONFIG = os.getenv("UMBRA_SYSTEM_CONFIG")
+if __ENV_CONFIG is not None:
+    SYSTEM_CONFIG = __ENV_CONFIG
+else:
+    SYSTEM_CONFIG = "/etc/umbra.yml"
 
 # Adapted from
 # https://stackoverflow.com/a/3233356
