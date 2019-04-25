@@ -31,4 +31,4 @@ function test_files {
 }
 
 run_demo_2
-#test_files
+test_files
