@@ -1,0 +1,15 @@
+loglevel: 20
+task_options:
+  implicit_tasks_path: "RunDiagnostics/ImplicitTasks"
+  always_explicit_tasks: ["merge", "assemble"]
+  log_path: "RunDiagnostics/Logs"
+box:
+  skip: true
+  credentials_path: ""
+mailer:
+  skip: true
+  credentials_path: ""
+save_report:
+  path: SEQROOT/report.csv
+paths:
+  root: SEQROOT
