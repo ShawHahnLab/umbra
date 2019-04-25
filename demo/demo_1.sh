@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-set -o errexit
+
+# A very basic test, using the test dataset and a simple config.
+
+source demo/demo_setup.sh
 
 SEQROOT=${1-demo_1_seq}
 CONFIG=${2-demo/demo_1.yml}
 
-rsync -r test_umbra/data/ $SEQROOT
-UMBRA_SYSTEM_CONFIG="" python -m umbra -c <(sed s/SEQROOT/$SEQROOT/g $CONFIG) -a process &
-sleep 9
-kill -s INT %1
+function run_demo_1 {
+	rsync -r test_umbra/data/ $SEQROOT
+	run_umbra "$SEQROOT" "$CONFIG"
+}
+
 # TODO actually test outputs
+run_demo_1
