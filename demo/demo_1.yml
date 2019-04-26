@@ -1,0 +1,11 @@
+loglevel: 20
+box:
+  skip: true
+  credentials_path: ""
+mailer:
+  skip: true
+  credentials_path: ""
+save_report:
+  path: SEQROOT/report.csv
+paths:
+  root: SEQROOT

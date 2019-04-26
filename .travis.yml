@@ -24,8 +24,11 @@ script:
   - python -m unittest
   # Ensure the package execution via __main__.py works.
   - python -m umbra -h
+  # Try full demo runs.
+  - bash demo/demo_1.sh
+  - bash demo/demo_2.sh
   # Ensure the installation process created a viable script for the entry
-  # point.  Still should actually do a test run using it, though.
+  # point.
   - umbra -h
   # Try a dry run installation.
   - sudo -E $(which umbra) --action install --dry-run
