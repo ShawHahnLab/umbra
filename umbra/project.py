@@ -372,7 +372,7 @@ class ProjectData:
         tasknames = self.experiment_info["tasks"][:]
         # handle no-task case and add any defaults
         if not tasknames:
-            tasknames = self.config["task_null"]
+            tasknames = self.config["task_null"][:]
         tasknames += self.config["task_defaults"]
         # Add in dependencies for any that exist.
         deps = set()
