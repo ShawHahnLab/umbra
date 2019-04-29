@@ -67,6 +67,30 @@ task_options:
     assemble:
       # Min length of contigs to keep in filtered Geneious-ready form
       contig_length_min: 255
+    email:
+      # These are the plaintext and HTML templates for outgoing notification
+      # emails when processing is complete.  Most people will probably see the
+      # HTML one though we provide plaintext just in case.  Available template
+      # variables are:
+      #  * work_dir: "short name" of this dataset, like "2019-04-26-project-person"
+      #  * url: file download URL as provided by the upload task.
+      template_text: |
+        Hello,
+
+        Illumina run processing is complete for {work_dir}
+        and a zip file with results can be downloaded from this url:
+
+        {url}
+      template_html: |
+        Hello,
+        <br><br>
+
+        Illumina run processing is complete for {work_dir}
+        and a zip file with results can be downloaded from this url:
+        <br><br>
+
+        <a href='{url}'>{url}</a>
+
 
 ##############################################################################
 # Options for the report displayed during the "report" action.

@@ -1,6 +1,7 @@
 """Send notfication email for a finished ProjectData."""
 
 from umbra import task
+
 class TaskEmail(task.Task):
     """Send notfication email for a finished ProjectData."""
 
@@ -17,16 +18,8 @@ class TaskEmail(task.Task):
         url = self.proj._metadata["task_output"].get("upload", {}).get("url", "")
         subject = "Illumina Run Processing Complete for %s" % self.proj.work_dir
         # Build message text and html
-        body = "Hello,\n\n"
-        body += "Illumina run processing is complete for %s\n" % self.proj.work_dir
-        body += "and a zip file with results can be downloaded from this url:\n"
-        body += "\n%s\n" % url
-        html = "Hello,\n"
-        html += "<br><br>\n\n"
-        html += "Illumina run processing is complete for %s\n" % self.proj.work_dir
-        html += "and a zip file with results can be downloaded from this url:\n"
-        html += "<br><br>\n"
-        html += "\n<a href='%s'>%s</a>\n" % (url, url)
+        body = self.config["template_text"].format(work_dir=self.proj.work_dir, url=url)
+        html = self.config["template_html"].format(work_dir=self.proj.work_dir, url=url)
         # Send
         kwargs = {
             "to_addrs": contacts,
