@@ -6,8 +6,7 @@ These tests confirm that the portions of a run specific to a single project are
 processed as expected, including the trimming/merging/assembling tasks and
 calling external uploading/emailing functions (but not the outcome of those
 calls).  This does not handle anything to do with multithreading between
-multiple simultaneous projects, either; see test_umbra.py for
-that.
+multiple simultaneous projects, either; see test_umbra.py for that.
 """
 
 import unittest
@@ -199,48 +198,46 @@ class TestProjectData(TestBase):
 class TestProjectDataOneTask(TestBase):
     """Base class for one-project-one-task tests.
 
-    This handles the noop case and can be subclassed for other cases.  This
-    base class only sets certain attribute values if they haven't already been
-    overridden."""
+    This handles the noop case and can be subclassed for other cases.
+    """
 
     def setUp(self):
+        self.task = "noop"
         self.set_up_tmpdir()
         self.set_up_vars()
         self.set_up_run()
-        # modify project spreadsheet, then create ProjectData
         self.write_test_experiment()
-        # Readymade hook for any extra stuff for sub-classes
-        if "set_up_pre_project" in dir(self):
-            # pylint: disable=no-member
-            self.set_up_pre_project()
         self.set_up_proj()
 
     def set_up_vars(self):
-        super().set_up_vars()
-        if not hasattr(self, "task"):
-            self.task = "noop"
         # pylint: disable=invalid-name
         self.maxDiff = None
-        # Expected and shared attributes
-        self.sample_names = ["1086S1_01", "1086S1_02", "1086S1_03", "1086S1_04"]
-        if not hasattr(self, "rundir"):
-            self.rundir = "180101_M00000_0000_000000000-XXXXX"
-        if not hasattr(self, "exp_name"):
-            self.exp_name = "Partials_1_1_18"
-        self.exp_path = str(self.paths["exp"] / self.exp_name / "metadata.csv")
-        # Note the write_test_experiment below using this name.
+        super().set_up_vars()
+        self.config = None
+        # Note the write_test_experiment below using this name and contacts_str.
         self.project_name = "TestProject"
-        if not hasattr(self, "tasks_run"):
-            if self.task in DEFAULT_TASKS:
-                self.tasks_run = DEFAULT_TASKS[:]
-            else:
-                self.tasks_run = [self.task] + DEFAULT_TASKS
-        if not hasattr(self, "contacts_str"):
-            self.contacts_str = "Name Lastname <name@example.com>"
-        if not hasattr(self, "contacts"):
-            self.contacts = {"Name Lastname": "name@example.com"}
-        if not hasattr(self, "work_dir_exp"):
-            self.work_dir_exp = "2018-01-01-TestProject-Name"
+        self.contacts_str = "Name Lastname <name@example.com>"
+        # Expected and shared attributes
+        if self.task in DEFAULT_TASKS:
+            tasks = DEFAULT_TASKS[:]
+        else:
+            tasks = [self.task] + DEFAULT_TASKS
+        self.expected = {
+            "experiment_name": "Partials_1_1_18",
+            "experiment_path": str(
+                self.paths["exp"] /
+                "Partials_1_1_18" /
+                "metadata.csv"),
+            "contacts": {"Name Lastname": "name@example.com"},
+            "work_dir": "2018-01-01-TestProject-Name",
+            "tasks": tasks,
+            "sample_names": [
+                "1086S1_01",
+                "1086S1_02",
+                "1086S1_03",
+                "1086S1_04"]
+            }
+        self.rundir = "180101_M00000_0000_000000000-XXXXX"
 
     def set_up_run(self):
         """Set up run object to use for ProjectData tested."""
@@ -256,10 +253,10 @@ class TestProjectDataOneTask(TestBase):
             "Contacts": self.contacts_str,
             "Tasks": self.task
             }
-        with open(self.exp_path, "w", newline="") as f_out:
+        with open(self.expected["experiment_path"], "w", newline="") as f_out:
             writer = csv.DictWriter(f_out, fieldnames)
             writer.writeheader()
-            for sample_name in self.sample_names:
+            for sample_name in self.expected["sample_names"]:
                 writer.writerow((exp_row(sample_name)))
 
     def set_up_proj(self):
@@ -273,7 +270,8 @@ class TestProjectDataOneTask(TestBase):
             self.paths["proc"],
             self.paths["pack"],
             self.uploader,
-            self.mailer)
+            self.mailer,
+            conf=self.config)
         for proj in projs:
             if proj.name == self.project_name:
                 self.proj = proj
@@ -301,7 +299,7 @@ class TestProjectDataOneTask(TestBase):
     def expected_paths(self, suffix=".trimmed.fastq", r1only=False):
         """Helper to predict the expected FASTQ file paths."""
         paths = []
-        for sample in self.sample_names:
+        for sample in self.expected["sample_names"]:
             i = self.alignment.sample_names.index(sample)
             fps = self.alignment.sample_files_for_num(i+1) # (1-indexed)
             if r1only:
@@ -350,7 +348,7 @@ class TestProjectDataOneTask(TestBase):
 
     def test_work_dir(self):
         """Test the work_dir property string."""
-        self.assertEqual(self.proj.work_dir, self.work_dir_exp)
+        self.assertEqual(self.proj.work_dir, self.expected["work_dir"])
 
     def test_readonly(self):
         """Test the readonly property."""
@@ -379,11 +377,11 @@ class TestProjectDataOneTask(TestBase):
         else:
             tasks = [self.task]
         exp_info = {
-            "name": self.exp_name,
-            "sample_names": self.sample_names,
+            "name": self.expected["experiment_name"],
+            "sample_names": self.expected["sample_names"],
             "tasks": tasks,
-            "contacts": self.contacts,
-            "path": self.exp_path
+            "contacts": self.expected["contacts"],
+            "path": self.expected["experiment_path"]
             }
         self.assertEqual(self.proj.experiment_info, exp_info)
 
@@ -391,7 +389,7 @@ class TestProjectDataOneTask(TestBase):
 
     def test_tasks_pending(self):
         """Test the tasks_pending list property."""
-        self.assertEqual(self.proj.tasks_pending, self.tasks_run)
+        self.assertEqual(self.proj.tasks_pending, self.expected["tasks"])
 
     def test_tasks_completed(self):
         """Test the tasks_completed list property."""
@@ -409,7 +407,7 @@ class TestProjectDataOneTask(TestBase):
         self.proj.process()
         self.assertEqual(self.proj.status, "complete")
         self.assertEqual(self.proj.tasks_pending, [])
-        self.assertEqual(self.proj.tasks_completed, self.tasks_run)
+        self.assertEqual(self.proj.tasks_completed, self.expected["tasks"])
         self.assertEqual(self.proj.task_current, "")
         self.check_log()
 
@@ -419,9 +417,9 @@ class TestProjectDataFail(TestProjectDataOneTask):
 
     Here we should see a failure during processing get caught and logged."""
 
-    def setUp(self):
+    def set_up_vars(self):
         self.task = "fail"
-        super().setUp()
+        super().set_up_vars()
 
     def test_process(self):
         """Test that failure is caught and reported correctly in process()."""
@@ -439,9 +437,9 @@ class TestProjectDataCopy(TestProjectDataOneTask):
     Here the whole run directory should be copied into the processing directory
     and zipped."""
 
-    def setUp(self):
+    def set_up_vars(self):
         self.task = "copy"
-        super().setUp()
+        super().set_up_vars()
 
     def test_process(self):
         # The basic checks
@@ -467,9 +465,9 @@ class TestProjectDataTrim(TestProjectDataOneTask):
 
     Here we should have a set of fastq files in a "trimmed" subdirectory."""
 
-    def setUp(self):
+    def set_up_vars(self):
         self.task = "trim"
-        super().setUp()
+        super().set_up_vars()
 
     def test_process(self):
         """Test that the trim task completed as expected."""
@@ -508,11 +506,11 @@ class TestProjectDataMerge(TestProjectDataOneTask):
     This will be the interleaved version of the separate trimmed R1/R2 files
     from the trim task."""
 
-    def setUp(self):
+    def set_up_vars(self):
         self.task = "merge"
+        super().set_up_vars()
         # trim is a dependency of merge.
-        self.tasks_run = ["trim", self.task] + DEFAULT_TASKS
-        super().setUp()
+        self.expected["tasks"] = ["trim", self.task] + DEFAULT_TASKS
 
     def test_process(self):
         """Test that the merge task completed as expected."""
@@ -562,11 +560,11 @@ class TestProjectDataSpades(TestProjectDataOneTask):
     contigs de-novo from the reads with SPAdes.
     """
 
-    def setUp(self):
+    def set_up_vars(self):
         self.task = "spades"
+        super().set_up_vars()
         # trim and merge are dependencies of assemble.
-        self.tasks_run = ["trim", "merge", self.task] + DEFAULT_TASKS
-        super().setUp()
+        self.expected["tasks"] = ["trim", "merge", self.task] + DEFAULT_TASKS
 
     def test_process(self):
         """Test that the spades task completed as expected."""
@@ -591,11 +589,11 @@ class TestProjectDataAssemble(TestProjectDataOneTask):
     subdirectory).
     """
 
-    def setUp(self):
+    def set_up_vars(self):
         self.task = "assemble"
+        super().set_up_vars()
         # trim and merge are dependencies of assemble.
-        self.tasks_run = ["trim", "merge", "spades", self.task] + DEFAULT_TASKS
-        super().setUp()
+        self.expected["tasks"] = ["trim", "merge", "spades", self.task] + DEFAULT_TASKS
 
     def test_process(self):
         """Test that the assemble task completed as expected."""
@@ -624,10 +622,9 @@ class TestProjectDataManual(TestProjectDataOneTask):
     marker appears and then will continue processing.
     """
 
-    def setUp(self):
+    def set_up_vars(self):
         self.task = "manual"
-        self.tasks_run = ["manual"] + DEFAULT_TASKS
-        super().setUp()
+        super().set_up_vars()
 
     def finish_manual(self):
         """Helper for manual processing test in test_process."""
@@ -649,25 +646,15 @@ class TestProjectDataGeneious(TestProjectDataOneTask):
 
     def set_up_vars(self):
         self.task = "geneious"
-        self.tasks_run = ["trim", "merge", "spades", "assemble", "geneious"] + DEFAULT_TASKS
         super().set_up_vars()
-
-    def set_up_proj(self):
-        self.tasks_config = {
+        # We have a special case here where we want to always see some task
+        # dirs at the top level.  Note, this *should* be changed to be handled
+        # via the always_explicit config option (but this is not yet done).
+        self.config = {
             "implicit_tasks_path": "RunDiagnostics/ImplicitTasks"
             }
-        projs = ProjectData.from_alignment(
-            self.alignment,
-            self.paths["exp"],
-            self.paths["status"],
-            self.paths["proc"],
-            self.paths["pack"],
-            self.uploader,
-            self.mailer,
-            conf=self.tasks_config)
-        for proj in projs:
-            if proj.name == self.project_name:
-                self.proj = proj
+        self.expected["tasks"] = ["trim", "merge", "spades", "assemble",
+                                  "geneious"] + DEFAULT_TASKS
 
     def finish_manual(self):
         """Helper for manual processing test in test_process."""
@@ -691,9 +678,9 @@ class TestProjectDataMetadata(TestProjectDataOneTask):
     working directory.
     """
 
-    def setUp(self):
+    def set_up_vars(self):
         self.task = "metadata"
-        super().setUp()
+        super().set_up_vars()
 
     def test_process(self):
         # The basic checks
@@ -736,10 +723,10 @@ class TestProjectDataMetadata(TestProjectDataOneTask):
             "Tasks": self.task
             }
         sample_names_extra = ["1086S1_05", "1086S2_01", "1086S2_02", "1086S2_03"]
-        with open(self.exp_path, "w", newline="") as f_out:
+        with open(self.expected["experiment_path"], "w", newline="") as f_out:
             writer = csv.DictWriter(f_out, fieldnames)
             writer.writeheader()
-            for sample_name in self.sample_names:
+            for sample_name in self.expected["sample_names"]:
                 writer.writerow((exp_row(sample_name, self.project_name)))
             for sample_name in sample_names_extra:
                 writer.writerow((exp_row(sample_name, "ZZ_Another")))
@@ -752,9 +739,9 @@ class TestProjectDataPackage(TestProjectDataOneTask):
     file. (TestProjectDataCopy actually makes for a more thorough test.)
     """
 
-    def setUp(self):
+    def set_up_vars(self):
         self.task = "package"
-        super().setUp()
+        super().set_up_vars()
 
     def test_process(self):
         # The basic checks
@@ -769,9 +756,9 @@ class TestProjectDataUpload(TestProjectDataOneTask):
     test much, just that the URL is recorded as expected.
     """
 
-    def setUp(self):
+    def set_up_vars(self):
         self.task = "upload"
-        super().setUp()
+        super().set_up_vars()
 
     def test_process(self):
         # The basic checks
@@ -789,15 +776,12 @@ class TestProjectDataEmail(TestProjectDataOneTask):
     expected.
     """
 
-    def setUp(self):
+    def set_up_vars(self):
         self.task = "email"
-        if not hasattr(self, "msg_body"):
-            self.msg_body = "6a4ac9de2b9a60cf199533bb445698f7"
-        if not hasattr(self, "msg_html"):
-            self.msg_html = "60418f13707b73b32f0f7be4edd76fb4"
-        if not hasattr(self, "to_addrs_exp"):
-            self.to_addrs_exp = ["Name Lastname <name@example.com>"]
-        super().setUp()
+        super().set_up_vars()
+        self.expected["msg_body"] = "6a4ac9de2b9a60cf199533bb445698f7"
+        self.expected["msg_html"] = "60418f13707b73b32f0f7be4edd76fb4"
+        self.expected["to_addrs"] = ["Name Lastname <name@example.com>"]
 
     def test_process(self):
         # The basic checks
@@ -812,9 +796,9 @@ class TestProjectDataEmail(TestProjectDataOneTask):
         self.assertEqual(sorted(msg.keys()), keys_exp)
         subject_exp = "Illumina Run Processing Complete for %s" % \
             self.proj.work_dir
-        to_addrs_exp = self.to_addrs_exp
-        self.assertEqual(md5(msg["msg_body"]), self.msg_body)
-        self.assertEqual(md5(msg["msg_html"]), self.msg_html)
+        to_addrs_exp = self.expected["to_addrs"]
+        self.assertEqual(md5(msg["msg_body"]), self.expected["msg_body"])
+        self.assertEqual(md5(msg["msg_html"]), self.expected["msg_html"])
         self.assertEqual(msg["subject"], subject_exp)
         self.assertEqual(msg["to_addrs"], to_addrs_exp)
 
@@ -825,11 +809,11 @@ class TestProjectDataEmailOneName(TestProjectDataEmail):
     No difference.
     """
 
-    def setUp(self):
+    def set_up_vars(self):
+        super().set_up_vars()
         self.contacts_str = "Name <name@example.com>"
-        self.contacts = {"Name": "name@example.com"}
-        self.to_addrs_exp = ["Name <name@example.com>"]
-        super().setUp()
+        self.expected["to_addrs"] = ["Name <name@example.com>"]
+        self.expected["contacts"] = {"Name": "name@example.com"}
 
 
 class TestProjectDataEmailNoName(TestProjectDataEmail):
@@ -839,16 +823,16 @@ class TestProjectDataEmailNoName(TestProjectDataEmail):
     in the work_dir text, but nothing much else should change.
     """
 
-    def setUp(self):
+    def set_up_vars(self):
+        super().set_up_vars()
         self.contacts_str = "name@example.com"
-        self.contacts = {"name": "name@example.com"}
-        self.to_addrs_exp = ["name <name@example.com>"]
+        self.expected["contacts"] = {"name": "name@example.com"}
+        self.expected["to_addrs"] = ["name <name@example.com>"]
         # (Very slightly different workdir (lowercase "name") and thus download
         # URL and thus message checksums)
-        self.work_dir_exp = "2018-01-01-TestProject-name"
-        self.msg_body = "30c16605d9b5f3ddfb14ac50260c5812"
-        self.msg_html = "a58d68ea9d8e188b6764df254e680e96"
-        super().setUp()
+        self.expected["work_dir"] = "2018-01-01-TestProject-name"
+        self.expected["msg_body"] = "30c16605d9b5f3ddfb14ac50260c5812"
+        self.expected["msg_html"] = "a58d68ea9d8e188b6764df254e680e96"
 
 
 class TestProjectDataEmailNoContacts(TestProjectDataEmail):
@@ -862,14 +846,14 @@ class TestProjectDataEmailNoContacts(TestProjectDataEmail):
     but that's about it.
     """
 
-    def setUp(self):
+    def set_up_vars(self):
+        super().set_up_vars()
         self.contacts_str = ""
-        self.contacts = {}
-        self.to_addrs_exp = []
-        self.work_dir_exp = "2018-01-01-TestProject"
-        self.msg_body = "925bfb376b0a2bc2b6797ef992ddbb00"
-        self.msg_html = "e2a8c65f1d67ba6abd09caf2dddbc370"
-        super().setUp()
+        self.expected["contacts"] = {}
+        self.expected["to_addrs"] = []
+        self.expected["work_dir"] = "2018-01-01-TestProject"
+        self.expected["msg_body"] = "925bfb376b0a2bc2b6797ef992ddbb00"
+        self.expected["msg_html"] = "e2a8c65f1d67ba6abd09caf2dddbc370"
 
 
 # Other ProjectData test cases
@@ -879,7 +863,7 @@ class TestProjectDataFailure(TestProjectDataOneTask):
 
     The exception should reach the caller but the ProjectData object should do
     some cleanup of its own, trying to update its status to "failed" before
-    re-raising the exception.
+    re-raising the exception.  See also: TestProjectDataFail.
     """
 
     def setUp(self):
@@ -897,7 +881,7 @@ class TestProjectDataFailure(TestProjectDataOneTask):
         with self.assertRaises(FileExistsError):
             self.proj.process()
         self.assertEqual(self.proj.status, "failed")
-        self.assertEqual(self.proj.tasks_pending, self.tasks_run)
+        self.assertEqual(self.proj.tasks_pending, self.expected["tasks"])
         self.assertEqual(self.proj.tasks_completed, [])
         self.assertEqual(self.proj.task_current, "")
         self.assertTrue("failure_exception" in self.proj._metadata.keys())
@@ -909,18 +893,14 @@ class TestProjectDataFilesExist(TestProjectDataOneTask):
     We should log a warning about it and mark the ProjectData as readonly.
     """
 
-    def setUp(self):
+    def set_up_proj(self):
         # Here we'll get a warning from within __init__ about the unexpected
-        # subdirectory (see set_up_pre_project below).  We'll check other
-        # attributes in the tests.
+        # subdirectory.  We'll check other attributes in the tests.
+        (self.paths["proc"] /
+         self.expected["work_dir"] /
+         "subdir").mkdir(parents=True)
         with self.assertLogs(level=logging.WARNING):
-            super().setUp()
-
-    def set_up_pre_project(self):
-        """Hook to be run before initializing the ProjectData object itself."""
-        # Put something inside the processing directory that will trip up
-        # ProjectData initialization.
-        (self.paths["proc"] / self.work_dir_exp / "subdir").mkdir(parents=True)
+            super().set_up_proj()
 
     def test_readonly(self):
         """Test that readonly=True."""
@@ -951,24 +931,14 @@ class TestProjectDataMissingSamples(TestProjectDataOneTask):
         super().set_up_vars()
         # Include an extra sample in the experiment metadata spreadsheet that
         # won't be in the run data.
-        self.sample_names = [
+        self.expected["sample_names"] = [
             "1086S1_01", "1086S1_02", "1086S1_03", "1086S1_04", "somethingelse"]
 
     def set_up_proj(self):
         # The project should be initialized fine, but with a warning logged
         # about the sample name mismatch.
         with self.assertLogs(level=logging.WARNING):
-            projs = ProjectData.from_alignment(
-                self.alignment,
-                self.paths["exp"],
-                self.paths["status"],
-                self.paths["proc"],
-                self.paths["pack"],
-                self.uploader,
-                self.mailer)
-        for proj in projs:
-            if proj.name == self.project_name:
-                self.proj = proj
+            super().set_up_proj()
 
 
 class TestProjectDataNoSamples(TestProjectDataOneTask):
@@ -983,21 +953,11 @@ class TestProjectDataNoSamples(TestProjectDataOneTask):
         super().set_up_vars()
         # Include an extra sample in the experiment metadata spreadsheet that
         # won't be in the run data.
-        self.sample_names = ["somethingelse1", "somethingelse2"]
+        self.expected["sample_names"] = ["somethingelse1", "somethingelse2"]
 
     def set_up_proj(self):
         with self.assertLogs(level=logging.ERROR):
-            projs = ProjectData.from_alignment(
-                self.alignment,
-                self.paths["exp"],
-                self.paths["status"],
-                self.paths["proc"],
-                self.paths["pack"],
-                self.uploader,
-                self.mailer)
-        for proj in projs:
-            if proj.name == self.project_name:
-                self.proj = proj
+            super().set_up_proj()
 
     def test_status(self):
         self.assertEqual(self.proj.status, "failed")
@@ -1007,7 +967,7 @@ class TestProjectDataNoSamples(TestProjectDataOneTask):
         with self.assertRaises(ProjectError):
             self.proj.process()
         self.assertEqual(self.proj.status, "failed")
-        self.assertEqual(self.proj.tasks_pending, self.tasks_run)
+        self.assertEqual(self.proj.tasks_pending, self.expected["tasks"])
         self.assertEqual(self.proj.tasks_completed, [])
         self.assertEqual(self.proj.task_current, "")
 
@@ -1023,41 +983,27 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
     """
 
     def set_up_vars(self):
+        self.task = "merge"
+        super().set_up_vars()
         # merge needs trim.  This way we'll check both implicit-via-defaults
         # and implicit-via-dependencies.
-        self.task = "merge"
-        self.tasks_run = ["trim", self.task] + DEFAULT_TASKS
-        super().set_up_vars()
-
-    def set_up_proj(self):
-        self.tasks_config = {
+        self.expected["tasks"] = ["trim", self.task] + DEFAULT_TASKS
+        self.config = {
             "log_path": "RunDiagnostics/logs",
             "implicit_tasks_path": "RunDiagnostics/ImplicitTasks"
             }
-        projs = ProjectData.from_alignment(
-            self.alignment,
-            self.paths["exp"],
-            self.paths["status"],
-            self.paths["proc"],
-            self.paths["pack"],
-            self.uploader,
-            self.mailer,
-            conf=self.tasks_config)
-        for proj in projs:
-            if proj.name == self.project_name:
-                self.proj = proj
 
     def test_process(self):
         super().test_process()
         metadata_path = (
             self.proj.path_proc /
-            self.tasks_config["implicit_tasks_path"] /
+            self.config["implicit_tasks_path"] /
             "Metadata")
         self.assertTrue(metadata_path.exists())
         trim_path_default = self.proj.path_proc / "trimmed"
         trim_path = (
             self.proj.path_proc /
-            self.tasks_config["implicit_tasks_path"] /
+            self.config["implicit_tasks_path"] /
             "trimmed")
         merge_path = self.proj.path_proc / "PairedReads"
         # Trim path should have changed.  Merge path should have been left the
@@ -1070,7 +1016,7 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
         """Override default log path when checking to match config."""
         logpath = (
             self.proj.path_proc /
-            self.tasks_config["log_path"] /
+            self.config["log_path"] /
             ("log_"+self.task+".txt"))
         self.assertTrue(logpath.exists())
 
@@ -1085,29 +1031,15 @@ class TestProjectDataImplicitTasks(TestProjectDataOneTask):
     def set_up_vars(self):
         self.task = "trim"
         super().set_up_vars()
-
-    def set_up_proj(self):
-        self.tasks_config = {
+        self.config = {
             "implicit_tasks_path": "RunDiagnostics/ImplicitTasks"
             }
-        projs = ProjectData.from_alignment(
-            self.alignment,
-            self.paths["exp"],
-            self.paths["status"],
-            self.paths["proc"],
-            self.paths["pack"],
-            self.uploader,
-            self.mailer,
-            conf=self.tasks_config)
-        for proj in projs:
-            if proj.name == self.project_name:
-                self.proj = proj
 
     def test_process(self):
         super().test_process()
         metadata_path = (
             self.proj.path_proc /
-            self.tasks_config["implicit_tasks_path"] /
+            self.config["implicit_tasks_path"] /
             "Metadata")
         self.assertTrue(metadata_path.exists())
         # Trim path should not have changed.
@@ -1125,24 +1057,10 @@ class TestProjectDataExplicitTasks(TestProjectDataOneTask):
     def set_up_vars(self):
         self.task = "trim"
         super().set_up_vars()
-
-    def set_up_proj(self):
-        self.tasks_config = {
+        self.config = {
             "implicit_tasks_path": "RunDiagnostics/ImplicitTasks",
             "always_explicit_tasks": ["metadata"]
             }
-        projs = ProjectData.from_alignment(
-            self.alignment,
-            self.paths["exp"],
-            self.paths["status"],
-            self.paths["proc"],
-            self.paths["pack"],
-            self.uploader,
-            self.mailer,
-            conf=self.tasks_config)
-        for proj in projs:
-            if proj.name == self.project_name:
-                self.proj = proj
 
     def test_process(self):
         super().test_process()
@@ -1160,7 +1078,7 @@ class TestProjectDataBlank(TestProjectDataOneTask):
     """Test with no tasks at all.
 
     This just needs to confim that the TASK_NULL code correctly inserts "copy"
-    when nothing else is specified.  put it in self.tasks_run.
+    when nothing else is specified.  put it in self.expected["tasks"].
     """
 
 
