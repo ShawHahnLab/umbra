@@ -193,6 +193,11 @@ class Task(metaclass=__TaskParent):
             self.logf.close()
 
     @property
+    def work_dir_name(self):
+        """Project work_dir."""
+        return self.proj.work_dir
+
+    @property
     def log_path(self):
         """Path to log file for this task."""
         path = (self.proj.path_proc /

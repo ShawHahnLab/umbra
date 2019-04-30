@@ -9,17 +9,15 @@ class TaskEmail(task.Task):
     dependencies = ["upload"]
 
     def run(self):
-        # TODO reorganize mailer and metadata
         # Gather fields to fill in for the message
         # (The name prefix is considered OK by RFC822, so we should be able to
         # leave that intact for both the sending part and the "To:" field.)
-        contacts = self.proj._metadata["experiment_info"]["contacts"]
+        contacts = self.proj.contacts
         contacts = ["%s <%s>" % (k, contacts[k]) for k in contacts]
-        url = self.proj._metadata["task_output"].get("upload", {}).get("url", "")
-        subject = "Illumina Run Processing Complete for %s" % self.proj.work_dir
-        # Build message text and html
-        body = self.config["template_text"].format(work_dir=self.proj.work_dir, url=url)
-        html = self.config["template_html"].format(work_dir=self.proj.work_dir, url=url)
+        # Build subject, message text, and message body html
+        subject = self.config["template_subject"].format(self=self)
+        body = self.config["template_text"].format(self=self)
+        html = self.config["template_html"].format(self=self)
         # Send
         kwargs = {
             "to_addrs": contacts,
@@ -29,3 +27,10 @@ class TaskEmail(task.Task):
             }
         self.proj.mailer(**kwargs)
         return kwargs
+
+    @property
+    def url(self):
+        """URL reported by upload task."""
+        upload_output = self.proj.task_output.get("upload", {})
+        url = upload_output.get("url", "")
+        return url

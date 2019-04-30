@@ -202,6 +202,11 @@ class ProjectData:
         return self._metadata["work_dir"]
 
     @property
+    def contacts(self):
+        """Dictionary of user contact info from experiment metadata."""
+        return self._metadata["experiment_info"]["contacts"].copy()
+
+    @property
     def sample_paths(self):
         """Dict mapping sample names to filesystem paths."""
         paths = self._metadata["sample_paths"]

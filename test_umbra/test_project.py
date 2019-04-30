@@ -369,6 +369,10 @@ class TestProjectDataOneTask(TestBase):
         """Test the work_dir property string."""
         self.assertEqual(self.proj.work_dir, self.expected["work_dir"])
 
+    def test_contacts(self):
+        """Test the user contact info property dict."""
+        self.assertEqual(self.proj.contacts, self.expected["contacts"])
+
     def test_readonly(self):
         """Test the readonly property."""
         self.assertFalse(self.proj.readonly)
@@ -788,7 +792,7 @@ class TestProjectDataUpload(TestProjectDataOneTask):
         # The basic checks
         super().test_process()
         # After processing, there should be a URL recorded for the upload task.
-        url_obs = self.proj._metadata["task_output"]["upload"]["url"]
+        url_obs = self.proj.task_output["upload"]["url"]
         self.assertEqual(url_obs[0:8], "https://")
 
 
@@ -803,8 +807,10 @@ class TestProjectDataEmail(TestProjectDataOneTask):
     def set_up_vars(self):
         self.task = "email"
         super().set_up_vars()
-        self.expected["msg_body"] = "6a4ac9de2b9a60cf199533bb445698f7"
-        self.expected["msg_html"] = "60418f13707b73b32f0f7be4edd76fb4"
+        # These checksums are *after* replacing the variable temporary directory
+        # path with "TMP"; see make_paths_static helper method.
+        self.expected["msg_body"] = "8cf4e595625696a3c9829fb32f5134da"
+        self.expected["msg_html"] = "0a89d75d49d366c2a893a3717e554c21"
         self.expected["to_addrs"] = ["Name Lastname <name@example.com>"]
 
     def test_process(self):
@@ -821,10 +827,23 @@ class TestProjectDataEmail(TestProjectDataOneTask):
         subject_exp = "Illumina Run Processing Complete for %s" % \
             self.proj.work_dir
         to_addrs_exp = self.expected["to_addrs"]
-        self.assertEqual(md5(msg["msg_body"]), self.expected["msg_body"])
-        self.assertEqual(md5(msg["msg_html"]), self.expected["msg_html"])
         self.assertEqual(msg["subject"], subject_exp)
         self.assertEqual(msg["to_addrs"], to_addrs_exp)
+        self.assertEqual(
+            md5(self.make_paths_static(msg["msg_body"])),
+            self.expected["msg_body"])
+        self.assertEqual(
+            md5(self.make_paths_static(msg["msg_html"])),
+            self.expected["msg_html"])
+
+    def make_paths_static(self, txt):
+        """Simple find-and-replace on the variable temp dir path.
+
+        This makes the final output for text containing directories constant
+        and testable even though we're using temporary directories during
+        testing.
+        """
+        return txt.replace(str(self.paths["top"]), "TMP")
 
 
 class TestProjectDataEmailOneName(TestProjectDataEmail):
@@ -855,8 +874,8 @@ class TestProjectDataEmailNoName(TestProjectDataEmail):
         # (Very slightly different workdir (lowercase "name") and thus download
         # URL and thus message checksums)
         self.expected["work_dir"] = "2018-01-01-TestProject-name"
-        self.expected["msg_body"] = "30c16605d9b5f3ddfb14ac50260c5812"
-        self.expected["msg_html"] = "a58d68ea9d8e188b6764df254e680e96"
+        self.expected["msg_body"] = "b7288176f5b4d536d59a92aaf878c1b1"
+        self.expected["msg_html"] = "2feaeacc78a538e70faba27434758759"
 
 
 class TestProjectDataEmailNoContacts(TestProjectDataEmail):
@@ -876,8 +895,8 @@ class TestProjectDataEmailNoContacts(TestProjectDataEmail):
         self.expected["contacts"] = {}
         self.expected["to_addrs"] = []
         self.expected["work_dir"] = "2018-01-01-TestProject"
-        self.expected["msg_body"] = "925bfb376b0a2bc2b6797ef992ddbb00"
-        self.expected["msg_html"] = "e2a8c65f1d67ba6abd09caf2dddbc370"
+        self.expected["msg_body"] = "d53d45bd2e31e906e70e3f550e535145"
+        self.expected["msg_html"] = "809352d638a6713a20892885b7dccda0"
 
 
 # Other ProjectData test cases
@@ -1117,7 +1136,7 @@ class TestProjectDataBlank(TestProjectDataOneTask):
 
 @unittest.skip("not yet implemented")
 class TestProjectDataAlreadyProcessing(TestBase):
-    """Test project whose existing metadata points to an existant process.
+    """Test project whose existing metadata points to an existent process.
 
     We should abort in that case.
     """
