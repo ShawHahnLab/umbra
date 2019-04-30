@@ -67,6 +67,49 @@ task_options:
     assemble:
       # Min length of contigs to keep in filtered Geneious-ready form
       contig_length_min: 255
+    email:
+      # (This is for the email task specifically. For general email-sending
+      # configuration see the "mailer" header below.)
+      # These are the subject, plaintext body, and HTML body templates for
+      # outgoing notification emails when processing is complete.  (Most people
+      # will probably see the HTML one though we provide plaintext just in
+      # case).  Use curly braces around templated variables.  The task object
+      # is "self" when the template is filled in, so you can use references
+      # like:
+      #  * self.work_dir_name: "short name" of this dataset, like
+      #    "2019-04-26-project-person"
+      #  * self.url: file download URL as provided by the upload task.
+      template_subject: Illumina Run Processing Complete for {self.work_dir_name}
+      template_text: |
+        Hello,
+
+        Illumina run processing is complete for {self.work_dir_name}
+        and a zip file with results can be downloaded from this url:
+
+        {self.url}
+
+        ========================================
+
+          Run: {self.proj.alignment.run.run_id}
+          Experiment: {self.proj.alignment.experiment}
+          Processing Status: {self.proj.path}
+      template_html: |
+        Hello,
+        <br><br>
+
+        Illumina run processing is complete for {self.work_dir_name}
+        and a zip file with results can be downloaded from this url:
+        <br><br>
+
+        <a href='{self.url}'>{self.url}</a>
+        <br><br>
+
+        <small style="font-family: monospace; white-space: pre; color: gray;">
+          Run: {self.proj.alignment.run.run_id}
+          Experiment: {self.proj.alignment.experiment}
+          Processing Status: {self.proj.path}
+        </small>
+
 
 ##############################################################################
 # Options for the report displayed during the "report" action.

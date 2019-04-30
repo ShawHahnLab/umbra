@@ -115,6 +115,7 @@ class TestTask(TestTaskClass):
             nthreads=1,
             config={},
             sample_paths={"sample_name": ["R1.fastq.gz", "R2.fastq.gz"]},
+            work_dir="work_dir_name",
             experiment_info={"tasks": []}
             )
         # Expected values during tests
@@ -122,12 +123,19 @@ class TestTask(TestTaskClass):
             "nthreads": 1,
             "log_path": self.proj.path_proc / "logs/log_task.txt",
             "sample_paths": copy.deepcopy(self.proj.sample_paths),
+            "work_dir_name": "work_dir_name",
             "task_dir_parent": self.proj.path_proc
             }
         self.thing = task.Task({}, self.proj)
 
     def tearDown(self):
         self.tmpdir.cleanup()
+
+    def test_work_dir_name(self):
+        """Test work_dir_name attribute that should come from the project."""
+        self.assertEqual(
+            self.thing.work_dir_name,
+            self.expected["work_dir_name"])
 
     def test_log_path(self):
         """Test log path attribute."""
@@ -280,6 +288,7 @@ class TestTaskImplicit(TestTask):
             config={
                 "implicit_tasks_path": Path(self.tmpdir.name)/"proc/implicit"},
             sample_paths={"sample_name": ["R1.fastq.gz", "R2.fastq.gz"]},
+            work_dir="work_dir_name",
             # Note, no tasks are requested but we're using one named "task"
             # in the tests here, so it should be considered implicit.
             experiment_info={"tasks": []}
@@ -289,6 +298,7 @@ class TestTaskImplicit(TestTask):
             "nthreads": 1,
             "log_path": self.proj.path_proc / "logs/log_task.txt",
             "sample_paths": copy.deepcopy(self.proj.sample_paths),
+            "work_dir_name": "work_dir_name",
             "task_dir_parent": self.proj.path_proc / "implicit"
             }
         self.thing = task.Task({}, self.proj)

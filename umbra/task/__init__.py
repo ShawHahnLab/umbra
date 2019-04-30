@@ -15,7 +15,9 @@ import logging
 import inspect
 import subprocess
 import traceback
+import copy
 from pathlib import Path
+from .. import config, CONFIG
 from ..util import mkparent
 
 # requires on PATH:
@@ -170,21 +172,30 @@ class Task(metaclass=__TaskParent):
         info = fmt % (cls.name, cls.order, ", ".join(cls.dependencies), cls.source_path)
         return info
 
-    def __init__(self, config, proj):
+    def __init__(self, conf, proj):
         """Task object initlization.
 
         When a task is created it will be given a dictionary of configuration
         information and a project data object with a bundle of run information
         and metadata.  If you override __init__ be sure to
-        super().__init__(config, proj).
+        super().__init__(conf, proj).
         """
-        self.config = config
+        # Start off with any package-level defaults for this task
+        default_config = CONFIG["task_options"]["tasks"].get(self.name, {})
+        self.config = copy.deepcopy(default_config)
+        # Layer on the given config, if any.
+        config.update_tree(self.config, conf or {})
         self.proj = proj
         self.logf = None
 
     def __del__(self):
         if self.logf:
             self.logf.close()
+
+    @property
+    def work_dir_name(self):
+        """Project work_dir."""
+        return self.proj.work_dir
 
     @property
     def log_path(self):

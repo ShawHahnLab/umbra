@@ -192,9 +192,19 @@ class ProjectData:
         return self._metadata["experiment_info"]
 
     @property
+    def task_output(self):
+        """Dict of task output data."""
+        return self._metadata["task_output"]
+
+    @property
     def work_dir(self):
         """Short name for working directory, without path."""
         return self._metadata["work_dir"]
+
+    @property
+    def contacts(self):
+        """Dictionary of user contact info from experiment metadata."""
+        return self._metadata["experiment_info"]["contacts"].copy()
 
     @property
     def sample_paths(self):

@@ -235,7 +235,10 @@ class TestProjectDataOneTask(TestBase):
                 "1086S1_01",
                 "1086S1_02",
                 "1086S1_03",
-                "1086S1_04"]
+                "1086S1_04"],
+            "task_output": {t: {} for t in tasks},
+            "initial_status": "none",
+            "final_status": "complete"
             }
         self.rundir = "180101_M00000_0000_000000000-XXXXX"
 
@@ -346,9 +349,29 @@ class TestProjectDataOneTask(TestBase):
             self.proj.path,
             path_stat / (self.project_name + ".yml"))
 
+    def test_task_output(self):
+        """Test that the task output dictionary is as expected.
+
+        If processing is expected to complete successfully, we should see a
+        specific set of tasks named in the dictionary aftward.
+        """
+        self.assertEqual(self.proj.task_output, {})
+        self.test_process()
+        # Just checking for the same set of keys, by default.
+        if self.expected["final_status"] == "complete":
+            self.assertEqual(
+                sorted(self.proj.task_output.keys()),
+                sorted(self.expected["task_output"].keys()))
+        else:
+            self.assertEqual(self.proj.task_output, {})
+
     def test_work_dir(self):
         """Test the work_dir property string."""
         self.assertEqual(self.proj.work_dir, self.expected["work_dir"])
+
+    def test_contacts(self):
+        """Test the user contact info property dict."""
+        self.assertEqual(self.proj.contacts, self.expected["contacts"])
 
     def test_readonly(self):
         """Test the readonly property."""
@@ -357,7 +380,7 @@ class TestProjectDataOneTask(TestBase):
     def test_status(self):
         """Test the status property."""
         # Here, we started from scratch.
-        self.assertEqual(self.proj.status, "none")
+        self.assertEqual(self.proj.status, self.expected["initial_status"])
         # Is the setter protecting against invalid values?
         with self.assertRaises(ValueError):
             self.proj.status = "invalid status"
@@ -405,7 +428,7 @@ class TestProjectDataOneTask(TestBase):
         """Test that task status reported correctly after process()."""
         # test processing all tasks
         self.proj.process()
-        self.assertEqual(self.proj.status, "complete")
+        self.assertEqual(self.proj.status, self.expected["final_status"])
         self.assertEqual(self.proj.tasks_pending, [])
         self.assertEqual(self.proj.tasks_completed, self.expected["tasks"])
         self.assertEqual(self.proj.task_current, "")
@@ -420,12 +443,13 @@ class TestProjectDataFail(TestProjectDataOneTask):
     def set_up_vars(self):
         self.task = "fail"
         super().set_up_vars()
+        self.expected["final_status"] = "failed"
 
     def test_process(self):
         """Test that failure is caught and reported correctly in process()."""
         with self.assertRaises(ProjectError):
             self.proj.process()
-        self.assertEqual(self.proj.status, "failed")
+        self.assertEqual(self.proj.status, self.expected["final_status"])
         self.assertEqual(self.proj.tasks_pending, DEFAULT_TASKS)
         self.assertEqual(self.proj.tasks_completed, [])
         self.assertEqual(self.proj.task_current, self.task)
@@ -511,6 +535,7 @@ class TestProjectDataMerge(TestProjectDataOneTask):
         super().set_up_vars()
         # trim is a dependency of merge.
         self.expected["tasks"] = ["trim", self.task] + DEFAULT_TASKS
+        self.expected["task_output"] = {t: {} for t in self.expected["tasks"]}
 
     def test_process(self):
         """Test that the merge task completed as expected."""
@@ -565,6 +590,7 @@ class TestProjectDataSpades(TestProjectDataOneTask):
         super().set_up_vars()
         # trim and merge are dependencies of assemble.
         self.expected["tasks"] = ["trim", "merge", self.task] + DEFAULT_TASKS
+        self.expected["task_output"] = {t: {} for t in self.expected["tasks"]}
 
     def test_process(self):
         """Test that the spades task completed as expected."""
@@ -594,6 +620,7 @@ class TestProjectDataAssemble(TestProjectDataOneTask):
         super().set_up_vars()
         # trim and merge are dependencies of assemble.
         self.expected["tasks"] = ["trim", "merge", "spades", self.task] + DEFAULT_TASKS
+        self.expected["task_output"] = {t: {} for t in self.expected["tasks"]}
 
     def test_process(self):
         """Test that the assemble task completed as expected."""
@@ -655,6 +682,7 @@ class TestProjectDataGeneious(TestProjectDataOneTask):
             }
         self.expected["tasks"] = ["trim", "merge", "spades", "assemble",
                                   "geneious"] + DEFAULT_TASKS
+        self.expected["task_output"] = {t: {} for t in self.expected["tasks"]}
 
     def finish_manual(self):
         """Helper for manual processing test in test_process."""
@@ -764,7 +792,7 @@ class TestProjectDataUpload(TestProjectDataOneTask):
         # The basic checks
         super().test_process()
         # After processing, there should be a URL recorded for the upload task.
-        url_obs = self.proj._metadata["task_output"]["upload"]["url"]
+        url_obs = self.proj.task_output["upload"]["url"]
         self.assertEqual(url_obs[0:8], "https://")
 
 
@@ -779,8 +807,10 @@ class TestProjectDataEmail(TestProjectDataOneTask):
     def set_up_vars(self):
         self.task = "email"
         super().set_up_vars()
-        self.expected["msg_body"] = "6a4ac9de2b9a60cf199533bb445698f7"
-        self.expected["msg_html"] = "60418f13707b73b32f0f7be4edd76fb4"
+        # These checksums are *after* replacing the variable temporary directory
+        # path with "TMP"; see make_paths_static helper method.
+        self.expected["msg_body"] = "8cf4e595625696a3c9829fb32f5134da"
+        self.expected["msg_html"] = "0a89d75d49d366c2a893a3717e554c21"
         self.expected["to_addrs"] = ["Name Lastname <name@example.com>"]
 
     def test_process(self):
@@ -797,10 +827,23 @@ class TestProjectDataEmail(TestProjectDataOneTask):
         subject_exp = "Illumina Run Processing Complete for %s" % \
             self.proj.work_dir
         to_addrs_exp = self.expected["to_addrs"]
-        self.assertEqual(md5(msg["msg_body"]), self.expected["msg_body"])
-        self.assertEqual(md5(msg["msg_html"]), self.expected["msg_html"])
         self.assertEqual(msg["subject"], subject_exp)
         self.assertEqual(msg["to_addrs"], to_addrs_exp)
+        self.assertEqual(
+            md5(self.make_paths_static(msg["msg_body"])),
+            self.expected["msg_body"])
+        self.assertEqual(
+            md5(self.make_paths_static(msg["msg_html"])),
+            self.expected["msg_html"])
+
+    def make_paths_static(self, txt):
+        """Simple find-and-replace on the variable temp dir path.
+
+        This makes the final output for text containing directories constant
+        and testable even though we're using temporary directories during
+        testing.
+        """
+        return txt.replace(str(self.paths["top"]), "TMP")
 
 
 class TestProjectDataEmailOneName(TestProjectDataEmail):
@@ -831,8 +874,8 @@ class TestProjectDataEmailNoName(TestProjectDataEmail):
         # (Very slightly different workdir (lowercase "name") and thus download
         # URL and thus message checksums)
         self.expected["work_dir"] = "2018-01-01-TestProject-name"
-        self.expected["msg_body"] = "30c16605d9b5f3ddfb14ac50260c5812"
-        self.expected["msg_html"] = "a58d68ea9d8e188b6764df254e680e96"
+        self.expected["msg_body"] = "b7288176f5b4d536d59a92aaf878c1b1"
+        self.expected["msg_html"] = "2feaeacc78a538e70faba27434758759"
 
 
 class TestProjectDataEmailNoContacts(TestProjectDataEmail):
@@ -852,8 +895,8 @@ class TestProjectDataEmailNoContacts(TestProjectDataEmail):
         self.expected["contacts"] = {}
         self.expected["to_addrs"] = []
         self.expected["work_dir"] = "2018-01-01-TestProject"
-        self.expected["msg_body"] = "925bfb376b0a2bc2b6797ef992ddbb00"
-        self.expected["msg_html"] = "e2a8c65f1d67ba6abd09caf2dddbc370"
+        self.expected["msg_body"] = "d53d45bd2e31e906e70e3f550e535145"
+        self.expected["msg_html"] = "809352d638a6713a20892885b7dccda0"
 
 
 # Other ProjectData test cases
@@ -872,6 +915,7 @@ class TestProjectDataFailure(TestProjectDataOneTask):
         # it wants to use.  Let's make sure it fails, but in the way we expect.
         util.mkparent(self.proj.path_proc)
         self.proj.path_proc.touch(mode=0o000)
+        self.expected["final_status"] = "failed"
 
     def test_process(self):
         """Test that process() fails in the expected way.
@@ -880,7 +924,7 @@ class TestProjectDataFailure(TestProjectDataOneTask):
         process and also record the exception details."""
         with self.assertRaises(FileExistsError):
             self.proj.process()
-        self.assertEqual(self.proj.status, "failed")
+        self.assertEqual(self.proj.status, self.expected["final_status"])
         self.assertEqual(self.proj.tasks_pending, self.expected["tasks"])
         self.assertEqual(self.proj.tasks_completed, [])
         self.assertEqual(self.proj.task_current, "")
@@ -892,6 +936,11 @@ class TestProjectDataFilesExist(TestProjectDataOneTask):
 
     We should log a warning about it and mark the ProjectData as readonly.
     """
+
+    def set_up_vars(self):
+        super().set_up_vars()
+        self.expected["initial_status"] = "none"
+        self.expected["final_status"] = "none"
 
     def set_up_proj(self):
         # Here we'll get a warning from within __init__ about the unexpected
@@ -908,7 +957,7 @@ class TestProjectDataFilesExist(TestProjectDataOneTask):
 
     def test_status(self):
         """Test that status attribute works but file is not written."""
-        self.assertEqual(self.proj.status, "none")
+        self.assertEqual(self.proj.status, self.expected["initial_status"])
         # We won't touch anything on disk in this case due to the readyonly
         # flag.
         self.assertFalse(self.proj.path.exists())
@@ -954,19 +1003,21 @@ class TestProjectDataNoSamples(TestProjectDataOneTask):
         # Include an extra sample in the experiment metadata spreadsheet that
         # won't be in the run data.
         self.expected["sample_names"] = ["somethingelse1", "somethingelse2"]
+        self.expected["initial_status"] = "failed"
+        self.expected["final_status"] = "failed"
 
     def set_up_proj(self):
         with self.assertLogs(level=logging.ERROR):
             super().set_up_proj()
 
     def test_status(self):
-        self.assertEqual(self.proj.status, "failed")
+        self.assertEqual(self.proj.status, self.expected["initial_status"])
 
     def test_process(self):
         """Test that process()ing a failed project is not allowed."""
         with self.assertRaises(ProjectError):
             self.proj.process()
-        self.assertEqual(self.proj.status, "failed")
+        self.assertEqual(self.proj.status, self.expected["final_status"])
         self.assertEqual(self.proj.tasks_pending, self.expected["tasks"])
         self.assertEqual(self.proj.tasks_completed, [])
         self.assertEqual(self.proj.task_current, "")
@@ -988,6 +1039,7 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
         # merge needs trim.  This way we'll check both implicit-via-defaults
         # and implicit-via-dependencies.
         self.expected["tasks"] = ["trim", self.task] + DEFAULT_TASKS
+        self.expected["task_output"] = {t: {} for t in self.expected["tasks"]}
         self.config = {
             "log_path": "RunDiagnostics/logs",
             "implicit_tasks_path": "RunDiagnostics/ImplicitTasks"
@@ -1084,7 +1136,7 @@ class TestProjectDataBlank(TestProjectDataOneTask):
 
 @unittest.skip("not yet implemented")
 class TestProjectDataAlreadyProcessing(TestBase):
-    """Test project whose existing metadata points to an existant process.
+    """Test project whose existing metadata points to an existent process.
 
     We should abort in that case.
     """
