@@ -235,7 +235,10 @@ class TestProjectDataOneTask(TestBase):
                 "1086S1_01",
                 "1086S1_02",
                 "1086S1_03",
-                "1086S1_04"]
+                "1086S1_04"],
+            "task_output": {t: {} for t in tasks},
+            "initial_status": "none",
+            "final_status": "complete"
             }
         self.rundir = "180101_M00000_0000_000000000-XXXXX"
 
@@ -346,6 +349,22 @@ class TestProjectDataOneTask(TestBase):
             self.proj.path,
             path_stat / (self.project_name + ".yml"))
 
+    def test_task_output(self):
+        """Test that the task output dictionary is as expected.
+
+        If processing is expected to complete successfully, we should see a
+        specific set of tasks named in the dictionary aftward.
+        """
+        self.assertEqual(self.proj.task_output, {})
+        self.test_process()
+        # Just checking for the same set of keys, by default.
+        if self.expected["final_status"] == "complete":
+            self.assertEqual(
+                sorted(self.proj.task_output.keys()),
+                sorted(self.expected["task_output"].keys()))
+        else:
+            self.assertEqual(self.proj.task_output, {})
+
     def test_work_dir(self):
         """Test the work_dir property string."""
         self.assertEqual(self.proj.work_dir, self.expected["work_dir"])
@@ -357,7 +376,7 @@ class TestProjectDataOneTask(TestBase):
     def test_status(self):
         """Test the status property."""
         # Here, we started from scratch.
-        self.assertEqual(self.proj.status, "none")
+        self.assertEqual(self.proj.status, self.expected["initial_status"])
         # Is the setter protecting against invalid values?
         with self.assertRaises(ValueError):
             self.proj.status = "invalid status"
@@ -405,7 +424,7 @@ class TestProjectDataOneTask(TestBase):
         """Test that task status reported correctly after process()."""
         # test processing all tasks
         self.proj.process()
-        self.assertEqual(self.proj.status, "complete")
+        self.assertEqual(self.proj.status, self.expected["final_status"])
         self.assertEqual(self.proj.tasks_pending, [])
         self.assertEqual(self.proj.tasks_completed, self.expected["tasks"])
         self.assertEqual(self.proj.task_current, "")
@@ -420,12 +439,13 @@ class TestProjectDataFail(TestProjectDataOneTask):
     def set_up_vars(self):
         self.task = "fail"
         super().set_up_vars()
+        self.expected["final_status"] = "failed"
 
     def test_process(self):
         """Test that failure is caught and reported correctly in process()."""
         with self.assertRaises(ProjectError):
             self.proj.process()
-        self.assertEqual(self.proj.status, "failed")
+        self.assertEqual(self.proj.status, self.expected["final_status"])
         self.assertEqual(self.proj.tasks_pending, DEFAULT_TASKS)
         self.assertEqual(self.proj.tasks_completed, [])
         self.assertEqual(self.proj.task_current, self.task)
@@ -511,6 +531,7 @@ class TestProjectDataMerge(TestProjectDataOneTask):
         super().set_up_vars()
         # trim is a dependency of merge.
         self.expected["tasks"] = ["trim", self.task] + DEFAULT_TASKS
+        self.expected["task_output"] = {t: {} for t in self.expected["tasks"]}
 
     def test_process(self):
         """Test that the merge task completed as expected."""
@@ -565,6 +586,7 @@ class TestProjectDataSpades(TestProjectDataOneTask):
         super().set_up_vars()
         # trim and merge are dependencies of assemble.
         self.expected["tasks"] = ["trim", "merge", self.task] + DEFAULT_TASKS
+        self.expected["task_output"] = {t: {} for t in self.expected["tasks"]}
 
     def test_process(self):
         """Test that the spades task completed as expected."""
@@ -594,6 +616,7 @@ class TestProjectDataAssemble(TestProjectDataOneTask):
         super().set_up_vars()
         # trim and merge are dependencies of assemble.
         self.expected["tasks"] = ["trim", "merge", "spades", self.task] + DEFAULT_TASKS
+        self.expected["task_output"] = {t: {} for t in self.expected["tasks"]}
 
     def test_process(self):
         """Test that the assemble task completed as expected."""
@@ -655,6 +678,7 @@ class TestProjectDataGeneious(TestProjectDataOneTask):
             }
         self.expected["tasks"] = ["trim", "merge", "spades", "assemble",
                                   "geneious"] + DEFAULT_TASKS
+        self.expected["task_output"] = {t: {} for t in self.expected["tasks"]}
 
     def finish_manual(self):
         """Helper for manual processing test in test_process."""
@@ -872,6 +896,7 @@ class TestProjectDataFailure(TestProjectDataOneTask):
         # it wants to use.  Let's make sure it fails, but in the way we expect.
         util.mkparent(self.proj.path_proc)
         self.proj.path_proc.touch(mode=0o000)
+        self.expected["final_status"] = "failed"
 
     def test_process(self):
         """Test that process() fails in the expected way.
@@ -880,7 +905,7 @@ class TestProjectDataFailure(TestProjectDataOneTask):
         process and also record the exception details."""
         with self.assertRaises(FileExistsError):
             self.proj.process()
-        self.assertEqual(self.proj.status, "failed")
+        self.assertEqual(self.proj.status, self.expected["final_status"])
         self.assertEqual(self.proj.tasks_pending, self.expected["tasks"])
         self.assertEqual(self.proj.tasks_completed, [])
         self.assertEqual(self.proj.task_current, "")
@@ -892,6 +917,11 @@ class TestProjectDataFilesExist(TestProjectDataOneTask):
 
     We should log a warning about it and mark the ProjectData as readonly.
     """
+
+    def set_up_vars(self):
+        super().set_up_vars()
+        self.expected["initial_status"] = "none"
+        self.expected["final_status"] = "none"
 
     def set_up_proj(self):
         # Here we'll get a warning from within __init__ about the unexpected
@@ -908,7 +938,7 @@ class TestProjectDataFilesExist(TestProjectDataOneTask):
 
     def test_status(self):
         """Test that status attribute works but file is not written."""
-        self.assertEqual(self.proj.status, "none")
+        self.assertEqual(self.proj.status, self.expected["initial_status"])
         # We won't touch anything on disk in this case due to the readyonly
         # flag.
         self.assertFalse(self.proj.path.exists())
@@ -954,19 +984,21 @@ class TestProjectDataNoSamples(TestProjectDataOneTask):
         # Include an extra sample in the experiment metadata spreadsheet that
         # won't be in the run data.
         self.expected["sample_names"] = ["somethingelse1", "somethingelse2"]
+        self.expected["initial_status"] = "failed"
+        self.expected["final_status"] = "failed"
 
     def set_up_proj(self):
         with self.assertLogs(level=logging.ERROR):
             super().set_up_proj()
 
     def test_status(self):
-        self.assertEqual(self.proj.status, "failed")
+        self.assertEqual(self.proj.status, self.expected["initial_status"])
 
     def test_process(self):
         """Test that process()ing a failed project is not allowed."""
         with self.assertRaises(ProjectError):
             self.proj.process()
-        self.assertEqual(self.proj.status, "failed")
+        self.assertEqual(self.proj.status, self.expected["final_status"])
         self.assertEqual(self.proj.tasks_pending, self.expected["tasks"])
         self.assertEqual(self.proj.tasks_completed, [])
         self.assertEqual(self.proj.task_current, "")
@@ -988,6 +1020,7 @@ class TestProjectDataPathConfig(TestProjectDataOneTask):
         # merge needs trim.  This way we'll check both implicit-via-defaults
         # and implicit-via-dependencies.
         self.expected["tasks"] = ["trim", self.task] + DEFAULT_TASKS
+        self.expected["task_output"] = {t: {} for t in self.expected["tasks"]}
         self.config = {
             "log_path": "RunDiagnostics/logs",
             "implicit_tasks_path": "RunDiagnostics/ImplicitTasks"
