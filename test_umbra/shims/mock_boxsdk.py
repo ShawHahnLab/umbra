@@ -7,6 +7,7 @@ Mock-up of the boxsdk package for testing.
 # https://medium.com/@yeraydiazdiaz/what-the-mock-cheatsheet-mocking-in-python-6a71db997832
 
 from unittest.mock import (Mock, create_autospec, DEFAULT)
+from requests.exceptions import ConnectionError as RequestsConnectionError
 import boxsdk
 import boxsdk.exception
 
@@ -34,7 +35,9 @@ def setup_network_blip(numfails=1):
             FOLDER.uploads = 0
         try:
             if FOLDER.uploads < numfails:
-                raise OSError(32)
+                # Use the exception seen from the requests package, just like
+                # boxsdk actually does
+                raise RequestsConnectionError()
         finally:
             FOLDER.uploads += 1
         return DEFAULT
