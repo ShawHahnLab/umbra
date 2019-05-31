@@ -6,6 +6,7 @@ See BoxUploader for usage details.
 
 import re
 import logging
+import time
 import datetime
 import subprocess
 from pathlib import Path
@@ -117,10 +118,43 @@ class BoxUploader:
             name = path.name
         # Possibly add a call to folder.canUpload() to make sure it would work,
         # first.
-        box_file = self.folder.upload(str(path), name)
+        box_file = self.__ft_upload(path, name)
         url = box_file.get_shared_link_download_url(access="open")
         self.logger.info("File uploaded: %s", str(path))
         return url
+
+    def __ft_upload(self, path, name, tries=3):
+        """Fault-tolerant upload.
+
+        Try a few times, intercepting and logging any sort of IOError
+        encountered during each try.
+        """
+        # Vaguely based on:
+        # https://medium.com/@echohack/patterns-with-python-poll-an-api-832173a03e93
+        upload_error = None
+        box_file = None
+        time_delta = 4
+        time_mult = 2
+        for trynum in range(tries):
+            try:
+                box_file = self.folder.upload(str(path), name)
+            except IOError as err:
+                # (requests.exception.RequestException and all the rest are
+                # subclasses of IOError)
+                upload_error = err
+                self.logger.warning("Upload attempt %d failed", trynum+1)
+                time.sleep(time_delta)
+                time_delta *= time_mult
+            else:
+                if trynum > 0:
+                    self.logger.warning("Upload attempt %d succeeded", trynum+1)
+                break
+        else:
+            self.logger.error(
+                "Upload attempts exhausted (%s)",
+                upload_error.__class__.__name__)
+            raise upload_error
+        return box_file
 
     def list(self, chunk=100):
         """List of file and folder objects in the uploader folder."""
