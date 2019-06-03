@@ -5,3 +5,4 @@ box:
   strict_auth: True # don't hang on credentials setup
 mailer:
   skip: True
+save_report: null
