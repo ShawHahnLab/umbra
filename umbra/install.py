@@ -70,11 +70,12 @@ def _install_dir(path, uid=-1, gid=-1, mode=None):
     else:
         LOGGER.info("Setting up directory %s (uid %s, gid %s)", path, uid, gid)
     if DRYRUN:
-        return
+        return path
     os.makedirs(path, exist_ok=True)
     os.chown(path, uid, gid)
     if not mode is None:
         os.chmod(path, mode)
+    return path
 
 def _cmd(args):
     """Simple wrapper to call an external command."""
@@ -205,10 +206,11 @@ def _setup_paths(config_data, uid, gid):
     created = set()
     # Configure log path to be writable for syslog
     # https://serverfault.com/a/527088
-    log_path = Path("/var/log/umbra")
-    log_gid = grp.getgrnam("syslog").gr_gid
-    _install_dir(log_path, uid, log_gid, 0o775)
-    created.add(log_path)
+    created.add(_install_dir(
+        path=Path("/var/log/umbra"),
+        uid=uid,
+        gid=grp.getgrnam("syslog").gr_gid,
+        mode=0o775))
     # First set up the basic directory paths.
     root = Path(config_data["paths"]["root"])
     _path = config_data["paths"]
@@ -221,8 +223,7 @@ def _setup_paths(config_data, uid, gid):
     for path, _uid, _gid, mode in path_entries:
         if not Path(path).is_absolute():
             path = root / path
-        _install_dir(path, _uid, _gid, mode)
-        created.add(path)
+        created.add(_install_dir(path, _uid, _gid, mode))
     # Set up the parents of these file entries with appropriate permissions.
     others = [
         ("save_report", "path", 0o755),
