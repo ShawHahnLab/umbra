@@ -1,11 +1,12 @@
 import setuptools
+import umbra
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="umbra",
-    version="0.0.1",
+    version=umbra.__version__,
     description="A package and executable for handling Illumina sequencing runs",
     long_description=long_description,
     long_description_content_type="text/markdown",
