@@ -17,6 +17,6 @@ metadata on disk.
 """
 
 from . import config
+from .version import __version__
 
-__version__ = "0.0.1"
 CONFIG = config.layer_configs([config.path_for_config()])
