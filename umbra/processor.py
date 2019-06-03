@@ -89,10 +89,10 @@ class IlluminaProcessor:
         if path and Path(path).exists():
             creds = yaml_load(path)
             update_tree(config_mail, creds)
-            self.mailerobj = Mailer(**config_mail)
+            self.mailerobj = Mailer(config_mail)
             self.mailer = self.mailerobj.mail
         elif config_mail and not config_mail.get("skip"):
-            self.mailerobj = Mailer(**config_mail)
+            self.mailerobj = Mailer(config_mail)
             self.mailer = self.mailerobj.mail
         else:
             msg = "No Mailer configuration given; skipping emails."
