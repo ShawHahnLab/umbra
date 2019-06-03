@@ -12,13 +12,17 @@ import signal
 import traceback
 import logging
 import csv
+import copy
 from pathlib import Path
+from . import CONFIG
 from . import project
 from .box_uploader import BoxUploader
 from .mailer import Mailer
 from .config import update_tree
 from .illumina.run import Run
 from .util import yaml_load, mkparent
+
+LOGGER = logging.getLogger(__name__)
 
 class IlluminaProcessor:
     """
@@ -48,85 +52,91 @@ class IlluminaProcessor:
                 "Group"]
 
 
-    def __init__(self, path, config=None):
-        self.logger = logging.getLogger(__name__)
-        self.logger.debug("IlluminaProcessor initializing...")
-        if config is None:
-            config = {}
-        self.config = config
+    def __init__(self, path, conf=None):
+        LOGGER.debug("IlluminaProcessor initializing...")
+        self.conf = copy.deepcopy(CONFIG)
+        update_tree(self.conf, conf or {})
         self.path = Path(path).resolve(strict=True)
-        paths = config.get("paths", {})
-        self.path_runs = self._init_path(paths.get("runs", "runs"))
-        self.path_exp = self._init_path(paths.get("experiments", "experiments"))
-        self.path_status = self._init_path(paths.get("status", "status"))
-        self.path_proc = self._init_path(paths.get("processed", "processed"))
-        self.path_pack = self._init_path(paths.get("packaged", "packaged"))
-        self.nthreads = config.get("nthreads", 1)
-        self.nthreads_per_project = config.get("nthreads_per_project", 1)
-        self.readonly = config.get("readonly")
-        self._init_data()
-        self._init_job_queue()
-        self._init_completion_queue()
+        paths = conf.get("paths", {})
+        self.paths = {
+            "runs": self._init_path(paths.get("runs", "runs")),
+            "exp": self._init_path(paths.get("experiments", "experiments")),
+            "status": self._init_path(paths.get("status", "status")),
+            "proc": self._init_path(paths.get("processed", "processed")),
+            "pack": self._init_path(paths.get("packaged", "packaged"))
+            }
+
+        # seqinfo dict references run and project information
+        self.seqinfo = self._init_seqinfo()
+        # procstatus dict contains info on processing threads and queues
+        self.procstatus = self._init_procstatus()
         # If a path to Box credentials was supplied, use a real uploader.
         # Otherwise just use a stub.
-        config_box = config.get("box", {})
-        path = config_box.get("credentials_path")
+        conf_box = conf.get("box", {})
+        path = conf_box.get("credentials_path")
         if path and Path(path).exists():
-            self.box = BoxUploader(path, config_box)
-            self.uploader = self.box.upload
+            self.box = BoxUploader(path, conf_box)
         else:
             msg = "No Box configuration given; skipping uploads."
-            if self.readonly or config_box.get("skip"):
-                self.logger.debug(msg)
+            if self.readonly or conf_box.get("skip"):
+                LOGGER.debug(msg)
             else:
-                self.logger.warning(msg)
-            self.uploader = lambda path: "https://"+str(path)
+                LOGGER.warning(msg)
+            self.box = lambda: None
+            self.box.upload = lambda path: "https://"+str(path)
         # If mail-sending options were specified, use a real mailer.
         # Otherwise just use a stub.
         # Options can be listed as a separate credentials file or just inline.
-        config_mail = config.get("mailer", {})
-        path = config_mail.get("credentials_path")
+        conf_mail = conf.get("mailer", {})
+        path = conf_mail.get("credentials_path")
         if path and Path(path).exists():
             creds = yaml_load(path)
-            update_tree(config_mail, creds)
-            self.mailerobj = Mailer(**config_mail)
-            self.mailer = self.mailerobj.mail
-        elif config_mail and not config_mail.get("skip"):
-            self.mailerobj = Mailer(**config_mail)
-            self.mailer = self.mailerobj.mail
+            update_tree(conf_mail, creds)
+            self.mailerobj = Mailer(conf_mail)
+        elif conf_mail and not conf_mail.get("skip"):
+            self.mailerobj = Mailer(conf_mail)
         else:
             msg = "No Mailer configuration given; skipping emails."
-            if self.readonly or config_mail.get("skip"):
-                self.logger.debug(msg)
+            if self.readonly or conf_mail.get("skip"):
+                LOGGER.debug(msg)
             else:
-                self.logger.warning(msg)
-            self.mailer = lambda *args, **kwargs: None
-        self.logger.debug("IlluminaProcessor initialized.")
+                LOGGER.warning(msg)
+            self.mailerobj = lambda: None
+            self.mailerobj.mail = lambda *args, **kwargs: None
+        LOGGER.debug("IlluminaProcessor initialized.")
 
     def __del__(self):
         self.wait_for_jobs()
 
+    @property
+    def readonly(self):
+        """Is the processor configured to view only and not process?"""
+        return self.conf.get("readonly", False)
+
+    @property
+    def running(self):
+        """Is the processing currently running?"""
+        return getattr(self, "procstatus", {}).get("running")
+
     def wait_for_jobs(self):
         """Wait for running jobs to finish."""
-        self.logger.debug("wait_for_jobs started")
-        readonly = getattr(self, "readonly", None)
-        running = getattr(self, "running", None)
-        qjobs = getattr(self, "_queue_jobs", None)
-        if qjobs and running and not readonly:
+        LOGGER.debug("wait_for_jobs started")
+        pstat = getattr(self, "procstatus", {})
+        qjobs = pstat.get("queue_jobs")
+        if qjobs and self.running and not self.readonly:
             # join blocks until all tasks are done, as defined by task_done()
             # getting called.  So this will wait until everything placed on the
             # queue is both taken by a worker and finished processing.
             qjobs.join()
-        qcomp = getattr(self, "_queue_completion", None)
-        if qcomp:
+        if pstat.get("queue_completion"):
             self._update_queue_completion()
-        self.logger.debug("wait_for_jobs completed")
+        LOGGER.debug("wait_for_jobs completed")
 
     def load(self, wait=False):
         """Load all run and project data from scratch."""
         if self.running:
             self.wait_for_jobs()
-        self._init_data()
+        self.seqinfo = self._init_seqinfo()
         self.refresh(wait)
 
     def refresh(self, wait=False):
@@ -140,10 +150,10 @@ class IlluminaProcessor:
 
         If wait is True, wait_for_jobs() will be called at the end so that any
         newly-scheduled jobs complete before the function returns."""
-        self.logger.debug("refresh started")
+        LOGGER.debug("refresh started")
         # Refresh existing runs
-        for run in self.runs:
-            self.logger.debug("refresh run: %s", run.run_id)
+        for run in self.seqinfo["runs"]:
+            LOGGER.debug("refresh run: %s", run.run_id)
             run.refresh()
         # Load new runs, with callback _proc_new_alignment
         self._load_new_runs()
@@ -152,12 +162,12 @@ class IlluminaProcessor:
         self._update_queue_completion()
         if wait:
             self.wait_for_jobs()
-        self.logger.debug("refresh completed")
+        LOGGER.debug("refresh completed")
 
     def start(self):
         """Start the worker threads."""
-        self.running = True
-        for thread in self._threads:
+        self.procstatus["running"] = True
+        for thread in self.procstatus["threads"]:
             try:
                 thread.start()
             except RuntimeError:
@@ -168,7 +178,7 @@ class IlluminaProcessor:
 
         This will not interrupt jobs or stop processing from the queue, but
         will stop a watch_and_process loop."""
-        self._queue_cmd.put("finish_up")
+        self.procstatus["queue_cmd"].put("finish_up")
 
     def is_finishing_up(self):
         """Is a finish_up task in the command queue?
@@ -176,7 +186,7 @@ class IlluminaProcessor:
         This comes with all the caveats of checking the queue state without
         popping an item from it, but should be good enough for a quick
         check."""
-        return "finish_up" in self._queue_cmd.queue
+        return "finish_up" in self.procstatus["queue_cmd"].queue
 
     def watch_and_process(self, poll=5, wait=False):
         """Refresh continually, optionally waiting for completion each cycle.
@@ -187,40 +197,39 @@ class IlluminaProcessor:
         self.start()
         finish_up = False
         cmd = None
-        self._queue_cmd = queue.Queue()
         signal.signal(signal.SIGINT, self._cb_signal_handler)
         signal.signal(signal.SIGTERM, self._cb_signal_handler)
         signal.signal(signal.SIGHUP, self._cb_signal_handler)
         signal.signal(signal.SIGUSR1, self._cb_signal_handler)
         signal.signal(signal.SIGUSR2, self._cb_signal_handler)
-        self.logger.debug("starting processing loop")
+        LOGGER.debug("starting processing loop")
         while not finish_up:
-            self.logger.debug("starting process cycle")
+            LOGGER.debug("starting process cycle")
             # The usual loop iteration is to refresh (unless we just did a full
             # reload on a previous cycle), update the report, and sleep for a
             # bit.
             if not cmd == "reload":
-                self.logger.debug("refreshing")
+                LOGGER.debug("refreshing")
                 self.refresh(wait)
-            report_args = self.config.get("save_report")
+            report_args = self.conf.get("save_report")
             if report_args:
                 self.save_report(**report_args)
             time.sleep(poll)
             # Next any commands (such as caught from signals) are processed.
             try:
                 while True:
-                    self.logger.debug("reading commands")
-                    cmd = self._queue_cmd.get_nowait()
+                    LOGGER.debug("reading commands")
+                    cmd = self.procstatus["queue_cmd"].get_nowait()
                     if cmd == "reload":
-                        self.logger.debug("cmd found: reloading")
+                        LOGGER.debug("cmd found: reloading")
                         self.load(wait)
                     elif cmd == "finish_up":
-                        self.logger.debug("cmd found: finishing up")
+                        LOGGER.debug("cmd found: finishing up")
                         finish_up = True
             except queue.Empty:
-                self.logger.debug("done reading commands")
-            self.logger.debug("finishing process cycle")
-        self.logger.debug("exited processing loop")
+                LOGGER.debug("done reading commands")
+            LOGGER.debug("finishing process cycle")
+        LOGGER.debug("exited processing loop")
 
     def create_report(self):
         """ Create a nested data structure summarizing processing status.
@@ -231,8 +240,8 @@ class IlluminaProcessor:
         # processing Group first
         alignment_to_projects = {}
         project_to_group = {}
-        for key in self.projects:
-            for proj in self.projects[key]:
+        for key in self.seqinfo["projects"]:
+            for proj in self.seqinfo["projects"][key]:
                 if not proj.alignment in alignment_to_projects.keys():
                     alignment_to_projects[proj.alignment] = []
                 alignment_to_projects[proj.alignment].append(proj)
@@ -240,7 +249,7 @@ class IlluminaProcessor:
         # Now, go through all Runs and Alignments, and fill in project information
         # where available.
         entries = []
-        for run in self.runs:
+        for run in self.seqinfo["runs"]:
             entry = {f: "" for f in IlluminaProcessor.REPORT_FIELDS}
             entry["RunId"] = run.run_id
             entry["RunPath"] = run.path
@@ -305,57 +314,63 @@ class IlluminaProcessor:
         path = path.resolve()
         return path
 
-    def _init_data(self):
-        self.runs = set()
-        self.projects = {
-            "inactive":  set(),
-            "active":    set(),
-            "completed": set()
+    @staticmethod
+    def _init_seqinfo():
+        seqinfo = {
+            "runs": set(),
+            "projects": {
+                "inactive":  set(),
+                "active":    set(),
+                "completed": set()
+                }
             }
+        return seqinfo
 
-    def _init_job_queue(self):
+    def _init_procstatus(self):
         # Set up the procesing threads and related info, but don't actually
         # start them yet.
-        self.running = False
-        self._queue_jobs = queue.Queue()
-        self._threads = []
+        procstatus = {}
+        procstatus["running"] = False
+        procstatus["queue_jobs"] = queue.Queue()
+        procstatus["threads"] = []
         if not self.readonly:
-            for i in range(self.nthreads):
-                self.logger.debug("Starting thread %d", i)
+            for i in range(self.conf["nthreads"]):
+                LOGGER.debug("Starting thread %d", i)
                 thread = threading.Thread(target=self._worker, daemon=True)
-                self._threads.append(thread)
-        self.logger.debug("Initialized job queue and worker threads")
-
-    def _init_completion_queue(self):
-        self._queue_completion = queue.Queue()
+                procstatus["threads"].append(thread)
+        LOGGER.debug("Initialized job queue and worker threads")
+        procstatus["queue_completion"] = queue.Queue()
+        procstatus["queue_cmd"] = queue.Queue()
+        return procstatus
 
     def _load_new_runs(self):
-        old_dirs = {run.path for run in self.runs}
-        run_dirs = [Path(d).resolve() for d in self.path_runs.glob("*")]
+        old_dirs = {run.path for run in self.seqinfo["runs"]}
+        run_dirs = [Path(d).resolve() for d in self.paths["runs"].glob("*")]
         is_new_run_dir = lambda d: d.is_dir() and d not in old_dirs
         run_dirs = [d for d in run_dirs if is_new_run_dir(d)]
         runs = {self._run_setup(run_dir) for run_dir in run_dirs}
         runs = {run for run in runs if run}
-        self.runs |= runs
+        self.seqinfo["runs"] |= runs
 
     def _run_setup(self, run_dir):
         run = None
         # The min and max run directory ctime age in seconds, time of last
         # change of run directory, and current time.
-        min_age = self.config.get("min_age")
-        max_age = self.config.get("max_age")
+        min_age = self.conf.get("min_age")
+        max_age = self.conf.get("max_age")
         time_change = run_dir.stat().st_ctime
         time_now = time.time()
         # Now, check each threshold if it was specified.  Careful to check for
         # None here because a literal zero should be taken as its own meaning.
         if min_age is not None and (time_now - time_change < min_age):
-            self.logger.debug("skipping run; timestamp too new:.../%s", run_dir.name)
+            LOGGER.debug("skipping run; timestamp too new:.../%s", run_dir.name)
             return run
         if max_age is not None and (time_now - time_change > max_age):
-            self.logger.debug("skipping run; timestamp too old:.../%s", run_dir.name)
+            LOGGER.debug("skipping run; timestamp too old:.../%s", run_dir.name)
             return run
+        # pylint: disable=broad-except
         try:
-            self.logger.debug("loading new run:.../%s", run_dir.name)
+            LOGGER.debug("loading new run:.../%s", run_dir.name)
             run = Run(
                 run_dir,
                 strict=True,
@@ -364,20 +379,20 @@ class IlluminaProcessor:
         except Exception as exception:
             # ValueError for unrecognized or mismatched directories
             if isinstance(exception, ValueError):
-                self.logger.debug("skipped unrecognized run: %s", run_dir)
+                LOGGER.debug("skipped unrecognized run: %s", run_dir)
             else:
-                self.logger.critical("Error while loading run %s", run_dir)
+                LOGGER.critical("Error while loading run %s", run_dir)
                 raise exception
         return run
 
     def _update_queue_completion(self):
         try:
             while True:
-                proj = self._queue_completion.get_nowait()
-                self.logger.debug(
+                proj = self.procstatus["queue_completion"].get_nowait()
+                LOGGER.debug(
                     "Filing project in completed set: \"%s\"", proj.work_dir)
-                self.projects["active"].remove(proj)
-                self.projects["completed"].add(proj)
+                self.seqinfo["projects"]["active"].remove(proj)
+                self.seqinfo["projects"]["completed"].add(proj)
         except queue.Empty:
             pass
 
@@ -389,41 +404,29 @@ class IlluminaProcessor:
         program will exit without waiting."""
         if sig in [signal.SIGINT, signal.SIGTERM]:
             if not self.is_finishing_up():
-                self.logger.warning(
+                LOGGER.warning(
                     "Signal caught (%s), finishing up", sig)
                 self.finish_up()
             else:
-                self.logger.error(
+                LOGGER.error(
                     "Second signal caught (%s), stopping now", sig)
                 sys.exit(1)
         elif sig in [signal.SIGHUP]:
             msg = "Signal caught (%s),"
             msg += " re-loading all data after current tasks finish."
-            self.logger.warning(msg, sig)
+            LOGGER.warning(msg, sig)
             #self._reload = True
-            self._queue_cmd.put("reload")
+            self.procstatus["queue_cmd"].put("reload")
         elif sig in [signal.SIGUSR1]:
             msg = "Signal caught (%s),"
             msg += " decreasing loglevel (increasing verbosity)."
-            self._loglevel_shift(-10)
-            self.logger.warning(msg, sig)
+            _loglevel_shift(-10)
+            LOGGER.warning(msg, sig)
         elif sig in [signal.SIGUSR2]:
             msg = "Signal caught (%s),"
             msg += " increasing loglevel (decreasing verbosity)."
-            self._loglevel_shift(10)
-            self.logger.warning(msg, sig)
-
-    def _loglevel_shift(self, step):
-        """Change the root logger's level by a relative amount.
-
-        Positive numbers give less verbose logging.   Steps of ten match
-        Python's named levels.  A minimum of zero is applied."""
-        logger = logging.getLogger()
-        lvl_current = logger.getEffectiveLevel()
-        lvl_new = max(0, lvl_current + step)
-        self.logger.warning(
-            "Changing loglevel: %d -> %d", lvl_current, lvl_new)
-        logger.setLevel(lvl_new)
+            _loglevel_shift(10)
+            LOGGER.warning(msg, sig)
 
     def _proc_new_alignment(self, aln):
         """Match a newly-completed Alignment to Project information.
@@ -431,31 +434,31 @@ class IlluminaProcessor:
         Any new projects will be marked active and enqueued for processing.
         Any projects with previously-created metadata on disk will be marked
         inactive and not processed."""
-        self.logger.debug("proccesing new alignment: %s", aln.path)
+        LOGGER.debug("proccesing new alignment: %s", aln.path)
         projs = project.ProjectData.from_alignment(
             alignment=aln,
-            path_exp=self.path_exp,
-            dp_align=self.path_status,
-            dp_proc=self.path_proc,
-            dp_pack=self.path_pack,
-            uploader=self.uploader,
-            mailer=self.mailer,
-            nthreads=self.nthreads_per_project,
+            path_exp=self.paths["exp"],
+            dp_align=self.paths["status"],
+            dp_proc=self.paths["proc"],
+            dp_pack=self.paths["pack"],
+            uploader=self.box.upload,
+            mailer=self.mailerobj.mail,
+            nthreads=self.conf["nthreads_per_project"],
             readonly=self.readonly,
-            conf=self.config.get("task_options", {}))
+            conf=self.conf.get("task_options", {}))
         for proj in projs:
             suffix = ""
             if proj.readonly or proj.status == project.ProjectData.FAILED:
                 grp = "inactive"
-                self.projects[grp].add(proj)
+                self.seqinfo["projects"][grp].add(proj)
                 if proj.status != project.ProjectData.COMPLETE:
                     suffix = " (Incomplete: %s)" % proj.status
             else:
                 grp = "active"
-                self.projects[grp].add(proj)
-                self._queue_jobs.put(proj)
+                self.seqinfo["projects"][grp].add(proj)
+                self.procstatus["queue_jobs"].put(proj)
             msg = "found new project [%s] : %s%s" % (grp, proj.work_dir, suffix)
-            self.logger.info(msg)
+            LOGGER.info(msg)
 
     def _worker(self):
         """Pull ProjectData objects from job queue and process.
@@ -465,15 +468,15 @@ class IlluminaProcessor:
         re-raised."""
         # pylint: disable=broad-except
         while True:
-            proj = self._queue_jobs.get()
+            proj = self.procstatus["queue_jobs"].get()
             try:
                 proj.process()
             except Exception:
                 subject = "Failed project: %s" % proj.name
-                self.logger.error(subject)
-                self.logger.error(traceback.format_exc())
-                config_mail = self.config.get("mailer", {})
-                contacts = config_mail.get("to_addrs_on_error") or []
+                LOGGER.error(subject)
+                LOGGER.error(traceback.format_exc())
+                conf_mail = self.conf.get("mailer", {})
+                contacts = conf_mail.get("to_addrs_on_error") or []
                 body = "Project processing failed for \"%s\"" % proj.work_dir
                 body += " with the following message:\n"
                 body += "\n\n"
@@ -483,11 +486,23 @@ class IlluminaProcessor:
                     "subject": subject,
                     "msg_body": body
                     }
-                self.mailer(**kwargs)
+                self.mailerobj.mail(**kwargs)
             finally:
-                self.logger.debug(
+                LOGGER.debug(
                     "Declaring project done: \"%s\"", proj.work_dir)
-                self._queue_jobs.task_done()
-                self.logger.debug(
+                self.procstatus["queue_jobs"].task_done()
+                LOGGER.debug(
                     "Placing project on completion queue: \"%s\"", proj.work_dir)
-                self._queue_completion.put(proj)
+                self.procstatus["queue_completion"].put(proj)
+
+
+def _loglevel_shift(step):
+    """Change the root logger's level by a relative amount.
+
+    Positive numbers give less verbose logging.   Steps of ten match
+    Python's named levels.  A minimum of zero is applied."""
+    lvl_current = LOGGER.getEffectiveLevel()
+    lvl_new = max(0, lvl_current + step)
+    LOGGER.warning(
+        "Changing loglevel: %d -> %d", lvl_current, lvl_new)
+    LOGGER.setLevel(lvl_new)

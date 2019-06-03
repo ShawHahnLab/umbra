@@ -70,22 +70,22 @@ class TestIlluminaProcessor(TestBase):
         self.report_path = Path(self.tmpdir.name) / "report.csv"
 
     def _proj_names(self, category):
-        return sorted([p.name for p in self.proc.projects[category]])
+        return sorted([p.name for p in self.proc.seqinfo["projects"][category]])
 
     def test_load(self):
         """Test load method for loading directory of run data."""
         # Start with an empty set
-        self.assertEqual(self.proc.runs, set([]))
+        self.assertEqual(self.proc.seqinfo["runs"], set([]))
         self.proc.load(wait=True)
         # Now we have loaded runs
-        self.assertEqual(len(self.proc.runs), self.expected["num_runs"])
+        self.assertEqual(len(self.proc.seqinfo["runs"]), self.expected["num_runs"])
         # This is different from refresh() because it will fully load in the
         # current data.  If a run directory is gone, for example, it won't be
         # in the list anymore.
         remove_tree(str(self.path_run), verbose=True)
         self.proc.load(wait=True)
         self.assertEqual(
-            len(self.proc.runs),
+            len(self.proc.seqinfo["runs"]),
             max(0, self.expected["num_runs"] - 1))
 
     def test_refresh(self):
@@ -98,30 +98,30 @@ class TestIlluminaProcessor(TestBase):
             copy_tree(str(self.path_run), run_stash)
             remove_tree(self.path_run)
             # Start with an empty set
-            self.assertEqual(self.proc.runs, set())
+            self.assertEqual(self.proc.seqinfo["runs"], set())
             proj_exp = {"active": set(), "inactive": set(), "completed": set()}
-            self.assertEqual(self.proc.projects, proj_exp)
+            self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             # Refresh loads a number of Runs
             self.proc.refresh()
-            self.assertEqual(len(self.proc.runs), self.expected["num_runs"] - 1)
-            self.assertEqual(self.proc.projects, proj_exp)
+            self.assertEqual(len(self.proc.seqinfo["runs"]), self.expected["num_runs"] - 1)
+            self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             # Still just those Runs
             self.proc.refresh()
-            self.assertEqual(len(self.proc.runs), self.expected["num_runs"] - 1)
-            self.assertEqual(self.proc.projects, proj_exp)
+            self.assertEqual(len(self.proc.seqinfo["runs"]), self.expected["num_runs"] - 1)
+            self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             # Copy run directory back
             copy_tree(run_stash, str(self.path_run))
             # Now, we should load a new Run with refresh()
-            self.assertEqual(self.proc.projects, proj_exp)
+            self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             self.proc.start()
             self.proc.refresh(wait=True)
             # Nothing remains to be processed.
-            self.assertEqual(len(self.proc.projects["active"]), 0)
+            self.assertEqual(len(self.proc.seqinfo["projects"]["active"]), 0)
             # STR was already complete.
             self.assertEqual(self._proj_names("inactive"), ["STR"])
             # We should have one new completed projectdata now.
             self.assertEqual(self._proj_names("completed"), ["Something Else"])
-            self.assertEqual(len(self.proc.runs), self.expected["num_runs"])
+            self.assertEqual(len(self.proc.seqinfo["runs"]), self.expected["num_runs"])
 
     def _load_maybe_warning(self):
         if self.expected["warn_msg"]:
@@ -208,7 +208,7 @@ class TestIlluminaProcessor(TestBase):
             raise unittest.SkipTest("No run data expected; skipping test")
         run_id = "180102_M00000_0000_000000000-XXXXX"
         path_run = self.paths["runs"]/run_id
-        get_run = lambda: [r for r in self.proc.runs if r.path.name == run_id][0]
+        get_run = lambda: [r for r in self.proc.seqinfo["runs"] if r.path.name == run_id][0]
         get_al = lambda: get_run().alignments
         with TemporaryDirectory() as stash:
             align_orig = str(path_run/"Data"/"Intensities"/"BaseCalls"/"Alignment")
@@ -219,7 +219,7 @@ class TestIlluminaProcessor(TestBase):
             #with self.assertWarns(Warning) as cm:
             #    self.proc.refresh()
             self.proc.refresh(wait=True)
-            self.assertEqual(len(self.proc.runs), self.expected["num_runs"])
+            self.assertEqual(len(self.proc.seqinfo["runs"]), self.expected["num_runs"])
             # Third run has no alignments yet
             self.assertEqual(len(get_al()), 0)
             # Create empty Alignment directory, as if it's just starting off
@@ -275,7 +275,7 @@ class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
                 str(warn_list[0].message),
                 self.expected["warn_msg"])
         # Now we have loaded runs
-        self.assertEqual(len(self.proc.runs), self.expected["num_runs"])
+        self.assertEqual(len(self.proc.seqinfo["runs"]), self.expected["num_runs"])
 
     def test_refresh(self):
         """Basic scenario for refresh(): a new run directory appears."""
@@ -327,27 +327,27 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
             copy_tree(str(self.path_run), run_stash)
             remove_tree(self.path_run)
             # Start with an empty set
-            self.assertEqual(self.proc.runs, set())
+            self.assertEqual(self.proc.seqinfo["runs"], set())
             proj_exp = {"active": set(), "inactive": set(), "completed": set()}
-            self.assertEqual(self.proc.projects, proj_exp)
+            self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             # Refresh loads a number of Runs
             self.proc.refresh()
-            self.assertEqual(len(self.proc.runs), self.expected["num_runs"] - 1)
-            self.assertEqual(self.proc.projects, proj_exp)
+            self.assertEqual(len(self.proc.seqinfo["runs"]), self.expected["num_runs"] - 1)
+            self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             # Still just those Runs
             self.proc.refresh()
-            self.assertEqual(len(self.proc.runs), self.expected["num_runs"] - 1)
-            self.assertEqual(self.proc.projects, proj_exp)
+            self.assertEqual(len(self.proc.seqinfo["runs"]), self.expected["num_runs"] - 1)
+            self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             # Copy run directory back
             copy_tree(run_stash, str(self.path_run))
             # Now, we should load a new Run with refresh()
-            self.assertEqual(self.proc.projects, proj_exp)
+            self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             self.proc.refresh(wait=True)
             # All loaded runs are inactive since we're readonly.
             self.assertEqual(self._proj_names("inactive"), ["STR", "Something Else"])
             self.assertEqual(self._proj_names("completed"), [])
             self.assertEqual(self._proj_names("active"), [])
-            self.assertEqual(len(self.proc.runs), self.expected["num_runs"])
+            self.assertEqual(len(self.proc.seqinfo["runs"]), self.expected["num_runs"])
 
 
 class TestIlluminaProcessorReportConfig(TestIlluminaProcessor):
@@ -396,21 +396,21 @@ class TestIlluminaProcessorMinRunAge(TestIlluminaProcessor):
             copy_tree(str(self.path_run), run_stash)
             remove_tree(self.path_run)
             # Start with an empty set
-            self.assertEqual(self.proc.runs, set())
+            self.assertEqual(self.proc.seqinfo["runs"], set())
             proj_exp = {"active": set(), "inactive": set(), "completed": set()}
-            self.assertEqual(self.proc.projects, proj_exp)
+            self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             # Refresh loads a number of Runs
             self.proc.refresh()
-            self.assertEqual(self.proc.runs, set())
-            self.assertEqual(self.proc.projects, proj_exp)
+            self.assertEqual(self.proc.seqinfo["runs"], set())
+            self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             # Copy run directory back
             copy_tree(run_stash, str(self.path_run))
             # Now, we should load a new Run with refresh()
-            self.assertEqual(self.proc.projects, proj_exp)
+            self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             self.proc.start()
             self.proc.refresh(wait=True)
             # Except we still haven't loaded any yet (too new)
-            self.assertEqual(self.proc.projects, proj_exp)
+            self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
 
 
 class TestIlluminaProcessorMinRunAgeZero(TestIlluminaProcessor):
@@ -463,7 +463,8 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
         super().setUp()
         # Use the dummy storing mailer provided by TestBase.  We'll make sure
         # it's called with the right arguments when processing fails.
-        self.proc.mailer = self.mailer
+        self.proc.mailerobj = lambda: None
+        self.proc.mailerobj.mail = self.mailer
         # Tell the project to throw a ProjectError during processing.
         # Previously I used a write-protected file to cause it to fail, but now
         # we do more upfront checking so a contrived failure is the easiest
@@ -491,7 +492,7 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
         self.assertEqual(self._proj_names("active"), [])
         self.assertEqual(self._proj_names("inactive"), ["STR"])
         self.assertEqual(self._proj_names("completed"), ["Something Else"])
-        completed = self.proc.projects["completed"]
+        completed = self.proc.seqinfo["projects"]["completed"]
         self.assertEqual(completed.pop().status, ProjectData.FAILED)
 
     def _watch_and_process_maybe_warning(self):

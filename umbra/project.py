@@ -22,8 +22,10 @@ import yaml
 from . import CONFIG
 from . import config
 from . import experiment
-from .util import ProjectError, mkparent, slugify, datestamp
+from .util import ProjectError, mkparent, slugify, datestamp, yaml_load
 from . import task
+
+LOGGER = logging.getLogger(__name__)
 
 class ProjectData:
     """The data for a Run and Alignment specific to one project.
@@ -113,7 +115,6 @@ class ProjectData:
             uploader, mailer, exp_path=None, nthreads=1, readonly=False,
             conf=None):
 
-        self.logger = logging.getLogger(__name__)
         self.name = name
         self.alignment = alignment
         self.exp_path = exp_path # Orig experiment spreadsheet (maybe >1 proj)
@@ -122,8 +123,8 @@ class ProjectData:
         self.uploader = uploader # callback to upload zip file
         self.mailer = mailer # callback to send email
         # general configuration including per-task options
-        self.config = copy.deepcopy(CONFIG["task_options"])
-        config.update_tree(self.config, conf or {})
+        self.conf = copy.deepcopy(CONFIG["task_options"])
+        config.update_tree(self.conf, conf or {})
         self._metadata = {"status": ProjectData.NONE}
         self.readonly = self.path.exists() or readonly
         self.load_metadata()
@@ -146,15 +147,15 @@ class ProjectData:
         self.path_pack = Path(dp_pack) / (self.work_dir + ".zip")
         if not self.readonly:
             if self.path_proc.exists() and self.path_proc.glob("*"):
-                self.logger.warning(
+                LOGGER.warning(
                     "Processing directory exists and is not empty: %s",
                     str(self.path_proc))
-                self.logger.warning(
+                LOGGER.warning(
                     "Marking project readonly: %s", self.work_dir)
                 self.readonly = True
             else:
                 self.save_metadata()
-        self.logger.info("ProjectData initialized: %s", self.work_dir)
+        LOGGER.info("ProjectData initialized: %s", self.work_dir)
 
     def _init_work_dir_name(self):
         txt_date = datestamp(self.alignment.run.rta_complete["Date"])
@@ -167,9 +168,8 @@ class ProjectData:
         fields = [txt_date, txt_proj, txt_name]
         fields = [f for f in fields if f]
         dirname = "-".join(fields)
-        # TODO better exception here
         if not dirname:
-            raise Exception("empty work_dir")
+            raise ProjectError("empty work_dir")
         return dirname
 
     @property
@@ -257,7 +257,7 @@ class ProjectData:
         finally:
             # In any case, log the sample numbers at the appropriate level.  An
             # exception will continue from here, if present.
-            self.logger.log(lvl, msg)
+            LOGGER.log(lvl, msg)
         self._metadata["sample_paths"] = {}
         for sample_name in keepers:
             paths = [str(p) for p in sample_paths[sample_name]]
@@ -289,7 +289,7 @@ class ProjectData:
 
         This function will block until processing is complete.  Calling process
         if readyonly=True or status != NONE raises ProjectError."""
-        self.logger.info("ProjectData processing: %s", self.work_dir)
+        LOGGER.info("ProjectData processing: %s", self.work_dir)
         if self.readonly:
             raise ProjectError("ProjectData is read-only")
         elif self.status != ProjectData.NONE:
@@ -326,13 +326,7 @@ class ProjectData:
     def load_metadata(self):
         """Load metadata YAML file from disk."""
         try:
-            # TODO wait, why not using load_yaml here?
-            with open(self.path) as fin:
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore",
-                        category=DeprecationWarning)
-                    data = yaml.safe_load(fin)
+            data = yaml_load(self.path)
         except FileNotFoundError:
             data = None
         else:
@@ -382,8 +376,8 @@ class ProjectData:
         tasknames = self.experiment_info["tasks"][:]
         # handle no-task case and add any defaults
         if not tasknames:
-            tasknames = self.config["task_null"][:]
-        tasknames += self.config["task_defaults"]
+            tasknames = self.conf["task_null"][:]
+        tasknames += self.conf["task_defaults"]
         # Add in dependencies for any that exist.
         deps = set()
         for taskname in tasknames:
@@ -396,7 +390,7 @@ class ProjectData:
         tasks = []
         for taskname in tasknames:
             cls = tasks_all[taskname]
-            task_config = self.config["tasks"].get(taskname, {})
+            task_config = self.conf["tasks"].get(taskname, {})
             obj = cls(task_config, self)
             tasks.append(obj)
         # Sort by the order attribute of each task.
@@ -426,7 +420,7 @@ class ProjectData:
         """Process the next pending task."""
 
         msg = "ProjectData processing: %s, task: %s" % (self.work_dir, taskname)
-        self.logger.debug(msg)
+        LOGGER.debug(msg)
         # match name to object
         taskobj = next(task for task in self.tasks if task.name == taskname)
         if not taskobj:

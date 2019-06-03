@@ -201,7 +201,7 @@ class Task(metaclass=__TaskParent):
     def log_path(self):
         """Path to log file for this task."""
         path = (self.proj.path_proc /
-                self.proj.config.get("log_path", "logs") /
+                self.proj.conf.get("log_path", "logs") /
                 ("log_" + self.name + ".txt")).resolve()
         return path
 
@@ -299,7 +299,7 @@ class Task(metaclass=__TaskParent):
         """
         path_implicit = "."
         if self._task_is_implicit(taskname):
-            path_implicit = self.proj.config.get("implicit_tasks_path", ".")
+            path_implicit = self.proj.conf.get("implicit_tasks_path", ".")
         path = (self.proj.path_proc / path_implicit).resolve()
         return path
 
@@ -314,8 +314,8 @@ class Task(metaclass=__TaskParent):
         """
         explicit_tasks = (
             self.proj.experiment_info["tasks"] +
-            self.proj.config.get("always_explicit_tasks", []) +
-            self.proj.config.get("task_null", []))
+            self.proj.conf.get("always_explicit_tasks", []) +
+            self.proj.conf.get("task_null", []))
         return taskname not in explicit_tasks
 
     def log_setup(self):

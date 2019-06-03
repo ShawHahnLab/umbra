@@ -14,6 +14,8 @@ import boxsdk
 import yaml
 from .util import yaml_load
 
+LOGGER = logging.getLogger(__name__)
+
 class BoxUploader:
     """A simple Box API interface to upload files to one directory.
 
@@ -36,67 +38,80 @@ class BoxUploader:
     optional custom name.  An existing file with the same name in Box will
     cause an exception."""
 
-    # pylint: disable=too-few-public-methods
-    # a BoxUpoader uploads.  We don't need more public methods than that.
-
     # These dict keys must appear in the credentials file.  user_access_token
     # and user_refresh_token can be missing.
     REQUIRED_FIELDS = ["client_id", "client_secret", "redirect_uri"]
 
     def __init__(self, creds_store_path, config):
-        self.logger = logging.getLogger(__name__)
         self.config = config
         self.creds_store_path = Path(creds_store_path)
-        self._init_creds()
-        self._init_upload_folder()
-        self.logger.debug("BoxUploader initialized.")
+        self.creds = self._load_creds()
+        self.client = self._init_client_wrapper()
+        self.__max_upload_size = self._init_max_upload_size()
 
-    def _init_creds(self):
+        user_info = self.client.user(user_id='me').get()
+        folder_id = self.config.get("folder_id", 0)
+        folder_name = self.folder.get()['name']
+        LOGGER.info('User: %s', user_info['login'])
+        LOGGER.info('Max upload size in bytes: %d', self.max_upload_size)
+        LOGGER.info("Upload folder: %d (%s)", folder_id, folder_name)
+        LOGGER.debug("BoxUploader initialized.")
+
+    @property
+    def max_upload_size(self):
+        """Maximum allowed upload size in bytes."""
+        return self.__max_upload_size
+
+    @property
+    def folder(self):
+        """The Box folder object for the configured upload folder."""
+        folder_id = self.config.get("folder_id", 0)
+        return self.client.folder(folder_id)
+
+    def _load_creds(self):
+        creds = yaml_load(self.creds_store_path)
+        req = BoxUploader.REQUIRED_FIELDS
+        miss = [field for field in req if field not in creds.keys()]
+        if miss:
+            raise ValueError("Missing configuration entries: %s" % ", ".join(miss))
+        for key in ["user_access_token", "user_refresh_token"]:
+            creds[key] = creds.get(key, 0)
+        return creds
+
+    def _init_client_wrapper(self):
         """Load Box API credentials and put in an OAuth2 object.
 
         If authentication fails or credentials are missing, attempt to
         re-connect with Box in a browser with a provided URL."""
-        self._load_creds()
         try:
-            self._init_client()
+            client = self._init_client()
+            client.user(user_id='me').get()
         except boxsdk.exception.BoxAPIException as exception:
             # If (and only if) the problem is authentication, try getting new
             # access and refresh tokens.
             if exception.status == 400 and not self.config.get("strict_auth"):
-                self.logger.critical(
+                LOGGER.critical(
                     ("Authentication failure.  Try re-connecting with Box in"
                      " a browser with the URL shown."))
-                self._janky_auth_trick()
+                client = self._janky_auth_trick()
             else:
                 raise exception
-
-    def _load_creds(self):
-        self.creds = yaml_load(self.creds_store_path)
-        req = BoxUploader.REQUIRED_FIELDS
-        miss = [field for field in req if field not in self.creds.keys()]
-        if miss:
-            raise ValueError("Missing configuration entries: %s" % ", ".join(miss))
-        for key in ["user_access_token", "user_refresh_token"]:
-            self.creds[key] = self.creds.get(key, 0)
+        return client
 
     def _init_client(self):
-        self.oauth = boxsdk.OAuth2(
+        oauth = boxsdk.OAuth2(
             client_id=self.creds["client_id"],
             client_secret=self.creds["client_secret"],
             store_tokens=self._store_tokens,
             access_token=self.creds["user_access_token"],
             refresh_token=self.creds["user_refresh_token"])
-        self.client = boxsdk.Client(self.oauth)
-        user_info = self.client.user(user_id='me').get()
-        self.max_upload_size = int(user_info["max_upload_size"])
-        self.logger.info('User: %s', user_info['login'])
-        self.logger.info('Max upload size in bytes: %d', self.max_upload_size)
+        client = boxsdk.Client(oauth)
+        return client
 
-    def _init_upload_folder(self):
-        folder_id = self.config.get("folder_id", 0)
-        self.folder = self.client.folder(folder_id)
-        name = self.folder.get()['name']
-        self.logger.info("Upload folder: %d (%s)", folder_id, name)
+    def _init_max_upload_size(self):
+        user_info = self.client.user(user_id='me').get()
+        max_upload_size = int(user_info["max_upload_size"])
+        return max_upload_size
 
     def _store_tokens(self, access_token, refresh_token):
         """Callback to store new access/refresh tokens to disk."""
@@ -104,7 +119,7 @@ class BoxUploader:
         self.creds["user_refresh_token"] = refresh_token
         with open(self.creds_store_path, "w") as fout:
             fout.write(yaml.dump(self.creds))
-        self.logger.info("Tokens refreshed.")
+        LOGGER.info("Tokens refreshed.")
 
     def upload(self, path, name=None):
         """Upload file from a given path, optionally with custom name."""
@@ -120,7 +135,7 @@ class BoxUploader:
         # first.
         box_file = self.__ft_upload(path, name)
         url = box_file.get_shared_link_download_url(access="open")
-        self.logger.info("File uploaded: %s", str(path))
+        LOGGER.info("File uploaded: %s", str(path))
         return url
 
     def __ft_upload(self, path, name, tries=3):
@@ -142,15 +157,15 @@ class BoxUploader:
                 # (requests.exception.RequestException and all the rest are
                 # subclasses of IOError)
                 upload_error = err
-                self.logger.warning("Upload attempt %d failed", trynum+1)
+                LOGGER.warning("Upload attempt %d failed", trynum+1)
                 time.sleep(time_delta)
                 time_delta *= time_mult
             else:
                 if trynum > 0:
-                    self.logger.warning("Upload attempt %d succeeded", trynum+1)
+                    LOGGER.warning("Upload attempt %d succeeded", trynum+1)
                 break
         else:
-            self.logger.error(
+            LOGGER.error(
                 "Upload attempts exhausted (%s)",
                 upload_error.__class__.__name__)
             raise upload_error
@@ -208,14 +223,14 @@ class BoxUploader:
         5) Use the returned OAuth2 object and/or enter those extra lines into
         config.py as user_access_token and user_refresh_token.
         """
-        self.oauth = boxsdk.OAuth2(client_id=self.creds["client_id"],
-                                   client_secret=self.creds["client_secret"])
-        auth_url = self.oauth.get_authorization_url(self.creds["redirect_uri"])[0]
-        self.logger.critical("Auth URL: %s", auth_url)
+        oauth = boxsdk.OAuth2(client_id=self.creds["client_id"],
+                              client_secret=self.creds["client_secret"])
+        auth_url = oauth.get_authorization_url(self.creds["redirect_uri"])[0]
+        LOGGER.critical("Auth URL: %s", auth_url)
         code = scrape_log_for_code(log_path)
-        access_token, refresh_token = self.oauth.authenticate(code)
+        access_token, refresh_token = oauth.authenticate(code)
         self._store_tokens(access_token, refresh_token)
-        self._init_client()
+        return self._init_client()
 
 def _parse_log_line(line):
     """Parse a single line of log file text assuming Common Log Format."""

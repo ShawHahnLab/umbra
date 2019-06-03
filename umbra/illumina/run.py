@@ -29,10 +29,11 @@ class Run:
         self.min_alignment_dir_age = min_alignment_dir_age
 
         self.invalid = False
+        self.rundata = {}
         # RunInfo.xml is one of the first files to show up in a run directory,
         # so we'll use that to define a Run (finished or not).
         try:
-            self.run_info = load_xml(path/"RunInfo.xml")
+            self.rundata["run_info"] = load_xml(path/"RunInfo.xml")
         except FileNotFoundError:
             msg = 'Not a recognized Illumina run: "%s"' % path
             # strict behavior: raise an error
@@ -48,16 +49,9 @@ class Run:
                 args = (path.name, info_run_id)
                 msg = 'Run directory does not match Run ID: %s / %s' % args
                 warnings.warn(msg)
-            ## strict behavior: raise an error
-            #if strict:
-            #    raise(ValueError(msg))
-            ## default behavior: raise a warning
-            #elif strict is None:
-            #    warnings.warn(msg)
-            ## False behavior: ignore
 
         # Load in RTA completion status and available alignment directories.
-        self.rta_complete = None
+        self.rundata["rta_complete"] = None
         self.alignments = []
         self.refresh()
         # CompletedJobInfo.xml should be there if a workflow (job) completed,
@@ -65,9 +59,9 @@ class Run:
         # the end of the most recent job from the Alignment sub-folder (or
         # written there directly, for newer MiSeqs).
         try:
-            self.completed_job_info = load_xml(path/"CompletedJobInfo.xml")
+            self.rundata["completed_job_info"] = load_xml(path/"CompletedJobInfo.xml")
         except FileNotFoundError:
-            self.completed_job_info = None
+            self.rundata["completed_job_info"] = None
 
     def refresh(self):
         """Check for run completion and any new or completed alignments.
@@ -77,7 +71,7 @@ class Run:
         object."""
         if not self.rta_complete:
             fpath = self.path/"RTAComplete.txt"
-            self.rta_complete = load_rta_complete(fpath)
+            self.rundata["rta_complete"] = load_rta_complete(fpath)
         self._refresh_alignments()
 
     def _refresh_alignments(self):
@@ -122,7 +116,6 @@ class Run:
         else:
             return aln
 
-
     @property
     def run_id(self):
         """The run identifier as defined in the RunInfo XML."""
@@ -132,3 +125,18 @@ class Run:
     def complete(self):
         """Is the run complete?"""
         return self.rta_complete is not None
+
+    @property
+    def run_info(self):
+        """RunInfo.xml data."""
+        return self.rundata["run_info"]
+
+    @property
+    def rta_complete(self):
+        """RTAComplete.txt data."""
+        return self.rundata["rta_complete"]
+
+    @property
+    def completed_job_info(self):
+        """CompletedJobInfo.xml data."""
+        return self.rundata["completed_job_info"]

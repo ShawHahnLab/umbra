@@ -91,7 +91,8 @@ class TestMailer(unittest.TestCase):
 
     def setUp(self):
         self.set_up_smtp()
-        self.mailer = Mailer(self.host, self.port)
+        conf = {"host": self.host, "port": self.port}
+        self.mailer = Mailer(conf)
         self.set_up_vars()
 
     def set_up_vars(self):
@@ -240,7 +241,8 @@ class TestMailerCCAddrs(TestMailer):
     def setUp(self):
         self.set_up_smtp()
         cc_addrs = "admin@example.com"
-        self.mailer = Mailer(self.host, self.port, cc_addrs=cc_addrs)
+        conf = {"host": self.host, "port": self.port, "cc_addrs": cc_addrs}
+        self.mailer = Mailer(conf)
         self.set_up_vars()
         self.expected["mail_args"]["cc_addrs"] = [cc_addrs]
 
@@ -252,7 +254,8 @@ class TestMailerCCAddrsMulti(TestMailer):
     def setUp(self):
         self.set_up_smtp()
         cc_addrs = ["admin@example.com", "office@example.com"]
-        self.mailer = Mailer(self.host, self.port, cc_addrs=cc_addrs)
+        conf = {"host": self.host, "port": self.port, "cc_addrs": cc_addrs}
+        self.mailer = Mailer(conf)
         self.set_up_vars()
         self.expected["mail_args"]["cc_addrs"] = cc_addrs
 
@@ -281,7 +284,8 @@ class TestMailerOnlyCC(TestMailer):
     def setUp(self):
         self.set_up_smtp()
         cc_addrs = "admin@example.com"
-        self.mailer = Mailer(self.host, self.port, cc_addrs=cc_addrs)
+        conf = {"host": self.host, "port": self.port, "cc_addrs": cc_addrs}
+        self.mailer = Mailer(conf)
         self.set_up_vars()
         self.mail_args_sent["to_addrs"] = []
         self.expected["mail_args"]["to_addrs"] = []
@@ -301,7 +305,8 @@ class TestMailerReplyTo(TestMailer):
     def setUp(self):
         self.set_up_smtp()
         reply_to = "technician@example.com"
-        self.mailer = Mailer(self.host, self.port, reply_to=reply_to)
+        conf = {"host": self.host, "port": self.port, "reply_to": reply_to}
+        self.mailer = Mailer(conf)
         self.set_up_vars()
         self.expected["mail_args"]["reply_to"] = reply_to
 
