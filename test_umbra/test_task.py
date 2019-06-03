@@ -113,7 +113,7 @@ class TestTask(TestTaskClass):
         self.proj = unittest.mock.Mock(
             path_proc=Path(self.tmpdir.name) / "proc",
             nthreads=1,
-            config={},
+            conf={},
             sample_paths={"sample_name": ["R1.fastq.gz", "R2.fastq.gz"]},
             work_dir="work_dir_name",
             experiment_info={"tasks": []}
@@ -285,7 +285,7 @@ class TestTaskImplicit(TestTask):
         self.proj = unittest.mock.Mock(
             path_proc=Path(self.tmpdir.name) / "proc",
             nthreads=1,
-            config={
+            conf={
                 "implicit_tasks_path": Path(self.tmpdir.name)/"proc/implicit"},
             sample_paths={"sample_name": ["R1.fastq.gz", "R2.fastq.gz"]},
             work_dir="work_dir_name",
