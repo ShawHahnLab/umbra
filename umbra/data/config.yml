@@ -46,6 +46,10 @@ paths:
 # separately; see sections below.
 # Paths here are relative to a particular project's processing directory.
 task_options:
+  # A file or directory path containing custom Task classes to include.  If a
+  # directory, all files ending in .py will be searched.  Each file will be
+  # searched for classes with names starting with Task.
+  custom_tasks_source: ""
   # Subdirectory to use for implicitly-required (not explicitly requested for
   # the project) task output directories.  By default these are stored
   # side-by-side on the top level with the rest of the per-task directories.
