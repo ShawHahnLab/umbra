@@ -54,13 +54,19 @@ def __load_task_classes():
 
 def load_extra_task_classes(path):
     """Load classes from an arbitrary file/directory whose names start with "Task"."""
+    if not path:
+        return
     path = Path(path)
     if path.is_dir():
         filepaths = path.glob("*.py")
     else:
         filepaths = [path]
     for filepath in filepaths:
-        LOGGER.debug("Importing task code from %s", filepath)
+        if filepath.exists():
+            LOGGER.debug("Importing task code from %s", filepath)
+        else:
+            LOGGER.error("Skipping task code import from missing file %s", filepath)
+            continue
         mod = __load_module_from(filepath)
         __inject_tasks_from(mod)
 
@@ -353,3 +359,4 @@ class Task(metaclass=__TaskParent):
 
 
 __load_task_classes()
+load_extra_task_classes(CONFIG["task_options"]["custom_tasks_source"])

@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import copy
 import logging
+import importlib
 from pathlib import Path
 from umbra import task
 
@@ -33,6 +34,14 @@ class TestTaskModule(unittest.TestCase):
             "package",
             "email",
             "upload"))
+
+    def tearDown(self):
+        # We've made a mess of the task module itself during these tests.
+        # Clean up for the next test.
+        for name in dir(task):
+            if name.startswith("Task"):
+                delattr(task, name)
+        importlib.reload(importlib.import_module("umbra.task"))
 
     def test_task_classes(self):
         """Check the dict of task classes for the module.
@@ -70,6 +79,19 @@ class TestTaskModule(unittest.TestCase):
         self.assertEqual(
             set(cls_dict.keys()),
             self.tasks_expected | set(["extra", "other"]))
+
+    def test_task_classes_missing(self):
+        """Check that a missing path for extra task classes is handled."""
+        # Simple way to make a nonexistant filename
+        tmp = tempfile.NamedTemporaryFile()
+        tmp.close()
+        path = tmp.name
+        # An error should be logged, but no exception raised.
+        with self.assertLogs(level=logging.ERROR) as logging_context:
+            task.load_extra_task_classes(path)
+            self.assertEqual(len(logging_context.output), 1)
+        cls_dict = task.task_classes()
+        self.assertEqual(set(cls_dict.keys()), self.tasks_expected)
 
 
 class TestTaskClass(unittest.TestCase):
