@@ -98,7 +98,7 @@ def load_rta_complete(path):
     """
     try:
         data = load_csv(path)[0]
-    except FileNotFoundError:
+    except (FileNotFoundError, IndexError):
         return None
     date_pad = lambda txt: "/".join([x.zfill(2) for x in txt.split("/")])
     time_pad = lambda txt: ":".join([x.zfill(2) for x in txt.split(":")])
