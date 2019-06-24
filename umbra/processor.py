@@ -74,7 +74,7 @@ class IlluminaProcessor:
         # Otherwise just use a stub.
         conf_box = conf.get("box", {})
         path = conf_box.get("credentials_path")
-        if path and Path(path).exists():
+        if not conf_box.get("skip") and path and Path(path).exists():
             self.box = BoxUploader(path, conf_box)
         else:
             msg = "No Box configuration given; skipping uploads."
