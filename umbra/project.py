@@ -57,57 +57,58 @@ class ProjectData:
         of the expected type will still propogate so the processor will halt
         and catch fire, though."""
 
-        exp_path = path_exp / alignment.experiment / "metadata.csv"
         projects = set()
-        try:
-            # Load the spreadsheet of per-sample project information
-            experiment_info = experiment.load_metadata(exp_path)
-        except FileNotFoundError:
-            pass
-        else:
-            sample_paths = None
+        if alignment.experiment:
+            exp_path = path_exp / alignment.experiment / "metadata.csv"
             try:
-                sample_paths = alignment.sample_paths()
-            except FileNotFoundError as exception:
-                # In this case there's a mismatch in the data files expected
-                # from the Alignment directory's metadata and the data files
-                # actually on disk.
-                msg = "\nFASTQ file not found:\n"
-                msg += "Run:       %s\n" % alignment.run.path
-                msg += "Alignment: %s\n" % alignment.path
-                msg += "File:      %s\n" % exception.filename
-                warnings.warn(msg)
-            # Set of unique names in the experiment spreadsheet
-            names = {row["Project"] for row in experiment_info}
-            run_id = alignment.run.run_id
-            al_idx = str(alignment.index)
-            for name in names:
-                proj_file = slugify(name) + ".yml"
-                fpath = Path(dp_align) / run_id / al_idx / proj_file
-                proj = ProjectData(
-                    name=name,
-                    path=fpath,
-                    dp_proc=dp_proc,
-                    dp_pack=dp_pack,
-                    alignment=alignment,
-                    exp_info_full=experiment_info,
-                    uploader=uploader,
-                    mailer=mailer,
-                    exp_path=exp_path,
-                    nthreads=nthreads,
-                    readonly=readonly,
-                    conf=conf)
+                # Load the spreadsheet of per-sample project information
+                experiment_info = experiment.load_metadata(exp_path)
+            except FileNotFoundError:
+                pass
+            else:
+                sample_paths = None
                 try:
-                    proj.sample_paths = sample_paths
-                except ProjectError:
-                    # If something went wrong at this point, complain, but
-                    # still add the (failed) project to the set, since it did
-                    # initialize already.
-                    proj.fail()
-                    msg = "ProjectData setup failed for %s (%s)"
-                    msg = msg % (proj.work_dir, alignment.run.run_id)
-                    logging.getLogger(__name__).error(msg)
-                projects.add(proj)
+                    sample_paths = alignment.sample_paths()
+                except FileNotFoundError as exception:
+                    # In this case there's a mismatch in the data files expected
+                    # from the Alignment directory's metadata and the data files
+                    # actually on disk.
+                    msg = "\nFASTQ file not found:\n"
+                    msg += "Run:       %s\n" % alignment.run.path
+                    msg += "Alignment: %s\n" % alignment.path
+                    msg += "File:      %s\n" % exception.filename
+                    warnings.warn(msg)
+                # Set of unique names in the experiment spreadsheet
+                names = {row["Project"] for row in experiment_info}
+                run_id = alignment.run.run_id
+                al_idx = str(alignment.index)
+                for name in names:
+                    proj_file = slugify(name) + ".yml"
+                    fpath = Path(dp_align) / run_id / al_idx / proj_file
+                    proj = ProjectData(
+                        name=name,
+                        path=fpath,
+                        dp_proc=dp_proc,
+                        dp_pack=dp_pack,
+                        alignment=alignment,
+                        exp_info_full=experiment_info,
+                        uploader=uploader,
+                        mailer=mailer,
+                        exp_path=exp_path,
+                        nthreads=nthreads,
+                        readonly=readonly,
+                        conf=conf)
+                    try:
+                        proj.sample_paths = sample_paths
+                    except ProjectError:
+                        # If something went wrong at this point, complain, but
+                        # still add the (failed) project to the set, since it did
+                        # initialize already.
+                        proj.fail()
+                        msg = "ProjectData setup failed for %s (%s)"
+                        msg = msg % (proj.work_dir, alignment.run.run_id)
+                        logging.getLogger(__name__).error(msg)
+                    projects.add(proj)
         return projects
 
     def __init__(
