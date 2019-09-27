@@ -231,6 +231,8 @@ class ProjectData:
         # Exclude sample names we didn't find in the given sample paths.
         # (Also implicitly excludes unrelated sample paths that may be for
         # other projects.)
+        if sample_paths is None:
+            raise ProjectError("sample paths not given from alignment")
         from_exp = set(self.experiment_info["sample_names"])
         from_given = set(sample_paths.keys())
         keepers = from_exp & from_given

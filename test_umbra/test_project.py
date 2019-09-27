@@ -990,6 +990,40 @@ class TestProjectDataMissingSamples(TestProjectDataOneTask):
             super().set_up_proj()
 
 
+class TestProjectDataMissingFiles(TestProjectDataOneTask):
+    """What if samples listed in the sample sheet are not on disk?
+
+    This should fail the project.
+    """
+
+    def set_up_vars(self):
+        super().set_up_vars()
+        self.expected["initial_status"] = "failed"
+        self.expected["final_status"] = "failed"
+
+    def set_up_tmpdir(self):
+        super().set_up_tmpdir()
+        for item in (
+                Path(self.tmpdir.name) /
+                "runs/180101_M00000_0000_000000000-XXXXX" /
+                "Data/Intensities/BaseCalls").glob("*.fastq.gz"):
+            item.unlink()
+
+    def set_up_proj(self):
+        with self.assertLogs(level=logging.ERROR):
+            with self.assertWarns(Warning):
+                super().set_up_proj()
+        self.assertEqual(self.proj.status, self.expected["final_status"])
+        self.assertEqual(self.proj.tasks_pending, self.expected["tasks"])
+        self.assertEqual(self.proj.tasks_completed, [])
+        self.assertEqual(self.proj.task_current, "")
+
+    def test_process(self):
+        msg = "ProjectData status already defined as \"failed\""
+        with self.assertRaisesRegex(ProjectError, msg):
+            super().test_process()
+
+
 class TestProjectDataNoSamples(TestProjectDataOneTask):
     """What if no samples listed in metadata.csv are in the sample sheet?
 
