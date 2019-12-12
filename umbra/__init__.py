@@ -18,3 +18,25 @@ metadata on disk.
 
 from . import config
 CONFIG = config.layer_configs([config.path_for_config()])
+
+def __deduce_version():
+    """Return version string for this package, if loaded from a .egg.
+
+    This uses pkg_resources to determine the version originally defined in
+    setup.py, but only if it can find an installed package and the filesystem
+    path for the loaded package agrees with it.
+    """
+    from pkg_resources import (get_distribution, DistributionNotFound)
+    from pathlib import Path
+    try:
+        res = get_distribution(__package__)
+    except DistributionNotFound:
+        pass
+    else:
+        location_pkg = Path(res.location).resolve()
+        location_self = Path(__file__).resolve()
+        if location_pkg in location_self.parents:
+            return res.version
+    return ""
+
+__version__ = __deduce_version()
