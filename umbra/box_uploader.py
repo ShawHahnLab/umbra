@@ -138,7 +138,7 @@ class BoxUploader:
         LOGGER.info("File uploaded: %s", str(path))
         return url
 
-    def __ft_upload(self, path, name, tries=3):
+    def __ft_upload(self, path, name, tries=8):
         """Fault-tolerant upload.
 
         Try a few times, intercepting and logging any sort of IOError
