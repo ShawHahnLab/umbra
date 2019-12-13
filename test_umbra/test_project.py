@@ -702,7 +702,7 @@ class TestProjectDataTimeout(TestProjectDataOneTask):
             self.proj.process()
         self.assertEqual(self.proj.status, self.expected["final_status"])
         self.assertEqual(self.proj.tasks_pending, DEFAULT_TASKS)
-        self.assertEqual(self.proj.tasks_completed, [])
+        self.assertEqual(self.proj.tasks_completed, self.expected["tasks_completed"])
         self.assertEqual(self.proj.task_current, self.task)
 
 
@@ -717,6 +717,7 @@ class TestProjectDataManualTimeout(TestProjectDataTimeout):
         self.task = "manual"
         super().set_up_vars()
         self.expected["final_status"] = "failed"
+        self.expected["tasks_completed"] = []
 
     def test_process(self):
         self.check_process()
@@ -768,11 +769,19 @@ class TestProjectDataGeneiousTimeout(TestProjectDataTimeout):
         self.task = "geneious"
         super().set_up_vars()
         self.expected["final_status"] = "failed"
-        self.expected["tasks"] = ["trim", "merge", "spades", "assemble",
-                                  "geneious"] + DEFAULT_TASKS
+        tasks = ["trim", "merge", "spades", "assemble"]
+        self.expected["tasks_completed"] = tasks
+        self.expected["tasks"] = tasks + ["geneious"] + DEFAULT_TASKS
+        self.expected["task_output"] = {t: {} for t in tasks}
 
     def test_process(self):
         self.check_process()
+
+    def test_task_output(self):
+        self.test_process()
+        self.assertEqual(
+            sorted(self.proj.task_output.keys()),
+            sorted(self.expected["task_output"].keys()))
 
 
 class TestProjectDataMetadata(TestProjectDataOneTask):
