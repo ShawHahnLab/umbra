@@ -134,6 +134,7 @@ class ProjectData:
         self._metadata["experiment_info"]["path"] = str(exp_path or "")
         self._metadata["run_info"] = {}
         self._metadata["sample_paths"] = {}
+        self._metadata["work_dir"] = self._init_work_dir_name()
         self.tasks = self._setup_tasks()
         self._metadata["task_status"] = self._setup_task_status()
         self._metadata["task_output"] = {}
@@ -142,16 +143,15 @@ class ProjectData:
             self._metadata["experiment_info"]["name"] = self.alignment.experiment
         if self.alignment.run:
             self._metadata["run_info"]["path"] = str(self.alignment.run.path)
-        self._metadata["work_dir"] = self._init_work_dir_name()
 
         self.path_proc = Path(dp_proc) / self.work_dir
         self.path_pack = Path(dp_pack) / (self.work_dir + ".zip")
         if not self.readonly:
             if self.path_proc.exists() and self.path_proc.glob("*"):
-                LOGGER.warning(
+                LOGGER.error(
                     "Processing directory exists and is not empty: %s",
                     str(self.path_proc))
-                LOGGER.warning(
+                LOGGER.error(
                     "Marking project readonly: %s", self.work_dir)
                 self.readonly = True
             else:

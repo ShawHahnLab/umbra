@@ -47,6 +47,7 @@ def __load_task_classes():
     tasks.
     """
     package = sys.modules[__package__]
+    LOGGER.debug("Loading task code from %s", package.__path__)
     for _, modname, _ in pkgutil.walk_packages(package.__path__,
                                                package.__name__+"."):
         mod = importlib.import_module(modname, __package__)
@@ -210,6 +211,10 @@ class Task(metaclass=__TaskParent):
         and metadata.  If you override __init__ be sure to
         super().__init__(conf, proj).
         """
+        LOGGER.debug(
+            "Task init for %s: %s",
+            getattr(proj, "work_dir", "(None)"),
+            self.name)
         # Start off with any package-level defaults for this task
         default_config = CONFIG["task_options"]["tasks"].get(self.name, {})
         self.config = copy.deepcopy(default_config)

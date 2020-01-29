@@ -363,10 +363,10 @@ class IlluminaProcessor:
         # Now, check each threshold if it was specified.  Careful to check for
         # None here because a literal zero should be taken as its own meaning.
         if min_age is not None and (time_now - time_change < min_age):
-            LOGGER.debug("skipping run; timestamp too new:.../%s", run_dir.name)
+            LOGGER.info("skipping run; timestamp too new:.../%s", run_dir.name)
             return run
         if max_age is not None and (time_now - time_change > max_age):
-            LOGGER.debug("skipping run; timestamp too old:.../%s", run_dir.name)
+            LOGGER.info("skipping run; timestamp too old:.../%s", run_dir.name)
             return run
         # pylint: disable=broad-except
         try:
