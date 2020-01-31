@@ -57,6 +57,20 @@ class TestBoxUploaderBase(unittest.TestCase):
         self.queue.put(data_obs)
         return data_obs
 
+    def do_big_upload(self, mbytes):
+        """Upload a bigger test file and fetch the data back."""
+        # N MB of nothin'
+        data_exp = bytes(1024 * 1024 * mbytes)
+        with NamedTemporaryFile() as ftmp:
+            ftmp.write(data_exp)
+            ftmp.flush()
+            filename = "test_big_upload_%s.txt" % threading.get_ident()
+            url = self.box.upload(ftmp.name, filename)
+        with urllib.request.urlopen(url) as furl:
+            data_obs = furl.read()
+        self.queue.put(data_obs)
+        return data_obs, data_exp
+
 
 class TestBoxUploader(TestBoxUploaderBase):
     """Test the BoxUploader class that handles file uploads to box.com."""
@@ -78,9 +92,20 @@ class TestBoxUploader(TestBoxUploaderBase):
         self.assertEqual(data_obs, self.data_exp)
         self.assertEqual(len(self.box.list()), 1)
 
+    def test_big_upload(self):
+        """Test uploading a bigger file to Box.
+
+        100 MB should get us into the realm of using the chunked uploader
+        instead of the one-shot version.
+        """
+        self.assertEqual(len(self.box.list()), 0)
+        data_obs, data_exp = self.do_big_upload(100)
+        self.assertEqual(data_obs, data_exp)
+        self.assertEqual(len(self.box.list()), 1)
+
     def test_parallel_upload(self):
         """Do threaded uploads with the same client work?
-        
+
         (They do.  At one point I suspected this was causing a problem but it
         seems to do just fine.)
         """
