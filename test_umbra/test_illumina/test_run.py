@@ -27,11 +27,14 @@ class TestRun(unittest.TestCase):
         self.path_run = Path(self.tmpdir.name) / RUN_IDS["MiSeq"]
         copy_tree(str(PATH_RUNS / RUN_IDS["MiSeq"]), str(self.path_run))
         self.run = Run(self.path_run)
-        self.id_exp = RUN_IDS["MiSeq"]
         date = datetime.datetime(2018, 1, 1, 6, 21, 31, 705000)
-        self.rta_exp = {"Date": date, "Version": "Illumina RTA 1.18.54"}
-        self.t1_exp = "2018-01-02T06:48:22.0480092-04:00"
-        self.t2_exp = "2018-01-02T06:48:32.608024-04:00"
+        self.expected = {
+            "id": RUN_IDS["MiSeq"],
+            "rta": {"Date": date, "Version": "Illumina RTA 1.18.54"},
+            "t1": "2018-01-02T06:48:22.0480092-04:00",
+            "t2": "2018-01-02T06:48:32.608024-04:00",
+            "flowcell": "000000000-XXXXX"
+            }
 
     def tearDown(self):
         self.tmpdir.cleanup()
@@ -41,17 +44,17 @@ class TestRun(unittest.TestCase):
         # RunInfo.xml
         # Check the Run ID.
         id_obs = self.run.run_info.find("Run").attrib["Id"]
-        self.assertEqual(id_obs, self.id_exp)
+        self.assertEqual(id_obs, self.expected["id"])
         # RTAComplete.txt
         # Check the full contents.
         rta_obs = self.run.rta_complete
-        self.assertEqual(rta_obs, self.rta_exp)
+        self.assertEqual(rta_obs, self.expected["rta"])
         # CompletedJobInfo.xml
         # Check the job start/completion timestamps.
         t1_obs = self.run.completed_job_info.find("StartTime").text
         t2_obs = self.run.completed_job_info.find("CompletionTime").text
-        self.assertEqual(self.t1_exp, t1_obs)
-        self.assertEqual(self.t2_exp, t2_obs)
+        self.assertEqual(self.expected["t1"], t1_obs)
+        self.assertEqual(self.expected["t2"], t2_obs)
 
     def check_refresh_run(self):
         """Test refreshing run state from files on disk."""
@@ -96,7 +99,11 @@ class TestRun(unittest.TestCase):
 
     def test_run_id(self):
         """Test the run ID property."""
-        self.assertEqual(self.id_exp, self.run.run_id)
+        self.assertEqual(self.expected["id"], self.run.run_id)
+
+    def test_flowcell(self):
+        """Test the flowcell property."""
+        self.assertEqual(self.expected["flowcell"], self.run.flowcell)
 
 
 class TestRunSingle(TestRun):
@@ -107,11 +114,13 @@ class TestRunSingle(TestRun):
         self.path_run = Path(self.tmpdir.name) / RUN_IDS["Single"]
         copy_tree(str(PATH_RUNS / RUN_IDS["Single"]), str(self.path_run))
         self.run = Run(self.path_run)
-        self.id_exp = RUN_IDS["Single"]
+        self.expected = {}
+        self.expected["id"] = RUN_IDS["Single"]
         date = datetime.datetime(2018, 1, 6, 6, 20, 25, 841000)
-        self.rta_exp = {"Date": date, "Version": "Illumina RTA 1.18.54"}
-        self.t1_exp = "2018-01-05T13:38:15.2566992-04:00"
-        self.t2_exp = "2018-01-05T13:38:45.3021522-04:00"
+        self.expected["rta"] = {"Date": date, "Version": "Illumina RTA 1.18.54"}
+        self.expected["t1"] = "2018-01-05T13:38:15.2566992-04:00"
+        self.expected["t2"] = "2018-01-05T13:38:45.3021522-04:00"
+        self.expected["flowcell"] = "000000000-XXXXX"
 
 
 class TestRunMiniSeq(TestRun):
@@ -128,11 +137,13 @@ class TestRunMiniSeq(TestRun):
         self.path_run = Path(self.tmpdir.name) / RUN_IDS["MiniSeq"]
         copy_tree(str(PATH_RUNS / RUN_IDS["MiniSeq"]), str(self.path_run))
         self.run = Run(self.path_run)
-        self.id_exp = RUN_IDS["MiniSeq"]
+        self.expected = {}
+        self.expected["id"] = RUN_IDS["MiniSeq"]
         date = datetime.datetime(2018, 1, 4, 11, 14, 00)
-        self.rta_exp = {"Date": date, "Version": "RTA 2.8.6"}
-        self.t1_exp = "2018-01-04T11:15:03.8237582-04:00"
-        self.t2_exp = "2018-08-04T11:16:52.4989741-04:00"
+        self.expected["rta"] = {"Date": date, "Version": "RTA 2.8.6"}
+        self.expected["t1"] = "2018-01-04T11:15:03.8237582-04:00"
+        self.expected["t2"] = "2018-08-04T11:16:52.4989741-04:00"
+        self.expected["flowcell"] = "000000000"
 
 
 class TestRunMisnamed(TestRun):
@@ -143,11 +154,13 @@ class TestRunMisnamed(TestRun):
         self.path_run = Path(self.tmpdir.name) / RUN_IDS["misnamed"]
         copy_tree(str(PATH_RUNS / RUN_IDS["MiSeq"]), str(self.path_run))
         self.run = Run(self.path_run, strict=False)
-        self.id_exp = RUN_IDS["MiSeq"]
+        self.expected = {}
+        self.expected["id"] = RUN_IDS["MiSeq"]
         date = datetime.datetime(2018, 1, 1, 6, 21, 31, 705000)
-        self.rta_exp = {"Date": date, "Version": "Illumina RTA 1.18.54"}
-        self.t1_exp = "2018-01-02T06:48:22.0480092-04:00"
-        self.t2_exp = "2018-01-02T06:48:32.608024-04:00"
+        self.expected["rta"] = {"Date": date, "Version": "Illumina RTA 1.18.54"}
+        self.expected["t1"] = "2018-01-02T06:48:22.0480092-04:00"
+        self.expected["t2"] = "2018-01-02T06:48:32.608024-04:00"
+        self.expected["flowcell"] = "000000000-XXXXX"
 
     def test_init(self):
         """Test that we get the expected warning during Run initialization."""

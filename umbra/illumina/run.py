@@ -140,3 +140,8 @@ class Run:
     def completed_job_info(self):
         """CompletedJobInfo.xml data."""
         return self.rundata["completed_job_info"]
+
+    @property
+    def flowcell(self):
+        """Flow cell ID."""
+        return self.run_info.find("./Run/Flowcell").text
