@@ -7,7 +7,7 @@ define processing options.
 
 import csv
 import re
-from . import illumina
+from .illumina.util import load_csv
 
 def _parse_contacts(text):
     """Create a dictionary of name/email pairs from contact text.
@@ -41,7 +41,16 @@ def _parse_contacts(text):
 
 def load_metadata(path):
     """Load an Experiment metadata spreadsheet."""
-    info = illumina.util.load_csv(path, csv.DictReader)
+    info = load_csv(path, csv.DictReader)
+    # skip empty columns.  With DictReader these end up as just a stub "": ""
+    # entry.
+    for row in info:
+        if "" in row:
+            del row[""]
+    # skip empty rows
+    allempty = lambda r: set(r.values()) == set([""])
+    info = [row for row in info if not allempty(row)]
+    # parse tasks and contacts
     for row in info:
         row["Tasks"] = row["Tasks"].split()
         row["Contacts"] = _parse_contacts(row["Contacts"])
