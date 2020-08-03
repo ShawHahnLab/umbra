@@ -60,11 +60,20 @@ class ProjectData:
         projects = set()
         if alignment.experiment:
             exp_path = path_exp / alignment.experiment / "metadata.csv"
+            # pylint: disable=broad-except
+            # Specific cases will be handled quietly, while unspecified
+            # failures loading metadata.csv will be caught but complained about
+            # loudly.
             try:
-                # Load the spreadsheet of per-sample project information
-                experiment_info = experiment.load_metadata(exp_path)
-            except FileNotFoundError:
-                pass
+                try:
+                    # Load the spreadsheet of per-sample project information
+                    experiment_info = experiment.load_metadata(exp_path)
+                except FileNotFoundError:
+                    return projects
+            except Exception:
+                LOGGER.critical(
+                    "Unrecognized error parsing metadata.csv for %s", alignment.experiment)
+                LOGGER.critical(traceback.format_exc())
             else:
                 sample_paths = None
                 try:
