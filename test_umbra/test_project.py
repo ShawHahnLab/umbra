@@ -74,11 +74,11 @@ class TestProjectData(TestBase):
         works = {
             # The date stamp is by completion date of the alignment, not
             # start date of the run (i.e., the date encoded in the Run ID).
-            "STR": "2018-01-01-STR-Jesse",
+            "STR": "2018-01-01-STR-Jesse-XXXXX",
             # The names are organized in the order presented in the
             # experiment metadata spreadsheet.  Any non-alphanumeric
             # characters are converted to _.
-            "Something Else": "2018-01-01-Something_Else-Someone-Jesse"
+            "Something Else": "2018-01-01-Something_Else-Someone-Jesse-XXXXX"
             }
         for key in works:
             self.assertEqual(works[key], self.projs[key].work_dir)
@@ -134,8 +134,8 @@ class TestProjectData(TestBase):
         md_str["status"] = "complete"
         md_str["task_output"] = {}
         md_se["task_output"] = {}
-        md_se["work_dir"] = "2018-01-01-Something_Else-Someone-Jesse"
-        md_str["work_dir"] = "2018-01-01-STR-Jesse"
+        md_se["work_dir"] = "2018-01-01-Something_Else-Someone-Jesse-XXXXX"
+        md_str["work_dir"] = "2018-01-01-STR-Jesse-XXXXX"
 
         fastq = self.paths["runs"]/"180101_M00000_0000_000000000-XXXXX/Data/Intensities/BaseCalls"
         fps = {
@@ -229,7 +229,7 @@ class TestProjectDataOneTask(TestBase):
                 "Partials_1_1_18" /
                 "metadata.csv"),
             "contacts": {"Name Lastname": "name@example.com"},
-            "work_dir": "2018-01-01-TestProject-Name",
+            "work_dir": "2018-01-01-TestProject-Name-XXXXX",
             "tasks": tasks,
             "sample_names": [
                 "1086S1_01",
@@ -894,8 +894,8 @@ class TestProjectDataEmail(TestProjectDataOneTask):
         super().set_up_vars()
         # These checksums are *after* replacing the variable temporary directory
         # path with "TMP"; see make_paths_static helper method.
-        self.expected["msg_body"] = "8cf4e595625696a3c9829fb32f5134da"
-        self.expected["msg_html"] = "0a89d75d49d366c2a893a3717e554c21"
+        self.expected["msg_body"] = "b34e1b1d387c3e9a3554b7f414545a00"
+        self.expected["msg_html"] = "1ae87b9d9f92216a287a410f99eb30c6"
         self.expected["to_addrs"] = ["Name Lastname <name@example.com>"]
 
     def test_process(self):
@@ -958,9 +958,9 @@ class TestProjectDataEmailNoName(TestProjectDataEmail):
         self.expected["to_addrs"] = ["name <name@example.com>"]
         # (Very slightly different workdir (lowercase "name") and thus download
         # URL and thus message checksums)
-        self.expected["work_dir"] = "2018-01-01-TestProject-name"
-        self.expected["msg_body"] = "b7288176f5b4d536d59a92aaf878c1b1"
-        self.expected["msg_html"] = "2feaeacc78a538e70faba27434758759"
+        self.expected["work_dir"] = "2018-01-01-TestProject-name-XXXXX"
+        self.expected["msg_body"] = "16278d694baba6f0d08f5a83a60f95cb"
+        self.expected["msg_html"] = "54b0a2cb505e97a083bd63013a75e652"
 
 
 class TestProjectDataEmailNoContacts(TestProjectDataEmail):
@@ -979,9 +979,9 @@ class TestProjectDataEmailNoContacts(TestProjectDataEmail):
         self.contacts_str = ""
         self.expected["contacts"] = {}
         self.expected["to_addrs"] = []
-        self.expected["work_dir"] = "2018-01-01-TestProject"
-        self.expected["msg_body"] = "d53d45bd2e31e906e70e3f550e535145"
-        self.expected["msg_html"] = "809352d638a6713a20892885b7dccda0"
+        self.expected["work_dir"] = "2018-01-01-TestProject-XXXXX"
+        self.expected["msg_body"] = "9bc8f2684423504363cc9d6ec7bbcdf4"
+        self.expected["msg_html"] = "6d0796877d5c60c1c5661838dc207789"
 
 
 # Other ProjectData test cases
