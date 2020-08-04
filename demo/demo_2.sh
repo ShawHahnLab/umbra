@@ -15,7 +15,7 @@ function run_demo_2 {
 
 # Check that we get exactly the expected files.
 function test_files {
-	local dir_work=$SEQROOT/processed/2018-01-01-STR-Jesse
+	local dir_work=$SEQROOT/processed/2018-01-01-STR-Jesse-XXXXX
 	diff <((
 	for task in trim metadata package upload email; do
 		echo "$dir_work/RunDiagnostics/Logs/log_${task}.txt"

@@ -14,6 +14,7 @@ in the processing output directory, unexpected input data formats, etc).
 
 import traceback
 import logging
+import re
 import sys
 import warnings
 import copy
@@ -175,7 +176,9 @@ class ProjectData:
         who = [txt.split(" ")[0] for txt in who.keys()]
         who = "-".join(who)
         txt_name = slugify(who)
-        fields = [txt_date, txt_proj, txt_name]
+        txt_flowcell = re.sub("^[-0]+", "", self.alignment.run.flowcell)
+        txt_flowcell = slugify(txt_flowcell)
+        fields = [txt_date, txt_proj, txt_name, txt_flowcell]
         fields = [f for f in fields if f]
         dirname = "-".join(fields)
         if not dirname:
