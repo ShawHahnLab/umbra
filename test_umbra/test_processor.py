@@ -44,13 +44,13 @@ class TestIlluminaProcessor(TestBase):
         self.mails = []
         # This covers the expected situation checked for in the tests.
         self.expected = {
-            "num_runs": 4,
+            "num_runs": 5,
             "run_id": "180101_M00000_0000_000000000-XXXXX",
             "warn_msg": "",
             # MD5 sum of the report CSV text, minus the RunPath column.  This
             # is after fulling loading the default data, but before starting
             # processing.
-            "report_md5": "a6288d49f223ad85b564069701bc8b6f",
+            "report_md5": "03937ca84ebc70d670f3e4b9650f4a1a",
             # The header entries we expect to see in the CSV report text.
             "report_fields": [
                 "RunId",
@@ -257,12 +257,12 @@ class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
 
     def set_up_vars(self):
         super().set_up_vars()
-        self.expected["num_runs"] = 5
+        self.expected["num_runs"] = 6
         self.expected["warn_msg"] = "Run directory does not match Run ID: "
         self.expected["warn_msg"] += "run-files-custom-name / "
         self.expected["warn_msg"] += "180102_M00000_0000_000000000-XXXXX"
         # There's an extra line in the report due to the duplicated run
-        self.expected["report_md5"] = "6d3a716cc86a08f382e29474847f018b"
+        self.expected["report_md5"] = "4aea937d44b81dfc92307999b032ce64"
 
     def test_load(self):
         # One run dir in particular is named oddly and is a duplicate of the
@@ -315,7 +315,7 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
     def set_up_vars(self):
         super().set_up_vars()
         # All projects inactive in this case
-        self.expected["report_md5"] = "513fb89c2d3341352ad34e791eae5fdf"
+        self.expected["report_md5"] = "1fb1fce577c9bf7b0124ed56dac43fd6"
 
     def test_refresh(self):
         """Basic scenario for refresh(): a new run directory appears.
@@ -365,7 +365,7 @@ class TestIlluminaProcessorReportConfig(TestIlluminaProcessor):
         # used in the test below will wait, so we'll get a completed
         # ProjectData for one case.  Need an MD5 for a slightly different
         # report in that case.
-        report_md5 = "c815570da24ce8e556d8e50b454a8eb1"
+        report_md5 = "16f00124545186c2070e8adee26d1aad"
         self._watch_and_process_maybe_warning()
         # If a report was configured, it should exist
         with open(self.report_path) as f_in:

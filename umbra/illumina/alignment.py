@@ -147,7 +147,7 @@ class Alignment:
         # SEE: 171026_M00281_0285_000000000-BGM65
         if not sname:
             sname = sample["Sample_ID"]
-        sname = re.sub(r"[/+#_ .\-]+", "-", sname)
+        sname = re.sub(r"[/+#_ .\-'\"]+", "-", sname)
         sname = re.sub("-+$", "", sname)
         sname = re.sub("^-+", "", sname)
         fields = {"sname": sname, "snum": sample_num, "lane": 1, "rp": 1}

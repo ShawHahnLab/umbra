@@ -11,21 +11,16 @@ import unittest.mock
 import subprocess
 import tempfile
 import copy
+import logging
+import importlib
 from pathlib import Path
 from umbra import task
 
 class TestTaskModule(unittest.TestCase):
     """Tests on the task module."""
 
-    def test_task_classes(self):
-        """Check the dict of task classes for the module.
-
-        The module should bring Task* clases from each task_* child module up
-        to the top level, and task_classes should present them in dictionary
-        form by name.
-        """
-        cls_dict = task.task_classes()
-        keys_expected = set((
+    def setUp(self):
+        self.tasks_expected = set((
             "noop",
             "fail",
             "copy",
@@ -39,7 +34,64 @@ class TestTaskModule(unittest.TestCase):
             "package",
             "email",
             "upload"))
-        self.assertEqual(set(cls_dict.keys()), keys_expected)
+
+    def tearDown(self):
+        # We've made a mess of the task module itself during these tests.
+        # Clean up for the next test.
+        for name in dir(task):
+            if name.startswith("Task"):
+                delattr(task, name)
+        importlib.reload(importlib.import_module("umbra.task"))
+
+    def test_task_classes(self):
+        """Check the dict of task classes for the module.
+
+        The module should bring Task* clases from each task_* child module up
+        to the top level, and task_classes should present them in dictionary
+        form by name.
+        """
+        cls_dict = task.task_classes()
+        self.assertEqual(set(cls_dict.keys()), self.tasks_expected)
+
+    def test_task_classes_extra(self):
+        """Check that loading additional Task classes works."""
+        path = "test_umbra/data/other/tasks/task_extra.py"
+        with self.assertLogs(level=logging.DEBUG) as logging_context:
+            task.load_extra_task_classes(path)
+            # 1 file, 1 class
+            self.assertEqual(len(logging_context.output), 2)
+        cls_dict = task.task_classes()
+        self.assertEqual(
+            set(cls_dict.keys()),
+            self.tasks_expected | set(["extra"]))
+
+    def test_task_classes_extra_dir(self):
+        """Check that loading additional Task classes works from dir.
+
+        In this case a second file and task class should be loaded.
+        """
+        path = "test_umbra/data/other/tasks"
+        with self.assertLogs(level=logging.DEBUG) as logging_context:
+            task.load_extra_task_classes(path)
+            # 2 files, 2 classes
+            self.assertEqual(len(logging_context.output), 4)
+        cls_dict = task.task_classes()
+        self.assertEqual(
+            set(cls_dict.keys()),
+            self.tasks_expected | set(["extra", "other"]))
+
+    def test_task_classes_missing(self):
+        """Check that a missing path for extra task classes is handled."""
+        # Simple way to make a nonexistant filename
+        tmp = tempfile.NamedTemporaryFile()
+        tmp.close()
+        path = tmp.name
+        # An error should be logged, but no exception raised.
+        with self.assertLogs(level=logging.ERROR) as logging_context:
+            task.load_extra_task_classes(path)
+            self.assertEqual(len(logging_context.output), 1)
+        cls_dict = task.task_classes()
+        self.assertEqual(set(cls_dict.keys()), self.tasks_expected)
 
 
 class TestTaskClass(unittest.TestCase):

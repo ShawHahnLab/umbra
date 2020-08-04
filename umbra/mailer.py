@@ -37,9 +37,12 @@ class Mailer:
     def __init__(self, conf):
         """Configure connection details for sending mail over SMTP."""
         self.conf = copy.deepcopy(conf)
-        if isinstance(self.conf.get("cc_addrs"), str):
-            self.conf["cc_addrs"] = [self.conf.get("cc_addrs")]
-        if not self.conf.get("cc_addrs"):
+        get = self.conf.get
+        self.conf["host"] = get("host", "localhost")
+        self.conf["port"] = get("port", 25)
+        if isinstance(get("cc_addrs"), str):
+            self.conf["cc_addrs"] = [get("cc_addrs")]
+        if not get("cc_addrs"):
             self.conf["cc_addrs"] = []
         LOGGER.debug("Mailer initialized.")
 
@@ -78,7 +81,6 @@ class Mailer:
             msg["Reply-To"] = reply_to
         if to_addrs:
             msg["To"] = ", ".join(to_addrs)
-        LOGGER.debug('Connecting over SMTP for message: "%s"', subject)
         if self.conf.get("cc_addrs"):
             msg["CC"] = ", ".join(self.conf.get("cc_addrs"))
         if msg_html:
@@ -102,12 +104,18 @@ class Mailer:
         if not to_addrs:
             LOGGER.warning(
                 'No "To:" addresses given for message: "%s"', subject)
-        LOGGER.debug('Connecting over SMTP for message: "%s"', subject)
+        LOGGER.debug(
+            'Connecting over SMTP to %s:%s for message: "%s"',
+            self.conf.get("host"),
+            self.conf.get("port"),
+            subject)
         with smtplib.SMTP(self.conf.get("host"), port=self.conf.get("port")) as smtp:
             if self.conf.get("ssl"):
+                LOGGER.debug("Starting SSL/TLS context")
                 context = ssl.create_default_context()
                 smtp.starttls(context=context)
             if self.conf.get("auth"):
+                LOGGER.debug("Authenticating over SMTP as %s", self.conf.get("user"))
                 smtp.login(self.conf.get("user"), self.conf.get("password"))
             # Send and quit
             LOGGER.debug('Sending message: "%s"', subject)

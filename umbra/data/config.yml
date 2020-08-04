@@ -46,6 +46,10 @@ paths:
 # separately; see sections below.
 # Paths here are relative to a particular project's processing directory.
 task_options:
+  # A file or directory path containing custom Task classes to include.  If a
+  # directory, all files ending in .py will be searched.  Each file will be
+  # searched for classes with names starting with Task.
+  custom_tasks_source: ""
   # Subdirectory to use for implicitly-required (not explicitly requested for
   # the project) task output directories.  By default these are stored
   # side-by-side on the top level with the rest of the per-task directories.
@@ -67,6 +71,17 @@ task_options:
     assemble:
       # Min length of contigs to keep in filtered Geneious-ready form
       contig_length_min: 255
+    manual:
+      # Timeout in seconds while waiting for the manual processing step.  If
+      # this is reached a ProjectError is raised, failing the processing.
+      # 60*60*24*7 = 604800 = 1 week
+      timeout: 604800
+      # Delay between checks in seconds (currently implemented as a dumb loop)
+      delta: 5
+    geneious:
+      # Same timeout and delta behavior as the manual task.
+      timeout: 604800
+      delta: 5
     email:
       # (This is for the email task specifically. For general email-sending
       # configuration see the "mailer" header below.)

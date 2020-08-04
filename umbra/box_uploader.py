@@ -10,8 +10,9 @@ import time
 import datetime
 import subprocess
 from pathlib import Path
-import boxsdk
 import yaml
+import boxsdk
+from boxsdk.exception import (BoxAPIException, BoxOAuthException)
 from .util import yaml_load
 
 LOGGER = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ class BoxUploader:
     def folder(self):
         """The Box folder object for the configured upload folder."""
         folder_id = self.config.get("folder_id", 0)
-        return self.client.folder(folder_id)
+        return self.client.folder(str(folder_id))
 
     def _load_creds(self):
         creds = yaml_load(self.creds_store_path)
@@ -86,10 +87,22 @@ class BoxUploader:
         try:
             client = self._init_client()
             client.user(user_id='me').get()
-        except boxsdk.exception.BoxAPIException as exception:
-            # If (and only if) the problem is authentication, try getting new
-            # access and refresh tokens.
+        # If (and only if) the problem is authentication, try getting new
+        # access and refresh tokens.
+        # I've seen two different classes of exception in this case, the API
+        # one originally and the OAuth one more recently.  I'll try to keep
+        # handling either.
+        except BoxAPIException as exception:
+            # b'{"error":"invalid_grant","error_description":"Refresh token has expired"}'
             if exception.status == 400 and not self.config.get("strict_auth"):
+                LOGGER.critical(
+                    ("Authentication failure.  Try re-connecting with Box in"
+                     " a browser with the URL shown."))
+                client = self._janky_auth_trick()
+            else:
+                raise exception
+        except BoxOAuthException as exception:
+            if "Status: 400" in str(exception) and not self.config.get("strict_auth"):
                 LOGGER.critical(
                     ("Authentication failure.  Try re-connecting with Box in"
                      " a browser with the URL shown."))
@@ -131,18 +144,27 @@ class BoxUploader:
             raise ValueError(msg)
         if not name:
             name = path.name
-        # Possibly add a call to folder.canUpload() to make sure it would work,
-        # first.
-        box_file = self.__ft_upload(path, name)
-        url = box_file.get_shared_link_download_url(access="open")
+        # "The Chunked Upload API is only for uploading large files and will
+        # not accept files smaller than 20MB in size."
+        # https://medium.com/box-developer-blog/introducing-the-chunked-upload-api-f82c820ccfcb
+        if fsize < 50 * 1024 * 1024:
+            # Possibly add a call to folder.canUpload() to make sure it would work,
+            # first.
+            box_file = self.__ft_upload(path, name)
+            url = box_file.get_shared_link_download_url(access="open")
+        else:
+            box_file = self.__chunked_upload(path, name)
+            url = box_file.get_shared_link_download_url(access="open")
         LOGGER.info("File uploaded: %s", str(path))
         return url
 
-    def __ft_upload(self, path, name, tries=3):
-        """Fault-tolerant upload.
+    def __ft_upload(self, path, name, tries=8):
+        """Fault-tolerant basic upload for smaller files.
 
         Try a few times, intercepting and logging any sort of IOError
-        encountered during each try.
+        encountered during each try.  This fault-tolerant approach might be
+        obsolete thanks to the chunked upload for larger files, but leaving
+        as-is for now.
         """
         # Vaguely based on:
         # https://medium.com/@echohack/patterns-with-python-poll-an-api-832173a03e93
@@ -171,14 +193,30 @@ class BoxUploader:
             raise upload_error
         return box_file
 
+    def __chunked_upload(self, path, name):
+        """Chunked upload for larger files."""
+        # https://github.com/box/box-python-sdk/blob/master/boxsdk/object/folder.py#L151
+        total_size = Path(path).stat().st_size
+        content_stream = open(path, "rb")
+        upload_session = self.folder.create_upload_session(total_size, name)
+        uploader = upload_session.get_chunked_uploader_for_stream(content_stream, total_size)
+        box_file = uploader.start()
+        return box_file
+
     def list(self, chunk=100):
-        """List of file and folder objects in the uploader folder."""
+        """List of file and folder objects in the uploader folder.
+
+        With the older Box SDK this gave an actual Python list back, but later
+        versions switched to a LimitOffsetBasedObjectCollection object which
+        doesn't implement basic stuff like len().  I should probably look into
+        what that class is but for now casting it to a list seems to work.
+        """
         offset = 0
-        items = self.folder.get_items(chunk)
+        items = list(self.folder.get_items(chunk))
         allitems = items
         while len(items) == chunk:
             offset += chunk
-            items = self.folder.get_items(chunk, offset)
+            items = list(self.folder.get_items(chunk, offset))
             allitems.extend(items)
         return allitems
 

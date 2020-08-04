@@ -9,6 +9,7 @@ instantiated by ProjectData objects for individual datasets.
 
 import re
 import importlib
+import importlib.util
 import pkgutil
 import sys
 import logging
@@ -46,15 +47,45 @@ def __load_task_classes():
     tasks.
     """
     package = sys.modules[__package__]
+    LOGGER.debug("Loading task code from %s", package.__path__)
     for _, modname, _ in pkgutil.walk_packages(package.__path__,
                                                package.__name__+"."):
         mod = importlib.import_module(modname, __package__)
-        for name in dir(mod):
-            if name.startswith("Task"):
-                LOGGER.debug("Importing into %s: %s (from %s)",
-                             __package__, name, mod)
-                globals()[name] = getattr(mod, name)
+        __inject_tasks_from(mod)
 
+def load_extra_task_classes(path):
+    """Load classes from an arbitrary file/directory whose names start with "Task"."""
+    if not path:
+        return
+    path = Path(path)
+    if path.is_dir():
+        filepaths = path.glob("*.py")
+    else:
+        filepaths = [path]
+    for filepath in filepaths:
+        if filepath.exists():
+            LOGGER.debug("Importing task code from %s", filepath)
+        else:
+            LOGGER.error("Skipping task code import from missing file %s", filepath)
+            continue
+        mod = __load_module_from(filepath)
+        __inject_tasks_from(mod)
+
+def __inject_tasks_from(module):
+    """Load classes from a module object whose names start with "Task"."""
+    for name in dir(module):
+        if name.startswith("Task"):
+            LOGGER.debug("Importing into %s: %s (from %s)",
+                         __package__, name, module)
+            globals()[name] = getattr(module, name)
+
+def __load_module_from(path):
+    """Return module from an arbitrary file."""
+    path = Path(path)
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 # pylint: disable=invalid-name,too-few-public-methods
 class classproperty():
@@ -180,6 +211,10 @@ class Task(metaclass=__TaskParent):
         and metadata.  If you override __init__ be sure to
         super().__init__(conf, proj).
         """
+        LOGGER.debug(
+            "Task init for %s: %s",
+            getattr(proj, "work_dir", "(None)"),
+            self.name)
         # Start off with any package-level defaults for this task
         default_config = CONFIG["task_options"]["tasks"].get(self.name, {})
         self.config = copy.deepcopy(default_config)
@@ -329,3 +364,4 @@ class Task(metaclass=__TaskParent):
 
 
 __load_task_classes()
+load_extra_task_classes(CONFIG["task_options"]["custom_tasks_source"])
