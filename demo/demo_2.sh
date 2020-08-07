@@ -7,10 +7,11 @@ source demo/demo_setup.sh
 
 SEQROOT=${1-demo_2_seq}
 CONFIG=${2-demo/demo_2.yml}
+DELAY=${3:-1}
 
 function run_demo_2 {
 	rsync -r --exclude STR.yml test_umbra/data/ $SEQROOT
-	run_umbra "$SEQROOT" "$CONFIG"
+	run_umbra "$SEQROOT" "$CONFIG" "$DELAY"
 }
 
 # Check that we get exactly the expected files.

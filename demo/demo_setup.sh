@@ -21,9 +21,12 @@ function run_umbra {
 	# stdbuf: https://stackoverflow.com/a/30845184/4499968
 	local seqroot=$1
 	local config=$2
+	local delay=$3
 	UMBRA_SYSTEM_CONFIG="" stdbuf -oL -eL python -m umbra -c <(sed s/SEQROOT/$seqroot/g $config) -a process &
-	sleep 1
-	kill -s INT %1
+	if [[ $delay != "" ]]; then
+		sleep $delay
+		kill -s INT %1
+	fi
 	wait
 }
 

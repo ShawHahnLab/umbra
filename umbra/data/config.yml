@@ -28,6 +28,14 @@ min_age: null
 max_age: null
 
 ##############################################################################
+# Configuration for client/server features via HTTP.
+# If host is left at 127.0.0.1 it will only be reachable from the local system.
+server:
+  enabled: true
+  host: "127.0.0.1"
+  port: 15137
+
+##############################################################################
 # Basic file and directory path setup for processing tasks.
 paths:
   # This is used as a parent directory for any relative paths given below in

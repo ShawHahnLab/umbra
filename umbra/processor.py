@@ -103,6 +103,14 @@ class IlluminaProcessor:
                 LOGGER.warning(msg)
             self.mailerobj = lambda: None
             self.mailerobj.mail = lambda *args, **kwargs: None
+
+        conf_server = conf.get("server", {})
+        if conf_server.get("enabled"):
+            self.server = Server(conf_server["host"], conf_server["port"], self)
+            self.server.start()
+        else:
+            self.server = None
+
         LOGGER.debug("IlluminaProcessor initialized.")
 
     def __del__(self):
@@ -333,11 +341,14 @@ class IlluminaProcessor:
         procstatus["running"] = False
         procstatus["queue_jobs"] = queue.Queue()
         procstatus["threads"] = []
+        procstatus["projects_by_thread"] = {}
         if not self.readonly:
             for i in range(self.conf["nthreads"]):
                 LOGGER.debug("Starting thread %d", i)
                 thread = threading.Thread(target=self._worker, daemon=True)
+                thread.name = "worker%d" % i
                 procstatus["threads"].append(thread)
+                procstatus["projects_by_thread"][thread] = None
         LOGGER.debug("Initialized job queue and worker threads")
         procstatus["queue_completion"] = queue.Queue()
         procstatus["queue_cmd"] = queue.Queue()
@@ -467,8 +478,10 @@ class IlluminaProcessor:
         exceptions raised during project data processing are logged but not
         re-raised."""
         # pylint: disable=broad-except
+        thread = threading.current_thread()
         while True:
             proj = self.procstatus["queue_jobs"].get()
+            self.procstatus["projects_by_thread"][thread] = proj
             try:
                 proj.process()
             except Exception:
@@ -494,6 +507,7 @@ class IlluminaProcessor:
                 LOGGER.debug(
                     "Placing project on completion queue: \"%s\"", proj.work_dir)
                 self.procstatus["queue_completion"].put(proj)
+                self.procstatus["projects_by_thread"][thread] = None
 
 
 def _loglevel_shift(step):
