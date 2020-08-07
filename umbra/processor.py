@@ -21,6 +21,7 @@ from .mailer import Mailer
 from .config import update_tree
 from .illumina.run import Run
 from .util import yaml_load, mkparent
+from .server import Server
 
 LOGGER = logging.getLogger(__name__)
 
