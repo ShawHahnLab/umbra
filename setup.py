@@ -15,7 +15,8 @@ setuptools.setup(
         "boxsdk",
         "pyopenssl", # required for boxsdk but not always pulled in
         "cutadapt",
-        "pyyaml"
+        "pyyaml",
+        "tornado"
         ],
     packages=setuptools.find_packages(exclude=["test_*"]),
     include_package_data=True,
