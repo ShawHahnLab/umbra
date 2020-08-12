@@ -5,6 +5,7 @@ A REST-like web interface for IlluminaProcessor.
 import os
 import threading
 import asyncio
+from pathlib import Path
 import yaml
 import tornado.ioloop
 import tornado.web
@@ -35,14 +36,24 @@ class Handler(tornado.web.RequestHandler):
             output = {"error": "no server"}
         self.write(yaml.dump(output))
 
-    def get_sub(self, itemname):
-        """Generic get-a-thing method (should split this up)."""
+    def get_datasets(self, dataset=None):
+        """Get a list of dataset names, or info for one dataset."""
         server = getattr(self, "server", None)
         if server:
-            info = server.info_item(itemname)
+            output = server.info_datasets(dataset)
         else:
-            info = {"error": "no server"}
-        self.write(yaml.dump(info))
+            output = {"error": "no server"}
+        self.write(yaml.dump(output))
+
+    def get_experiments(self, experiment=None):
+        """Get a list of experiment names, or info for one experiment."""
+        server = getattr(self, "server", None)
+        if server:
+            output = server.info_experiments(experiment)
+        else:
+            output = {"error": "no server"}
+        self.write(yaml.dump(output))
+
 
 class Server:
     """Web server hosting information about an IlluminaProcessor."""
@@ -60,7 +71,8 @@ class Server:
         self.app = tornado.web.Application([
             (r"/", mkhandler("get_main")),
             (r"/runs/?(.*)", mkhandler("get_runs")),
-            (r"/status/(.+)", mkhandler("get_sub"))
+            (r"/datasets/?(.*)", mkhandler("get_datasets")),
+            (r"/experiments/?(.*)", mkhandler("get_experiments"))
             ])
 
         loop = asyncio.new_event_loop()
@@ -138,43 +150,65 @@ class Server:
             details["details"] = [run.path.name for run in self.processor.seqinfo["runs"]]
         return details
 
-    def info_item(self, itemname):
-        """Get status details for an individual item."""
+    def info_datasets(self, dataset=None):
+        """Get a list of datasets or status details for one dataset."""
         details = {
-            "itemname": itemname,
-            "itemtype": "",
+            "itemname": dataset,
+            "itemtype": "dataset" if dataset else "datasets",
+            "message": "",
+            "details": []
+            }
+        if dataset:
+            for key in self.processor.seqinfo["projects"]:
+                for proj in self.processor.seqinfo["projects"][key]:
+                    if proj.work_dir == dataset:
+                        aln = str(Path(proj.alignment.run.path.name) / str(proj.alignment.index))
+                        details["details"] = {
+                            "name": proj.name,
+                            "readonly": proj.readonly,
+                            "tasks_pending": proj.tasks_pending,
+                            "tasks_completed": proj.tasks_completed,
+                            "task_current": proj.task_current,
+                            "task_output": proj.task_output,
+                            "work_dir": proj.work_dir,
+                            "experiment": proj.experiment_info["name"],
+                            "contacts": proj.experiment_info["contacts"].copy(),
+                            "sample_names": proj.experiment_info["sample_names"][:],
+                            "status": proj.status,
+                            "alignment": aln
+                            }
+        else:
+            for key in self.processor.seqinfo["projects"]:
+                for proj in self.processor.seqinfo["projects"][key]:
+                    details["details"].append(proj.work_dir)
+        return details
+
+    def info_experiments(self, experiment=None):
+        """Get a list of experiments or status details for one experiment."""
+        details = {
+            "itemname": experiment,
+            "itemtype": "experiment" if experiment else "experiments",
             "message": "",
             "details": {}
             }
-        seqinfo = self.processor.seqinfo
-
-        alignment_to_projects = {}
-        for key in seqinfo["projects"]:
-            for proj in seqinfo["projects"][key]:
-                if not proj.alignment in alignment_to_projects.keys():
-                    alignment_to_projects[proj.alignment] = []
-                alignment_to_projects[proj.alignment].append(proj)
-
-        for run in self.processor.seqinfo["runs"]:
-            if itemname == run.run_id:
-                alignments = []
-                if run.alignments:
-                    for aln in run.alignments:
-                        sheet = aln.sample_sheet
-                        alndata = {
-                            "Experiment": aln.experiment,
-                            "Complete": aln.complete,
-                            "Reads": sheet.get("Reads", []),
-                            "SampleCount": len(sheet.get("Data", "")),
-                            "Investigator_Name": sheet["Header"].get("Investigator_Name", ""),
-                            "projdirs": [p.work_dir for p in alignment_to_projects.get(aln, [])]}
-                        alignments.append(alndata)
-                details["itemtype"] = "run"
-                details["details"] = {
-                    "Complete": run.complete,
-                    "alignments": alignments
-                    }
-                return details
+        if experiment:
+            details["details"]["datasets"] = []
+            details["details"]["alignments"] = []
+            for key in self.processor.seqinfo["projects"]:
+                for proj in self.processor.seqinfo["projects"][key]:
+                    if proj.experiment_info["name"] == experiment:
+                        details["details"]["datasets"].append(proj.work_dir)
+            for run in self.processor.seqinfo["runs"]:
+                for aln in run.alignments:
+                    if aln.experiment == experiment:
+                        details["details"]["alignments"] = str(
+                            Path(run.path.name) / str(aln.index))
+        else:
+            details["details"] = []
+            for key in self.processor.seqinfo["projects"]:
+                for proj in self.processor.seqinfo["projects"][key]:
+                    details["details"].append(proj.experiment_info["name"])
+            details["details"] = list(set(details["details"]))
         return details
 
     def _run(self, loop):
