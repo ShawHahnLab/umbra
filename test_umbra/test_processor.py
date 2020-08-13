@@ -18,9 +18,10 @@ from pathlib import Path
 from distutils.dir_util import copy_tree, remove_tree, mkpath
 from distutils.file_util import copy_file
 from tempfile import TemporaryDirectory
+import umbra.processor
 from umbra.processor import IlluminaProcessor
 from umbra.project import ProjectData
-from .test_common import TestBase, CONFIG, md5
+from .test_common import TestBase, CONFIG, md5, DumbLogHandler
 
 class TestIlluminaProcessor(TestBase):
     """Main tests for IlluminaProcessor."""
@@ -391,6 +392,10 @@ class TestIlluminaProcessorMinRunAge(TestIlluminaProcessor):
         self.expected["report_md5"] = md5("")
 
     def test_refresh(self):
+        """Test that an age setting prevents loading too new or old runs.
+
+        Also, once a skipped run is logged it should not be logged again.
+        """
         with TemporaryDirectory() as stash:
             run_stash = str(Path(stash)/self.expected["run_id"])
             copy_tree(str(self.path_run), run_stash)
@@ -399,8 +404,16 @@ class TestIlluminaProcessorMinRunAge(TestIlluminaProcessor):
             self.assertEqual(self.proc.seqinfo["runs"], set())
             proj_exp = {"active": set(), "inactive": set(), "completed": set()}
             self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
+            logger = umbra.processor.LOGGER
             # Refresh loads a number of Runs
+            handler = DumbLogHandler()
+            logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
             self.proc.refresh()
+            self.assertTrue(
+                handler.has_message_text("skipping run; timestamp"),
+                "Run skipped but not logged as expected")
+            handler.records = []
             self.assertEqual(self.proc.seqinfo["runs"], set())
             self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             # Copy run directory back
@@ -409,8 +422,13 @@ class TestIlluminaProcessorMinRunAge(TestIlluminaProcessor):
             self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             self.proc.start()
             self.proc.refresh(wait=True)
+            self.assertFalse(
+                handler.has_message_text("skipping run; timestamp"),
+                "Run already skipped but incorrectly logged again")
             # Except we still haven't loaded any yet (too new)
             self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
+            logger.removeHandler(handler)
+            logger.setLevel(logging.NOTSET)
 
 
 class TestIlluminaProcessorMinRunAgeZero(TestIlluminaProcessor):

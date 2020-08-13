@@ -3,6 +3,7 @@ Common test code shared with the real tests.  Not much to see here.
 """
 
 import unittest
+import logging
 from tempfile import TemporaryDirectory
 from distutils.dir_util import copy_tree
 from pathlib import Path
@@ -26,6 +27,22 @@ def md5(text):
     except AttributeError:
         pass
     return hashlib.md5(text).hexdigest()
+
+
+class DumbLogHandler(logging.Handler):
+    """A log handler that just stacks log records into a list."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.records = []
+
+    def emit(self, record):
+        self.records.append(record)
+
+    def has_message_text(self, txt):
+        """Does some text appear in any of the records?"""
+        return True in [txt in rec.msg for rec in self.records]
+
 
 class TestBase(unittest.TestCase):
     """Some setup/teardown shared with the real test classes."""
