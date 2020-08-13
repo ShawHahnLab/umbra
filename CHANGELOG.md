@@ -2,6 +2,10 @@
 
 ## dev
 
+### Added
+
+ * `--version` argument to command-line interface ([#87])
+
 ### Changed
 
  * Use Unix-style line endings in report CSV ([#86])
@@ -11,6 +15,7 @@
 
  * Specify minimum versions for dependencies during install ([#84])
 
+[#87]: https://github.com/ShawHahnLab/umbra/pull/87
 [#86]: https://github.com/ShawHahnLab/umbra/pull/86
 [#85]: https://github.com/ShawHahnLab/umbra/pull/85
 [#84]: https://github.com/ShawHahnLab/umbra/pull/84
