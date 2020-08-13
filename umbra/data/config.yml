@@ -23,6 +23,11 @@ nthreads_per_project: 1
 # Configure as a number of seconds from the present time.  This will be
 # separately applied to the Alignment directories within each run directory as
 # well.
+# NOTE: This is implemented using the timestamp on each run directory, so
+# anything that updates the timestamp can delay processing, potentially
+# indefinitely.  (This was our experience with a MiniSeq that keeps touching
+# its most recently created run directory until it moves onto the next run or
+# is rebooted.)
 min_age: null
 # How about run directories older than a certain age?
 max_age: null
