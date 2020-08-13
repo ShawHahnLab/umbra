@@ -10,6 +10,7 @@ import logging
 from .processor import IlluminaProcessor
 from . import config
 from . import install
+from . import __version__ as VERSION
 
 DOCS = {}
 DOCS["description"] = "Process Illumina runs."
@@ -37,6 +38,8 @@ PARSER.add_argument("-c", "--config", help="path to configuration file")
 PARSER.add_argument("-a", "--action", default="report",
                     help="program action (default: %(default)s)",
                     choices=["process", "report", "install"])
+PARSER.add_argument("-V", "--version", action="store_true",
+                    help="Print installed version of umbra package")
 PARSER.add_argument("-v", "--verbose", action="count", default=0,
                     help="Increment log verbosity")
 PARSER.add_argument("-q", "--quiet", action="count", default=0,
@@ -84,7 +87,9 @@ def main(args_raw=None):
             LOGGER.setLevel(newlevel)
             _setup_log(args.verbose, args.quiet)
         action_args = conf.get(args.action, {})
-        if args.action == "process":
+        if args.version:
+            print(VERSION or "Not installed")
+        elif args.action == "process":
             proc = IlluminaProcessor(conf["paths"]["root"], conf)
             proc.watch_and_process(**action_args)
         elif args.action == "report":
