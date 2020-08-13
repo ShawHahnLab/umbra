@@ -284,7 +284,8 @@ class IlluminaProcessor:
         length will be truncated and displayed with "..."  Set to 0 for no
         maximum."""
         entries = self.create_report()
-        writer = csv.DictWriter(out_file, IlluminaProcessor.REPORT_FIELDS)
+        writer = csv.DictWriter(
+            out_file, lineterminator="\n", fieldnames=IlluminaProcessor.REPORT_FIELDS)
         writer.writeheader()
         for entry in entries:
             entry2 = entry
