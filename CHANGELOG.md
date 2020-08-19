@@ -1,6 +1,6 @@
 # Changelog
 
-## dev
+## 0.0.3 - 2020-08-19
 
 ### Added
 
