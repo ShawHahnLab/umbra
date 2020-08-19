@@ -13,8 +13,10 @@
 
 ### Fixed
 
+ * Suppress excessive logging for Box file uploads ([#89])
  * Specify minimum versions for dependencies during install ([#84])
 
+[#87]: https://github.com/ShawHahnLab/umbra/pull/89
 [#87]: https://github.com/ShawHahnLab/umbra/pull/87
 [#86]: https://github.com/ShawHahnLab/umbra/pull/86
 [#85]: https://github.com/ShawHahnLab/umbra/pull/85
