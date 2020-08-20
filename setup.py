@@ -11,11 +11,11 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/ShawHahnLab/umbra",
     install_requires=[
-        "biopython",
-        "boxsdk",
+        "biopython>=1.72",
+        "boxsdk>=2.7.1",
         "pyopenssl", # required for boxsdk but not always pulled in
-        "cutadapt",
-        "pyyaml",
+        "cutadapt>=1.18",
+        "pyyaml>=3.13",
         "tornado"
         ],
     packages=setuptools.find_packages(exclude=["test_*"]),

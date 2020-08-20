@@ -17,6 +17,11 @@ from .util import yaml_load
 
 LOGGER = logging.getLogger(__name__)
 
+# Box logs the entire (!) uploaded file at level INFO.
+# Let's ignore INFO and below.
+__BOXLOGGER = logging.getLogger("boxsdk.network.default_network")
+__BOXLOGGER.setLevel(logging.WARNING)
+
 class BoxUploader:
     """A simple Box API interface to upload files to one directory.
 
