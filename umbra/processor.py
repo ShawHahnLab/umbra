@@ -284,7 +284,8 @@ class IlluminaProcessor:
         length will be truncated and displayed with "..."  Set to 0 for no
         maximum."""
         entries = self.create_report()
-        writer = csv.DictWriter(out_file, IlluminaProcessor.REPORT_FIELDS)
+        writer = csv.DictWriter(
+            out_file, lineterminator="\n", fieldnames=IlluminaProcessor.REPORT_FIELDS)
         writer.writeheader()
         for entry in entries:
             entry2 = entry
@@ -322,7 +323,9 @@ class IlluminaProcessor:
                 "inactive":  set(),
                 "active":    set(),
                 "completed": set()
-                }
+                },
+            # just a tracker to avoid re-logging skipped runs
+            "runs_skipped": set()
             }
         return seqinfo
 
@@ -363,10 +366,14 @@ class IlluminaProcessor:
         # Now, check each threshold if it was specified.  Careful to check for
         # None here because a literal zero should be taken as its own meaning.
         if min_age is not None and (time_now - time_change < min_age):
-            LOGGER.info("skipping run; timestamp too new:.../%s", run_dir.name)
+            if run not in self.seqinfo["runs_skipped"]:
+                LOGGER.info("skipping run; timestamp too new:.../%s", run_dir.name)
+                self.seqinfo["runs_skipped"].add(run)
             return run
         if max_age is not None and (time_now - time_change > max_age):
-            LOGGER.info("skipping run; timestamp too old:.../%s", run_dir.name)
+            if run not in self.seqinfo["runs_skipped"]:
+                LOGGER.info("skipping run; timestamp too old:.../%s", run_dir.name)
+                self.seqinfo["runs_skipped"].add(run)
             return run
         # pylint: disable=broad-except
         try:
