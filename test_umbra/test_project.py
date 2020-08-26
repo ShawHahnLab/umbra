@@ -304,7 +304,8 @@ class TestProjectDataOneTask(TestBase):
         paths = []
         for sample in self.expected["sample_names"]:
             i = self.alignment.sample_names.index(sample)
-            fps = self.alignment.sample_files_for_num(i+1) # (1-indexed)
+            fps = self.alignment.sample_paths_for_num(i+1) # (1-indexed)
+            fps = [path.name for path in fps]
             if r1only:
                 paths.append(re.sub("_R1_", "_R_", fps[0]))
             else:

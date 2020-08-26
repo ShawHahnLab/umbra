@@ -4,6 +4,7 @@ Utility functions used throughout the package.
 These are largely just wrappers for filesystem operations or text manipulation.
 """
 
+from pathlib import Path
 import xml.etree.ElementTree
 import datetime
 import csv
@@ -132,3 +133,32 @@ def load_checkpoint(path):
     else:
         data = int(data)
     return data
+
+def load_sample_filenames(dirpath):
+    """Load a list of fastq.gz files from a directory and parse info from the filenames.
+
+    The output is a sorted (by sample_num, read, and path) list of dictionaries
+    with these string entries:
+
+        prefix: the text corresponding to the sample name in the sample sheet
+        sample_num: the sample number, as ordered in the sample sheet
+        lane: sequencer lane for this sample.  Always 1 for MiSeq and MiniSeq.
+        read: R1, R2, I1, or I2
+        suffix: always 1
+        path: absolute path to the file
+    """
+    path_attrs = []
+    for path in Path(dirpath).glob("*.fastq.gz"):
+        match = re.match(
+            r"^(.+)_S([0-9]+)_L([0-9]{3})_(R1|R2|I1|I2)_([0-9]+)\.fastq\.gz$", path.name)
+        if not match:
+            continue
+        fields = ["prefix", "sample_num", "lane", "read", "suffix"]
+        attrs = dict(zip(fields, match.groups()))
+        attrs["sample_num"] = int(attrs["sample_num"])
+        attrs["lane"] = int(attrs["lane"])
+        attrs["suffix"] = int(attrs["suffix"])
+        attrs["path"] = str(path)
+        path_attrs.append(attrs)
+    path_attrs = sorted(path_attrs, key=lambda x: (x["sample_num"], x["read"], x["path"]))
+    return path_attrs
