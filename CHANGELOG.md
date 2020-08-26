@@ -1,5 +1,14 @@
 # Changelog
 
+## dev
+
+### Changed
+
+ * Parse fastq.gz files per sample from disk rather than predicting from sample
+   name alone ([#94])
+
+[#94]: https://github.com/ShawHahnLab/umbra/pull/94
+
 ## 0.0.3 - 2020-08-19
 
 ### Added
