@@ -108,12 +108,6 @@ class TestAlignment(unittest.TestCase):
         data = self.alignment.sample_sheet["Data"]
         self.assertEqual(self.alignment.samples, data)
 
-    def test_sample_files_for_num(self):
-        """Test expected sample filenames for one sample number"""
-        # This run is paired-end so we should get two read files per sample.
-        filenames_observed = self.alignment.sample_files_for_num(1)
-        self.assertEqual(filenames_observed, self.expected["first_files"])
-
     def test_sample_paths_for_num(self):
         """Test expected sample paths for one sample number"""
         aln = self.alignment
@@ -178,17 +172,19 @@ class TestAlignmentFilesMissing(TestAlignment):
         first_files = self.expected["first_files"]
         filepaths_exp = [self.alignment.paths["fastq"] / fn for fn in first_files]
         move(str(filepaths_exp[1]), str(self.paths["alignment"]))
+        self.alignment.refresh()
         with self.assertRaises(FileNotFoundError):
             self.alignment.sample_paths_for_num(1)
-        # Unless we give strict=False.  The same names are returned but one
-        # of them doesn't exist.
+        # Unless we give strict=False.  The file paths that actually exist are
+        # returned, but the R2 file is implicitly missing.
         filepaths_obs = self.alignment.sample_paths_for_num(1, strict=False)
-        self.assertEqual(filepaths_obs, filepaths_exp)
+        self.assertEqual(filepaths_obs, [filepaths_exp[0]])
 
     def test_sample_paths(self):
         """Test sample paths by sample name for all samples"""
         path = self.alignment.paths["fastq"] / "1086S1-01_S1_L001_R2_001.fastq.gz"
         move(str(path), str(self.paths["alignment"]))
+        self.alignment.refresh()
         with self.assertRaises(FileNotFoundError):
             spaths = self.alignment.sample_paths()
         spaths = self.alignment.sample_paths(strict=False)
