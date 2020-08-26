@@ -4,9 +4,11 @@
 
 ### Changed
 
+ * Always read task names as lowercase when parsing metadata.csv files ([#95])
  * Parse fastq.gz files per sample from disk rather than predicting from sample
    name alone ([#94])
 
+[#95]: https://github.com/ShawHahnLab/umbra/pull/95
 [#94]: https://github.com/ShawHahnLab/umbra/pull/94
 
 ## 0.0.3 - 2020-08-19
