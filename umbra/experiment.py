@@ -52,6 +52,6 @@ def load_metadata(path):
     info = [row for row in info if not allempty(row)]
     # parse tasks and contacts
     for row in info:
-        row["Tasks"] = row["Tasks"].split()
+        row["Tasks"] = [task.lower() for task in row["Tasks"].split()]
         row["Contacts"] = _parse_contacts(row["Contacts"])
     return info
