@@ -37,6 +37,12 @@ class TestLoadMetadata(TestBase):
         info = experiment.load_metadata(fp_metadata)
         self.assertEqual(self.expected, info)
 
+    def test_load_metadata_caps(self):
+        """Test metadata loading with capital letters in the Tasks column."""
+        fp_metadata = self.exp_path / "metadata_caps.csv"
+        info = experiment.load_metadata(fp_metadata)
+        self.assertEqual(self.expected, info)
+
     def test_load_metadata_emptyrows(self):
         """Test metadata loading including empty rows.
 
