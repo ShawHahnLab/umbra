@@ -8,6 +8,12 @@
  * Parse fastq.gz files per sample from disk rather than predicting from sample
    name alone ([#94])
 
+### Fixed
+
+ * Corrected parsing for Illumina's Checkpoint.txt files to work with
+   incomplete alignment outputs ([#97])
+
+[#97]: https://github.com/ShawHahnLab/umbra/pull/97
 [#95]: https://github.com/ShawHahnLab/umbra/pull/95
 [#94]: https://github.com/ShawHahnLab/umbra/pull/94
 

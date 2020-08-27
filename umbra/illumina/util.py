@@ -124,14 +124,14 @@ def load_rta_complete(path):
     return {"Date": date_obj, "Version": version}
 
 def load_checkpoint(path):
-    """Load the number from a Checkpoint.txt file, or None if not found."""
+    """Load the number and keyword from a Checkpoint.txt file, or None if not found."""
     try:
         with open(path) as fin:
-            data = fin.read().strip()
+            data = [line.strip() for line in fin]
     except FileNotFoundError:
         data = None
     else:
-        data = int(data)
+        data[0] = int(data[0])
     return data
 
 def load_sample_filenames(dirpath):
