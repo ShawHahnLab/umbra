@@ -1,8 +1,5 @@
 """
 Tests for illumina.util helper functions.
-
-These currently just test load_csv against the complexities that come up with
-loading real-life CSV files.  (There are more than I ever would have expected.)
 """
 
 import unittest
@@ -11,7 +8,12 @@ from umbra.illumina import util
 from .test_common import PATH_OTHER
 
 class TestLoadCSV(unittest.TestCase):
-    """Base test case for a CSV file."""
+    """Base test case for a CSV file.
+
+    This and the child clsses test load_csv against the complexities that come
+    up with loading real-life CSV files.  (There are more than I ever would
+    have expected.)
+    """
 
     def setUp(self):
         self.path = PATH_OTHER / "test.csv"
@@ -99,3 +101,36 @@ class TestLoadCSVMissing(TestLoadCSV):
         """Test that a csv.DictReader works too."""
         with self.assertRaises(FileNotFoundError):
             util.load_csv(self.path, csv.DictReader)
+
+
+class TestLoadCheckpoint0(unittest.TestCase):
+    """Base test case for a Checkpoint.txt file.
+
+    This and child classes test parsing of the Checkpoint.txt file that
+    Illumina stores in Alignment directories.
+    """
+
+    def setUp(self):
+        self.path = PATH_OTHER / "checkpoints" / "Checkpoint0.txt"
+        self.data_exp = [0, "Demultiplexing"]
+
+    def test_load_checkpoint(self):
+        """Test that a list of lists is created."""
+        data = util.load_checkpoint(self.path)
+        self.assertEqual(data, self.data_exp)
+
+
+class TestLoadCheckpoint1(TestLoadCheckpoint0):
+    """Try loading Checkpoint.txt for state 1."""
+
+    def setUp(self):
+        self.path = PATH_OTHER / "checkpoints" / "Checkpoint1.txt"
+        self.data_exp = [1, "Generating FASTQ Files"]
+
+
+class TestLoadCheckpoint3(TestLoadCheckpoint0):
+    """Try loading Checkpoint.txt for state 3."""
+
+    def setUp(self):
+        self.path = PATH_OTHER / "checkpoints" / "Checkpoint3.txt"
+        self.data_exp = [3, ""]
