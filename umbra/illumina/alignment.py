@@ -87,7 +87,12 @@ class Alignment:
     @property
     def complete(self):
         """Is the alignment complete?"""
-        return getattr(self, "checkpoint", None) == 3
+        # This is true when the checkpoint file reaches stage 3 or whatever
+        # Illumina probably calls it
+        checkpoint = getattr(self, "checkpoint", None)
+        if checkpoint:
+            return checkpoint[0] == 3
+        return False
 
     @property
     def experiment(self):
