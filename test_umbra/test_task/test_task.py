@@ -2,8 +2,8 @@
 """
 Tests for Task objects (and classes!)
 
-Right now this mostly just tests the weird Python inheritance and other aspects
-of tasks, and test_project.py has more "live" testing for actual task code.
+This tests general behavior of the class and a hypothetical instance.  See the
+other test_task_* modules for specific cases.
 """
 
 import unittest
@@ -135,7 +135,7 @@ class TestTaskClass(unittest.TestCase):
         # pylint: disable=abstract-method
         class Task2(task.Task):
             """Another Task class that should come later."""
-            order = 200
+            order = self.thing.order + 100
         thing2 = Task2({}, None)
         # < > <= >= for class and instance cases
         self.assertTrue(self.thing < Task2)
