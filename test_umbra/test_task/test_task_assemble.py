@@ -141,15 +141,3 @@ class TestTaskAssembleManyContigs(TestTaskAssemble):
             }
         # pylint: disable=no-member
         self.thing = task.TaskAssemble({}, self.proj)
-
-    @unittest.expectedFailure
-    def test_run(self):
-        """Failing due to bug in contig re-labeling."""
-        self.thing.run()
-        self.check_run_results()
-
-    @unittest.expectedFailure
-    def test_runwrapper(self):
-        """Failing due to bug in contig re-labeling."""
-        self.thing.runwrapper()
-        self.check_run_results()

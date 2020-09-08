@@ -14,9 +14,12 @@
 
 ### Fixed
 
- * Corrected parsing for Illumina's Checkpoint.txt files to work with
+ * Correct parsing of contig numbers in task_assemble to include all digits
+   ([#100])
+ * Correct parsing for Illumina's Checkpoint.txt files to work with
    incomplete alignment outputs ([#97])
 
+[#100]: https://github.com/ShawHahnLab/umbra/pull/100
 [#99]: https://github.com/ShawHahnLab/umbra/pull/99
 [#97]: https://github.com/ShawHahnLab/umbra/pull/97
 [#95]: https://github.com/ShawHahnLab/umbra/pull/95
