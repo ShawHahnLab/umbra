@@ -57,7 +57,7 @@ class TaskAssemble(task.Task):
             for rec in SeqIO.parse(f_in, "fasta"):
                 if len(rec.seq) > self.config["contig_length_min"]:
                     rec.letter_annotations["phred_quality"] = [40]*len(rec.seq)
-                    match = re.match("^NODE_([0-9])+_.*", rec.id)
+                    match = re.match("^NODE_([0-9]+)_.*", rec.id)
                     contig_num = match.group(1)
                     rec.id = "%s-contig_%s" % (sample_prefix, contig_num)
                     rec.description = ""
