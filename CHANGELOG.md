@@ -1,6 +1,6 @@
 # Changelog
 
-## dev
+## 0.0.4 - 2020-09-08
 
 ### Added
 
