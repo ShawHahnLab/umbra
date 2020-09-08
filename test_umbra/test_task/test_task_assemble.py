@@ -105,3 +105,51 @@ class TestTaskAssemble(TestTask):
             with open(fp_expected) as f_expected:
                 expected = f_expected.read()
             self.assertEqual(observed, expected)
+
+class TestTaskAssembleManyContigs(TestTaskAssemble):
+    """Test TaskAssemble with reads that assembled to many contigs."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        # Copy all spades-assembled and merged fastq from the test data dir
+        # into the temp processing dir
+        dir_input = PATH_DATA / "other" / "tasks" / "task_assemble" / "input-many-contigs"
+        dir_output = PATH_DATA / "other" / "tasks" / "task_assemble" / "output-many-contigs"
+        dir_proc = Path(self.tmpdir.name) / "proc"
+        copy_tree(str(dir_input), str(dir_proc))
+        # set up a mock project object for testing
+        self.proj = unittest.mock.Mock(
+            path_proc=Path(self.tmpdir.name) / "proc",
+            nthreads=1,
+            conf={},
+            sample_paths={
+                "sample": [
+                    dir_proc/"sample_S1_L001_R1_001.fastq.gz",
+                    dir_proc/"sample_S1_L001_R2_001.fastq.gz"]},
+            work_dir="work_dir_name",
+            experiment_info={"tasks": []}
+            )
+        # Expected values during tests
+        self.expected = {
+            "nthreads": 1,
+            "log_path": self.proj.path_proc / "logs/log_assemble.txt",
+            "sample_paths": copy.deepcopy(self.proj.sample_paths),
+            "work_dir_name": "work_dir_name",
+            "task_dir_parent": self.proj.path_proc,
+            "dir_input": dir_input,
+            "dir_output": dir_output
+            }
+        # pylint: disable=no-member
+        self.thing = task.TaskAssemble({}, self.proj)
+
+    @unittest.expectedFailure
+    def test_run(self):
+        """Failing due to bug in contig re-labeling."""
+        self.thing.run()
+        self.check_run_results()
+
+    @unittest.expectedFailure
+    def test_runwrapper(self):
+        """Failing due to bug in contig re-labeling."""
+        self.thing.runwrapper()
+        self.check_run_results()
