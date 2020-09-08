@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.0.4 - 2020-09-08
+
+### Added
+
+ * Unit tests for each individual task class ([#99])
+
+### Changed
+
+ * Always read task names as lowercase when parsing metadata.csv files ([#95])
+ * Parse fastq.gz files per sample from disk rather than predicting from sample
+   name alone ([#94])
+
+### Fixed
+
+ * Correct parsing of contig numbers in task_assemble to include all digits
+   ([#100])
+ * Correct parsing for Illumina's Checkpoint.txt files to work with
+   incomplete alignment outputs ([#97])
+
+[#100]: https://github.com/ShawHahnLab/umbra/pull/100
+[#99]: https://github.com/ShawHahnLab/umbra/pull/99
+[#97]: https://github.com/ShawHahnLab/umbra/pull/97
+[#95]: https://github.com/ShawHahnLab/umbra/pull/95
+[#94]: https://github.com/ShawHahnLab/umbra/pull/94
+
 ## 0.0.3 - 2020-08-19
 
 ### Added
@@ -16,7 +41,7 @@
  * Suppress excessive logging for Box file uploads ([#89])
  * Specify minimum versions for dependencies during install ([#84])
 
-[#87]: https://github.com/ShawHahnLab/umbra/pull/89
+[#89]: https://github.com/ShawHahnLab/umbra/pull/89
 [#87]: https://github.com/ShawHahnLab/umbra/pull/87
 [#86]: https://github.com/ShawHahnLab/umbra/pull/86
 [#85]: https://github.com/ShawHahnLab/umbra/pull/85

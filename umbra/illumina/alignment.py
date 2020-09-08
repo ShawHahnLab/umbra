@@ -7,7 +7,7 @@ See the Alignment class for usage.
 import gzip
 import re
 from pathlib import Path
-from .util import load_sample_sheet, load_xml, load_checkpoint
+from .util import load_sample_sheet, load_xml, load_checkpoint, load_sample_filenames
 
 class Alignment:
     """An "Alignment" (FASTQ generation) within a run.
@@ -63,6 +63,7 @@ class Alignment:
 
         If the alignment has just completed, and a callback function was
         provided during instantiation, call it."""
+        self.__path_attrs = load_sample_filenames(self.paths["fastq"])
         if not self.complete:
             self.checkpoint = load_checkpoint(self.paths["checkpoint"])
             if self.complete and self.completion_callback:
@@ -86,7 +87,12 @@ class Alignment:
     @property
     def complete(self):
         """Is the alignment complete?"""
-        return getattr(self, "checkpoint", None) == 3
+        # This is true when the checkpoint file reaches stage 3 or whatever
+        # Illumina probably calls it
+        checkpoint = getattr(self, "checkpoint", None)
+        if checkpoint:
+            return checkpoint[0] == 3
+        return False
 
     @property
     def experiment(self):
@@ -126,48 +132,36 @@ class Alignment:
         newdata = [row.copy() for row in data]
         return newdata
 
-    def sample_files_for_num(
-            self,
-            sample_num,
-            fmt="{sname}_S{snum}_L{lane:03d}_R{rp}_001.fastq.gz"):
-        """Predict filenames (no paths) for the given sample number."""
-        samples = self.samples
-        try:
-            sample = samples[int(sample_num)-1]
-        except IndexError:
-            raise ValueError("Sample number not found: %s" % sample_num)
-        sname = sample["Sample_Name"].strip()
-        # If there's a name defined, mask all the special characters we know
-        # of and trim them from both ends.
-        # SEE:
-        # 171031_M05588_0004_000000000-BGFVN /
-        # 171204_M00281_0300_000000000-D2W6Y +
-        # 180711_M05588_0090_000000000-D4K5J #
-        # If there's no name, Illumina just uses the sample ID instead.
-        # SEE: 171026_M00281_0285_000000000-BGM65
-        if not sname:
-            sname = sample["Sample_ID"]
-        sname = re.sub(r"[/+#_ .\-'\"]+", "-", sname)
-        sname = re.sub("-+$", "", sname)
-        sname = re.sub("^-+", "", sname)
-        fields = {"sname": sname, "snum": sample_num, "lane": 1, "rp": 1}
-        fps = []
-        for r_idx in range(len(self.sample_sheet["Reads"])):
-            fields["rp"] = r_idx + 1
-            fps.append(fmt.format(**fields))
-        return fps
-
     def sample_paths_for_num(self, sample_num, strict=True):
         """Locate files (absolute Paths) for the given sample number on disk."""
-        filenames = self.sample_files_for_num(sample_num)
         fps = []
-        for filename in filenames:
-            fpath = (self.paths["fastq"] / filename).resolve(strict=strict)
-            fps.append(fpath)
+        if len(self.sample_sheet["Reads"]) > 1:
+            reads = ["R1", "R2"]
+        else:
+            reads = ["R1"]
+        for attrs in self.__path_attrs:
+            if attrs["sample_num"] == sample_num and attrs["read"] in reads:
+                # This replicates the existing behavior where we only deliver
+                # R1 and then also R2 if expected, and never I1 or I2.  This
+                # should be changed at some point to account for I1 and I2
+                # though.
+                fpath = Path(attrs["path"]).resolve(strict=strict)
+                fps.append(fpath)
+        if strict and len(fps) < len(reads):
+            # Is this legit?  The previous approach constructed filenames and
+            # then tried to access them, so the error came from the OS.  Can I
+            # instead raise it myself when I don't actually have a specific
+            # path I'm complaining about?  Seems to work.
+            raise FileNotFoundError
         return fps
 
     def sample_paths(self, strict=True):
-        """Create dictionary mapping each sample name to list of file paths."""
+        """Create dictionary mapping each sample name to list of file paths.
+
+        NOTE: Sample names are not guaranteed to be unique in a given
+        alignment, so we should not rely on this to behave as expected.  This
+        function will be removed in a later release.
+        """
         sample_paths = {}
         for s_num, s_name in zip(self.sample_numbers, self.sample_names):
             sps = self.sample_paths_for_num(s_num, strict)
