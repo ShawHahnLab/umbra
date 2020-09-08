@@ -2,6 +2,10 @@
 
 ## dev
 
+### Added
+
+ * Unit tests for each individual task class ([#99])
+
 ### Changed
 
  * Always read task names as lowercase when parsing metadata.csv files ([#95])
@@ -13,6 +17,7 @@
  * Corrected parsing for Illumina's Checkpoint.txt files to work with
    incomplete alignment outputs ([#97])
 
+[#99]: https://github.com/ShawHahnLab/umbra/pull/99
 [#97]: https://github.com/ShawHahnLab/umbra/pull/97
 [#95]: https://github.com/ShawHahnLab/umbra/pull/95
 [#94]: https://github.com/ShawHahnLab/umbra/pull/94
