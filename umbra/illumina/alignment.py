@@ -85,6 +85,18 @@ class Alignment:
         return None
 
     @property
+    def error(self):
+        """Text of the Error entry in CompletedJobInfo.xml
+
+        None if there is no XML file or Error entry.
+        """
+        if self.completed_job_info:
+            elem = self.completed_job_info.find("Error")
+            if elem is not None:
+                return elem.text
+        return None
+
+    @property
     def complete(self):
         """Is the alignment complete?"""
         # This is true when the checkpoint file reaches stage 3 or whatever
