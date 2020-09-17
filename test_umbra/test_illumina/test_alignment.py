@@ -132,7 +132,7 @@ class TestAlignment(unittest.TestCase):
         # The values are sample paths
         vals = [aln.sample_paths_for_num(n) for n in aln.sample_numbers]
         keys = aln.sample_names
-        spaths_exp = {k: v for k, v in zip(keys, vals)}
+        spaths_exp = dict(zip(keys, vals))
         self.assertEqual(spaths, spaths_exp)
 
     def test_refresh(self):
@@ -201,7 +201,7 @@ class TestAlignmentFilesMissing(TestAlignment):
         nums = self.alignment.sample_numbers
         vals = [self.alignment.sample_paths_for_num(n, False) for n in nums]
         keys = self.alignment.sample_names
-        spaths_exp = {k: v for k, v in zip(keys, vals)}
+        spaths_exp = dict(zip(keys, vals))
         self.assertEqual(spaths, spaths_exp)
 
 
