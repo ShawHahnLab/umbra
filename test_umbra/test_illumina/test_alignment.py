@@ -79,6 +79,11 @@ class TestAlignment(unittest.TestCase):
         """
         self.assertIsNone(self.alignment.index)
 
+    def test_error(self):
+        """What's the error message for the alignment?"""
+        # In a successful alignment there isn't one.
+        self.assertIsNone(self.alignment.error)
+
     def test_complete(self):
         """Is an Alignment complete?"""
         # An alignment is complete if Checkpoint exists and is 3, is not
@@ -127,7 +132,7 @@ class TestAlignment(unittest.TestCase):
         # The values are sample paths
         vals = [aln.sample_paths_for_num(n) for n in aln.sample_numbers]
         keys = aln.sample_names
-        spaths_exp = {k: v for k, v in zip(keys, vals)}
+        spaths_exp = dict(zip(keys, vals))
         self.assertEqual(spaths, spaths_exp)
 
     def test_refresh(self):
@@ -196,7 +201,7 @@ class TestAlignmentFilesMissing(TestAlignment):
         nums = self.alignment.sample_numbers
         vals = [self.alignment.sample_paths_for_num(n, False) for n in nums]
         keys = self.alignment.sample_names
-        spaths_exp = {k: v for k, v in zip(keys, vals)}
+        spaths_exp = dict(zip(keys, vals))
         self.assertEqual(spaths, spaths_exp)
 
 
@@ -221,6 +226,27 @@ class TestAlignmentMiniSeq(TestAlignment):
         self.expected["paths"]["sample_sheet"] = subpath / "SampleSheetUsed.csv"
         self.expected["paths"]["fastq"] = subpath / "Fastq"
         self.expected["paths"]["checkpoint"] = subpath / "Checkpoint.txt"
+
+
+class TestAlignmentErrored(TestAlignment):
+    """Test an Alignment with an error."""
+
+    def set_up_alignment(self):
+        xml_fp = self.paths["alignment"] / "CompletedJobInfo.xml"
+        xml_fp.chmod(0o660)
+        # insert an error into the XML
+        with open(xml_fp) as f_in:
+            data = list(f_in)
+        with open(xml_fp, "wt") as f_out:
+            for line in data:
+                if line == "</AnalysisJobInfo>\n":
+                    line = "<Error>whoops</Error></AnalysisJobInfo>\n"
+                f_out.write(line)
+        super().set_up_alignment()
+
+    def test_error(self):
+        """What's the error message for the alignment?"""
+        self.assertEqual(self.alignment.error, "whoops")
 
 
 if __name__ == '__main__':

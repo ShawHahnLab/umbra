@@ -1,5 +1,13 @@
 # Changelog
 
+## dev
+
+### Added
+
+ * `error` property for `illumina.alignment.Alignment` class ([#104])
+
+[#104]: https://github.com/ShawHahnLab/umbra/pull/104
+
 ## 0.0.4 - 2020-09-08
 
 ### Added
