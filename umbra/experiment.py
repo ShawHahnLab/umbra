@@ -39,9 +39,9 @@ def _parse_contacts(text):
         contacts[name] = email
     return contacts
 
-def load_metadata(path):
+def load_metadata(path, **kwargs):
     """Load an Experiment metadata spreadsheet."""
-    info = load_csv(path, csv.DictReader)
+    info = load_csv(path, csv.DictReader, **kwargs)
     # skip empty columns.  With DictReader these end up as just a stub "": ""
     # entry.
     for row in info:
