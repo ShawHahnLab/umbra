@@ -22,18 +22,44 @@ def load_xml(path):
     elem = xml.etree.ElementTree.parse(path).getroot()
     return elem
 
-def load_csv(path, loader=csv.reader):
+def load_csv(path, loader=csv.reader, non_unicode=None):
     """Load CSV data from a given file path.
 
     By default returns a list of lists using csv.reader, but another reader
     than can operate on a file object (e.g. csv.DictReader) can be supplied
     instead.  Supports UTF8 (with or without a byte order mark) and
     equivalently ASCII.
+
+    The behavior for non-unicode characters is controlled by the non_unicode
+    argument.  If None (default), no special handling is provided so a Unicode
+    parsing exception would be raised.  If "replace", every instance of a
+    non-unicode character is replaced with unicode's placeholder "replacement
+    character" U+FFFD.  If "strip", the replacement is performed first and then
+    all replacement characters are removed.  (Note that this means any
+    replacement characters already there will *also* be removed, but it's an
+    edge case to an edge case.)
     """
+
+    # Set up the handling for non-unicode text.  In most cases we don't change
+    # the text so there's a no-op lambda function.  Only in the "strip" case
+    # does mapfunc do something.
+    mapfunc = lambda _: _
+    if non_unicode == "replace":
+        errors_mode = "replace"
+    elif non_unicode is None or non_unicode == "strict":
+        errors_mode = "strict"
+    elif non_unicode == "strip":
+        errors_mode = "replace"
+        mapfunc = lambda x: re.sub("\N{REPLACEMENT CHARACTER}", "", x)
+    else:
+        raise ValueError('non_unicode should be one of None, "replace", "mask"')
     # Explicitly setting the encoding to utf-8-sig allows the byte order mark
-    # to be automatically stripped out if present.
-    with open(path, 'r', newline='', encoding='utf-8-sig') as fin:
-        data = [row for row in loader(fin)]
+    # to be automatically stripped out if present.  Anything that's non-unicode
+    # will be handled as defined in the errors argument, set up above.
+    with open(path, 'r', newline='', encoding='utf-8-sig', errors=errors_mode) as fin:
+        # mapfunc will alter the text during the iteration, but only if the
+        # "strip" option was given.
+        data = list(loader(map(mapfunc, fin)))
     return data
 
 def load_sample_sheet(path):

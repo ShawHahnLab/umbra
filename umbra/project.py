@@ -68,7 +68,14 @@ class ProjectData:
             try:
                 try:
                     # Load the spreadsheet of per-sample project information
-                    experiment_info = experiment.load_metadata(exp_path)
+                    try:
+                        experiment_info = experiment.load_metadata(exp_path)
+                    except UnicodeDecodeError:
+                        LOGGER.warning(
+                            ("Unrecognized character while parsing metadata.csv for %s; "
+                             "will remove while while re-parsing"),
+                            alignment.experiment)
+                        experiment_info = experiment.load_metadata(exp_path, non_unicode="strip")
                 except FileNotFoundError:
                     return projects
             except Exception:

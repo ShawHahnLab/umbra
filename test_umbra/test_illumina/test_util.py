@@ -77,6 +77,55 @@ class TestLoadCSVUTF8BOM(TestLoadCSV):
         self.path = PATH_OTHER / "test_utf8bom.csv"
 
 
+class TestLoadCSVISO8859(TestLoadCSV):
+    """Test CSV loading with non-unicode non-ASCII bytes.
+
+    The possible options here are raise an exception, mask the unknown bytes
+    with something else, or remove them.
+    """
+
+    def setUp(self):
+        # Depending on the arguments this will try to handle the weird byte or
+        # will raise an exception.
+        super().setUp()
+        self.path = PATH_OTHER / "test_iso8859.csv"
+        repl = "\N{REPLACEMENT CHARACTER}"
+        self.data_exp_strip = [['A', 'B', 'C', 'D'], [''] * 4]
+        self.data_exp_mask = [['A', 'B', 'C', 'D'], [repl] * 4]
+        self.dict_exp_strip = [{"A": "", "B": "", "C": "", "D": ""}]
+        self.dict_exp_mask = [{"A": repl, "B": repl, "C": repl, "D": repl}]
+
+    def test_load_csv(self):
+        with self.assertRaises(Exception):
+            data = util.load_csv(self.path)
+        data = util.load_csv(self.path, non_unicode="replace")
+        self.assertEqual(data, self.data_exp_mask)
+        data = util.load_csv(self.path, non_unicode="strip")
+        self.assertEqual(data, self.data_exp_strip)
+        with self.assertRaises(Exception):
+            data = util.load_csv(self.path, non_unicode=None)
+
+    def test_load_csv_loader(self):
+        with self.assertRaises(Exception):
+            data = util.load_csv(self.path, csv.reader)
+        data = util.load_csv(self.path, csv.reader, non_unicode="replace")
+        self.assertEqual(data, self.data_exp_mask)
+        data = util.load_csv(self.path, csv.reader, non_unicode="strip")
+        self.assertEqual(data, self.data_exp_strip)
+        with self.assertRaises(Exception):
+            data = util.load_csv(self.path, csv.reader, non_unicode=None)
+
+    def test_load_csv_dict_loader(self):
+        with self.assertRaises(Exception):
+            data = util.load_csv(self.path, csv.DictReader)
+        data = util.load_csv(self.path, csv.DictReader, non_unicode="replace")
+        self.assertEqual(data, self.dict_exp_mask)
+        data = util.load_csv(self.path, csv.DictReader, non_unicode="strip")
+        self.assertEqual(data, self.dict_exp_strip)
+        with self.assertRaises(Exception):
+            data = util.load_csv(self.path, csv.DictReader, non_unicode=None)
+
+
 class TestLoadCSVMissing(TestLoadCSV):
     """Test CSV loading for a nonexistent file.
 

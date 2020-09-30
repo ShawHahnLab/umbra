@@ -6,6 +6,11 @@
 
  * `error` property for `illumina.alignment.Alignment` class ([#104])
 
+### Fixed
+
+ * Handle non-unicode characters in CSV files ([#105])
+
+[#105]: https://github.com/ShawHahnLab/umbra/pull/105
 [#104]: https://github.com/ShawHahnLab/umbra/pull/104
 
 ## 0.0.4 - 2020-09-08
