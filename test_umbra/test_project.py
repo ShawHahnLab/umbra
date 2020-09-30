@@ -11,6 +11,10 @@ multiple simultaneous projects, either; see test_umbra.py for that.
 
 import unittest
 import warnings
+import datetime
+import logging
+from pathlib import Path
+from unittest.mock import Mock
 import yaml
 from umbra.illumina.run import Run
 from umbra.project import ProjectData, ProjectError
@@ -201,6 +205,71 @@ class TestProjectDataAlreadyProcessing(TestBase):
 
     We should abort in that case.
     """
+
+
+class TestProjectDataFromAlignment(TestBase):
+    """Tests for ProjectData.from_alignment."""
+
+    def set_up_vars(self):
+        super().set_up_vars()
+        fqgz_path = (
+            Path(self.tmpdir.name).resolve() /
+            "runs/180101_M00000_0000_000000000-XXXXX/Data/Intensities/BaseCalls")
+        sample_paths = {
+            "1086S1_01": [
+                fqgz_path / "1086S1-01_S1_L001_R1_001.fastq.gz",
+                fqgz_path / "1086S1-01_S1_L001_R2_001.fastq.gz"],
+            "1086S1_02": [
+                fqgz_path / "1086S2-01_S2_L001_R1_001.fastq.gz",
+                fqgz_path / "1086S2-01_S2_L001_R2_001.fastq.gz"],
+            "1086S1_03": [
+                fqgz_path / "1086S3-01_S3_L001_R1_001.fastq.gz",
+                fqgz_path / "1086S3-01_S3_L001_R2_001.fastq.gz"],
+            "1086S1_04": [
+                fqgz_path / "1086S4-01_S4_L001_R1_001.fastq.gz",
+                fqgz_path / "1086S4-01_S4_L001_R2_001.fastq.gz"]
+            }
+        self.alignment = Mock(
+            experiment="Partials_1_1_18",
+            index=0,
+            path=fqgz_path / "Alignment",
+            sample_paths=lambda: sample_paths,
+            run=Mock(
+                run_id="runid",
+                flowcell="000000000-XXXXX",
+                rta_complete={"Date": datetime.datetime(2018, 1, 1)}))
+
+    def test_from_alignment(self):
+        """Basic alignment situation."""
+        projs = ProjectData.from_alignment(
+            self.alignment,
+            self.paths["exp"],
+            self.paths["status"],
+            self.paths["proc"],
+            self.paths["pack"],
+            self.uploader,
+            self.mailer)
+        self.assertEqual(len(projs), 2)
+
+    def test_from_alignment_iso8859(self):
+        """Experiment metadata.csv has weird characters.
+
+        Here the weird characters should be removed and a warning should be
+        logged.
+        """
+        self.alignment.experiment = "iso8859"
+        with self.assertLogs(level=logging.WARNING) as log_cm:
+            projs = ProjectData.from_alignment(
+                self.alignment,
+                self.paths["exp"],
+                self.paths["status"],
+                self.paths["proc"],
+                self.paths["pack"],
+                self.uploader,
+                self.mailer)
+            self.assertEqual(len(log_cm.output), 1)
+            self.assertIn("Unrecognized character", log_cm.output[0])
+        self.assertEqual(len(projs), 2)
 
 
 if __name__ == '__main__':
