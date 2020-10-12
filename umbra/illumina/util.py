@@ -4,6 +4,7 @@ Utility functions used throughout the package.
 These are largely just wrappers for filesystem operations or text manipulation.
 """
 
+import struct
 from pathlib import Path
 import xml.etree.ElementTree
 import datetime
@@ -96,7 +97,7 @@ def load_sample_sheet(path):
         for row in rows:
             if not row:
                 continue
-            elif len(row) == 1:
+            if len(row) == 1:
                 fields[row[0]] = ""
             else:
                 fields[row[0]] = row[1]
@@ -111,7 +112,7 @@ def load_sample_sheet(path):
     cols = data["Data"].pop(0)
     samples = []
     for row in data["Data"]:
-        samples.append({k: v for k, v in zip(cols, row)})
+        samples.append(dict(zip(cols, row)))
     data["Data"] = samples
 
     return data
@@ -188,3 +189,44 @@ def load_sample_filenames(dirpath):
         path_attrs.append(attrs)
     path_attrs = sorted(path_attrs, key=lambda x: (x["sample_num"], x["read"], x["path"]))
     return path_attrs
+
+# https://support.illumina.com/content/dam/illumina-support/documents/documentation/software_documentation/bcl2fastq/bcl2fastq_letterbooklet_15038058brpmi.pdf
+#
+# Start    Description                                                    Data type
+# Byte 0   Cycle number                                                   integer
+# Byte 4   Average Cycle Intensity                                        double
+# Byte 12  Average intensity for A over all clusters with intensity for A double
+# Byte 20  Average intensity for C over all clusters with intensity for C double
+# Byte 28  Average intensity for G over all clusters with intensity for G double
+# Byte 36  Average intensity for T over all clusters with intensity for T double
+# Byte 44  Average intensity for A over clusters with base call A         double
+# Byte 52  Average intensity for C over clusters with base call C         double
+# Byte 60  Average intensity for G over clusters with base call G         double
+# Byte 68  Average intensity for T over clusters with base call T         double
+# Byte 76  Number of clusters with base call A                            integer
+# Byte 80  Number of clusters with base call C                            integer
+# Byte 84  Number of clusters with base call G                            integer
+# Byte 88  Number of clusters with base call T                            integer
+# Byte 92  Number of clusters with base call X                            integer
+# Byte 96  Number of clusters with intensity for A                        integer
+# Byte 100 Number of clusters with intensity for C                        integer
+# Byte 104 Number of clusters with intensity for G                        integer
+# Byte 108 Number of clusters with intensity for T                        integer
+def load_bcl_stats(path):
+    """Load a single BCL stats file into a dictionary.
+
+    See Illumina's bcl2fastq documentation for details on the values.  Note
+    that cycle number here is zero-indexed while in the directory names it's
+    indexed by one.
+    """
+    fmt = "<IdddddddddIIIIIIIII"
+    with open(path, "rb") as f_in:
+        raw = f_in.read(112)
+    data = struct.unpack(fmt, raw)
+    keys = ["cycle", "avg_intensity"] + \
+        ["avg_int_all_%s" % base for base in ["A", "C", "G", "T"]] + \
+        ["avg_int_cluster_%s" % base for base in ["A", "C", "G", "T"]] + \
+        ["num_clust_call_%s" % base for base in ["A", "C", "G", "T", "X"]] + \
+        ["num_clust_int_%s" % base for base in ["A", "C", "G", "T"]]
+    data = dict(zip(keys, data))
+    return data

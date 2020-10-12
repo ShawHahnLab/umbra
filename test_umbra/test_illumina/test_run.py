@@ -30,6 +30,7 @@ class TestRun(unittest.TestCase):
         date = datetime.datetime(2018, 1, 1, 6, 21, 31, 705000)
         self.expected = {
             "id": RUN_IDS["MiSeq"],
+            "cycles": 318,
             "rta": {"Date": date, "Version": "Illumina RTA 1.18.54"},
             "t1": "2018-01-02T06:48:22.0480092-04:00",
             "t2": "2018-01-02T06:48:32.608024-04:00",
@@ -97,6 +98,37 @@ class TestRun(unittest.TestCase):
         self.check_refresh_run() # 1: Update run completion status
         self.check_refresh_alignments() # 2: refresh existing alignments
 
+    def test_load_all_bcl_stats(self):
+        """Test loading all of the .stats files into a list."""
+        observed = self.run.load_all_bcl_stats()
+        expected = []
+        for lane in [1]:
+            for cycle in range(self.expected["cycles"]):
+                for tile in [1101, 1102]:
+                    expected.append({
+                        'cycle': cycle,
+                        'avg_intensity': 0.0,
+                        'avg_int_all_A': 0.0,
+                        'avg_int_all_C': 0.0,
+                        'avg_int_all_G': 0.0,
+                        'avg_int_all_T': 0.0,
+                        'avg_int_cluster_A': 0.0,
+                        'avg_int_cluster_C': 0.0,
+                        'avg_int_cluster_G': 0.0,
+                        'avg_int_cluster_T': 0.0,
+                        'num_clust_call_A': 0,
+                        'num_clust_call_C': 0,
+                        'num_clust_call_G': 0,
+                        'num_clust_call_T': 0,
+                        'num_clust_call_X': 0,
+                        'num_clust_int_A': 0,
+                        'num_clust_int_C': 0,
+                        'num_clust_int_G': 0,
+                        'num_clust_int_T': 0,
+                        'lane': lane,
+                        'tile': tile})
+            self.assertEqual(observed, expected)
+
     def test_run_id(self):
         """Test the run ID property."""
         self.assertEqual(self.expected["id"], self.run.run_id)
@@ -116,6 +148,7 @@ class TestRunSingle(TestRun):
         self.run = Run(self.path_run)
         self.expected = {}
         self.expected["id"] = RUN_IDS["Single"]
+        self.expected["cycles"] = 518
         date = datetime.datetime(2018, 1, 6, 6, 20, 25, 841000)
         self.expected["rta"] = {"Date": date, "Version": "Illumina RTA 1.18.54"}
         self.expected["t1"] = "2018-01-05T13:38:15.2566992-04:00"
@@ -145,6 +178,11 @@ class TestRunMiniSeq(TestRun):
         self.expected["t2"] = "2018-08-04T11:16:52.4989741-04:00"
         self.expected["flowcell"] = "000000000"
 
+    def test_load_all_bcl_stats(self):
+        """Test that a MiniSeq run gives an empty list as it has no BCL stats files."""
+        observed = self.run.load_all_bcl_stats()
+        self.assertEqual(observed, [])
+
 
 class TestRunMisnamed(TestRun):
     """Test case for a directory whose name is not the Run ID."""
@@ -156,6 +194,7 @@ class TestRunMisnamed(TestRun):
         self.run = Run(self.path_run, strict=False)
         self.expected = {}
         self.expected["id"] = RUN_IDS["MiSeq"]
+        self.expected["cycles"] = 318
         date = datetime.datetime(2018, 1, 1, 6, 21, 31, 705000)
         self.expected["rta"] = {"Date": date, "Version": "Illumina RTA 1.18.54"}
         self.expected["t1"] = "2018-01-02T06:48:22.0480092-04:00"

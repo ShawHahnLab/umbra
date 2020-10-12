@@ -183,3 +183,38 @@ class TestLoadCheckpoint3(TestLoadCheckpoint0):
     def setUp(self):
         self.path = PATH_OTHER / "checkpoints" / "Checkpoint3.txt"
         self.data_exp = [3, ""]
+
+
+class TestLoadBCLStats(unittest.TestCase):
+    """Base test case for a .stats file."""
+
+    def setUp(self):
+        self.path = PATH_OTHER / "stats" / "base.stats"
+        self.expected = {
+            'cycle': 0,
+            'avg_intensity': 0.0,
+            'avg_int_all_A': 0.0,
+            'avg_int_all_C': 0.0,
+            'avg_int_all_G': 0.0,
+            'avg_int_all_T': 0.0,
+            'avg_int_cluster_A': 0.0,
+            'avg_int_cluster_C': 0.0,
+            'avg_int_cluster_G': 0.0,
+            'avg_int_cluster_T': 0.0,
+            'num_clust_call_A': 0,
+            'num_clust_call_C': 0,
+            'num_clust_call_G': 0,
+            'num_clust_call_T': 0,
+            'num_clust_call_X': 0,
+            'num_clust_int_A': 0,
+            'num_clust_int_C': 0,
+            'num_clust_int_G': 0,
+            'num_clust_int_T': 0}
+
+    def test_load_bcl_stats(self):
+        """Test that a list of dicts is created, exactly as expected."""
+        observed = util.load_bcl_stats(self.path)
+        self.assertEqual(observed, self.expected)
+        self.assertEqual(
+            {key: type(val) for key, val in observed.items()},
+            {key: type(val) for key, val in self.expected.items()})
