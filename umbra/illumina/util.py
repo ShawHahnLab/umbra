@@ -97,7 +97,7 @@ def load_sample_sheet(path):
         for row in rows:
             if not row:
                 continue
-            elif len(row) == 1:
+            if len(row) == 1:
                 fields[row[0]] = ""
             else:
                 fields[row[0]] = row[1]
@@ -112,7 +112,7 @@ def load_sample_sheet(path):
     cols = data["Data"].pop(0)
     samples = []
     for row in data["Data"]:
-        samples.append({k: v for k, v in zip(cols, row)})
+        samples.append(dict(zip(cols, row)))
     data["Data"] = samples
 
     return data
