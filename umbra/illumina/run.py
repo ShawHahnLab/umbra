@@ -4,11 +4,12 @@ A read-only interface to an Illumina run directory.
 See the Run class for usage.
 """
 
+import re
 import warnings
 import logging
 import time
 from pathlib import Path
-from .util import load_xml, load_rta_complete
+from .util import load_xml, load_rta_complete, load_bcl_stats
 from .alignment import Alignment
 
 LOGGER = logging.getLogger(__name__)
@@ -115,6 +116,23 @@ class Run:
             return None
         else:
             return aln
+
+    def load_all_bcl_stats(self):
+        """Load all BCL stats files into list of dictionaries.
+
+        Each dictionary represents one stats file for one run cycle, lane, and tile
+        combination.  The values in each dictionary are the 19 defined in the
+        binary stats file plus the lane and tile integers from each filename.
+        """
+        stats = []
+        for stats_path in self.path.glob("Data/Intensities/BaseCalls/**/s_*.stats"):
+            match = re.match("s_([0-9]+)_([0-9]+)", stats_path.stem)
+            data = load_bcl_stats(stats_path)
+            data["lane"] = int(match.group(1))
+            data["tile"] = int(match.group(2))
+            stats.append(data)
+        stats = sorted(stats, key=lambda stat: (stat["cycle"], stat["lane"], stat["tile"]))
+        return stats
 
     @property
     def run_id(self):
