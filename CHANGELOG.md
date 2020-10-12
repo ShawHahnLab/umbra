@@ -5,11 +5,13 @@
 ### Added
 
  * `error` property for `illumina.alignment.Alignment` class ([#104])
+ * BCL stats file parsing functions for applicable Illumina runs ([#106])
 
 ### Fixed
 
  * Handle non-unicode characters in CSV files ([#105])
 
+[#106]: https://github.com/ShawHahnLab/umbra/pull/106
 [#105]: https://github.com/ShawHahnLab/umbra/pull/105
 [#104]: https://github.com/ShawHahnLab/umbra/pull/104
 
