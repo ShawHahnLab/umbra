@@ -97,6 +97,37 @@ class TestRun(unittest.TestCase):
         self.check_refresh_run() # 1: Update run completion status
         self.check_refresh_alignments() # 2: refresh existing alignments
 
+    def test_load_all_bcl_stats(self):
+        """Test loading all of the .stats files into a list."""
+        observed = self.run.load_all_bcl_stats()
+        expected = []
+        for lane in [1]:
+            for cycle in range(318):
+                for tile in [1101, 1102]:
+                    expected.append({
+                        'cycle': cycle,
+                        'avg_intensity': 0.0,
+                        'avg_int_all_A': 0.0,
+                        'avg_int_all_C': 0.0,
+                        'avg_int_all_G': 0.0,
+                        'avg_int_all_T': 0.0,
+                        'avg_int_cluster_A': 0.0,
+                        'avg_int_cluster_C': 0.0,
+                        'avg_int_cluster_G': 0.0,
+                        'avg_int_cluster_T': 0.0,
+                        'num_clust_call_A': 0,
+                        'num_clust_call_C': 0,
+                        'num_clust_call_G': 0,
+                        'num_clust_call_T': 0,
+                        'num_clust_call_X': 0,
+                        'num_clust_int_A': 0,
+                        'num_clust_int_C': 0,
+                        'num_clust_int_G': 0,
+                        'num_clust_int_T': 0,
+                        'lane': lane,
+                        'tile': tile})
+            self.assertEqual(observed, expected)
+
     def test_run_id(self):
         """Test the run ID property."""
         self.assertEqual(self.expected["id"], self.run.run_id)
