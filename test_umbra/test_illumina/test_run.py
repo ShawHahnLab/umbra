@@ -6,6 +6,7 @@ on disk.
 """
 
 import unittest
+from unittest.mock import Mock
 import time
 import datetime
 import warnings
@@ -59,17 +60,28 @@ class TestRun(unittest.TestCase):
 
     def check_refresh_run(self):
         """Test refreshing run state from files on disk."""
-        # Starting without a RTAComplete.txt, run is marked incomplete.
+        # Starting without a RTAComplete.txt, run is marked incomplete.  We'll
+        # also check how the alignment refresh behaves.  It shouldn't call the
+        # given callback, if any, until the run itself is complete.  This is an
+        # edge case since in theory the run needs to be complete if the
+        # alignment is, but I did run into this in a real run directory that
+        # was incompletely transferred and this behavior makes the most sense
+        # in that situation.
         move(str(self.path_run / "RTAComplete.txt"), str(self.path_run / "tmp.txt"))
-        self.run = Run(self.path_run)
+        callback = Mock()
+        self.run = Run(self.path_run, alignment_callback=callback)
         self.assertFalse(self.run.complete)
         self.assertEqual(self.run.rta_complete, None)
+        callback.assert_not_called()
         # It doesn't update automatically.
         move(str(self.path_run / "tmp.txt"), str(self.path_run / "RTAComplete.txt"))
         self.assertFalse(self.run.complete)
         # On refresh, it is now seen as complete.
         self.run.refresh()
+        callback.assert_called_once()
         self.assertTrue(self.run.complete)
+        self.run.refresh()
+        callback.assert_called_once()
 
     def check_refresh_alignments(self):
         """Test refreshing run Alignment directories from files on disk."""
