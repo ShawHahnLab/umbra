@@ -8,12 +8,16 @@ jobs:
     docker:
       - image: cimg/base:2020.01
     steps:
-      - run: wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
-      - run: bash miniconda.sh -b -p $HOME/miniconda
-      - run: export PATH="$HOME/miniconda/bin:$PATH"
-      - run: ~/miniconda/bin/conda config --set always_yes yes --set changeps1 no
-      - run: ~/miniconda/bin/conda update -q conda
-      - run: ~/miniconda/bin/conda create -q -n test-environment -c bioconda spades python=3.7
+      - name: Set up conda environemnt
+        command: |
+          wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+          bash miniconda.sh -b -p $HOME/miniconda
+          export PATH="$HOME/miniconda/bin:$PATH"
+          ~/miniconda/bin/conda config --set always_yes yes --set changeps1 no
+          ~/miniconda/bin/conda update -q conda
+          ~/miniconda/bin/conda create -q -n test-environment -c bioconda spades python=3.7
+      - name: Check conda environment
+        command: ~/miniconda/bin/conda list -n test-environment
   install:
     docker:
       - image: cimg/base:2020.01
