@@ -1,11 +1,20 @@
+# https://circleci.com/docs/2.0/language-python/
+# https://circleci.com/docs/2.0/configuration-reference/
+# https://circleci.com/docs/2.0/executor-intro/
 version: 2.1
 
-orbs:
-  python: circleci/python@0.2.1
-
 jobs:
-  build-and-test:
-    executor: python/default
+  prepare:
+    executor: docker
+    steps:
+      - run: wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+      - run: bash miniconda.sh -b -p $HOME/miniconda
+      - run: export PATH="$HOME/miniconda/bin:$PATH"
+      - run: ~/miniconda/bin/conda config --set always_yes yes --set changeps1 no
+      - run: ~/miniconda/bin/conda update -q conda
+      - run: ~/miniconda/bin/conda create -q -n test-environment -c bioconda spades python=3.7
+  install:
+    executor: docker
     steps:
       - checkout
       - python/load-cache
@@ -45,4 +54,4 @@ jobs:
 workflows:
   main:
     jobs:
-      - build-and-test
+      - prepare
