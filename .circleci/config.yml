@@ -6,50 +6,52 @@ version: 2.1
 jobs:
   prepare:
     docker:
-      steps:
-        - run: wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
-        - run: bash miniconda.sh -b -p $HOME/miniconda
-        - run: export PATH="$HOME/miniconda/bin:$PATH"
-        - run: ~/miniconda/bin/conda config --set always_yes yes --set changeps1 no
-        - run: ~/miniconda/bin/conda update -q conda
-        - run: ~/miniconda/bin/conda create -q -n test-environment -c bioconda spades python=3.7
+      - image: cimg/base:2020.01
+    steps:
+      - run: wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+      - run: bash miniconda.sh -b -p $HOME/miniconda
+      - run: export PATH="$HOME/miniconda/bin:$PATH"
+      - run: ~/miniconda/bin/conda config --set always_yes yes --set changeps1 no
+      - run: ~/miniconda/bin/conda update -q conda
+      - run: ~/miniconda/bin/conda create -q -n test-environment -c bioconda spades python=3.7
   install:
     docker:
-      steps:
-        - checkout
-        - python/load-cache
-        - python/install-deps
-        - python/save-cache
-        - run:
-            command: python -m unittest
-            name: Test
-        - run:
-            command: python -m umbra -h
-            name: Test command line interface
-        - run:
-            command: bash demo/demo_1.sh
-            name: Test demo 1
-        - run:
-            command: bash demo/demo_2.sh
-            name: Test demo 2
-        - run:
-            command: umbra -h
-            name: Test installed command line interface
-        - run:
-            command: umbra --version
-            name: Test version argument
-        - run:
-            command: sudo -E $(which umbra) --action install --dry-run
-            name: Test dry run installation
-        - run:
-            command: sudo -E $(which umbra) --action install
-            name: Install
-        - run:
-            command: sudo systemctl start umbra
-            name: Start service
-        - run:
-            command: sudo systemctl status umbra
-            name: Check service
+      - image: cimg/base:2020.01
+    steps:
+      - checkout
+      - python/load-cache
+      - python/install-deps
+      - python/save-cache
+      - run:
+          command: python -m unittest
+          name: Test
+      - run:
+          command: python -m umbra -h
+          name: Test command line interface
+      - run:
+          command: bash demo/demo_1.sh
+          name: Test demo 1
+      - run:
+          command: bash demo/demo_2.sh
+          name: Test demo 2
+      - run:
+          command: umbra -h
+          name: Test installed command line interface
+      - run:
+          command: umbra --version
+          name: Test version argument
+      - run:
+          command: sudo -E $(which umbra) --action install --dry-run
+          name: Test dry run installation
+      - run:
+          command: sudo -E $(which umbra) --action install
+          name: Install
+      - run:
+          command: sudo systemctl start umbra
+          name: Start service
+      - run:
+          command: sudo systemctl status umbra
+          name: Check service
 
 workflows:
   main:
