@@ -1,9 +1,6 @@
 language: python
-# According to https://docs.travis-ci.com/user/languages/python/ 3.7 does not
-# currently work on Travis.  3.5 does but this package would need
-# modifications.
 python:
-  - "3.6"
+  - "3.7"
 before_install:
   - sudo apt-get update && sudo apt-get install systemd
 # Based on:

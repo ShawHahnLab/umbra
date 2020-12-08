@@ -17,6 +17,7 @@ setuptools.setup(
         "cutadapt>=1.18",
         "pyyaml>=3.13"
         ],
+    python_requires='>=3.7',
     packages=setuptools.find_packages(exclude=["test_*"]),
     include_package_data=True,
     entry_points={'console_scripts': [
