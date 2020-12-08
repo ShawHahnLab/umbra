@@ -9,8 +9,11 @@
 
 ### Fixed
 
+ * Only process an alignment when its containing run is marked complete
+   ([#108])
  * Handle non-unicode characters in CSV files ([#105])
 
+[#108]: https://github.com/ShawHahnLab/umbra/pull/108
 [#106]: https://github.com/ShawHahnLab/umbra/pull/106
 [#105]: https://github.com/ShawHahnLab/umbra/pull/105
 [#104]: https://github.com/ShawHahnLab/umbra/pull/104
