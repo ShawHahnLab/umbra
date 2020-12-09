@@ -5,10 +5,11 @@
 version: 2.1
 
 jobs:
-  prepare:
+  main:
     docker:
       - image: cimg/base:2020.01
     steps:
+      # Initial setup
       - run:
           name: Set up conda environemnt
           command: |
@@ -21,10 +22,7 @@ jobs:
       - run:
           name: Check conda environment
           command: ~/miniconda/bin/conda list -n test-environment
-  install:
-    docker:
-      - image: cimg/base:2020.01
-    steps:
+      # Python package install
       - checkout
       - run:
           name: Install Python package
@@ -32,10 +30,7 @@ jobs:
             export PATH="$HOME/miniconda/bin:$PATH"
             source activate test-environment
             python setup.py install
-  test-package:
-    docker:
-      - image: cimg/base:2020.01
-    steps:
+      # Python package tests
       - run:
           name: Unit tests
           command: python -m unittest
@@ -54,10 +49,7 @@ jobs:
       - run:
           name: Test version argument
           command: umbra --version
-  test-install:
-    docker:
-      - image: cimg/base:2020.01
-    steps:
+      # OS install
       - run:
           name: Test dry run installation
           command: sudo -E $HOME/miniconda/bin/umbra --action install --dry-run
@@ -74,6 +66,4 @@ jobs:
 workflows:
   main:
     jobs:
-      - prepare
-      - install:
-          requires: [ prepare ]
+      - main
