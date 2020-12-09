@@ -44,22 +44,34 @@ jobs:
       # Python package tests
       - run:
           name: Unit tests
-          command: python -m unittest
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            python -m unittest
       - run:
           name: Test command line interface
-          command: python -m umbra -h
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            python -m umbra -h
       - run:
           name: Test demo 1
-          command: bash demo/demo_1.sh
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            bash demo/demo_1.sh
       - run:
           name: Test demo 2
-          command: bash demo/demo_2.sh
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            bash demo/demo_2.sh
       - run:
           name: Test installed command line interface
-          command: umbra -h
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            umbra -h
       - run:
           name: Test version argument
-          command: umbra --version
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            umbra --version
       # OS install
       - run:
           name: Test dry run installation
