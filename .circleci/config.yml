@@ -75,4 +75,4 @@ workflows:
     jobs:
       - prepare
       - install:
-        requires: [ prepare ]
+          requires: [ prepare ]
