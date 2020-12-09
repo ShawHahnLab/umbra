@@ -10,6 +10,10 @@ jobs:
       - image: cimg/base:2020.01
     steps:
       # Initial setup
+      - checkout
+      - restore_cache:
+          keys:
+            - conda-env-{{ checksum "setup.py" }}
       - run:
           name: Set up conda environemnt
           working_directory: ..
@@ -20,11 +24,12 @@ jobs:
             conda config --set always_yes yes --set changeps1 no
             conda update -q conda
             conda create -q -n test-environment -c bioconda spades python=3.7
+      - save_cache:
+          key: conda-env-{{ checksum "setup.py" }}
       - run:
           name: Check conda environment
           command: ~/miniconda/bin/conda list -n test-environment
       # Python package install
-      - checkout
       - run:
           name: Install Python package
           command: |
