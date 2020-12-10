@@ -6,9 +6,14 @@ Tests for config module functions.
 import unittest
 from pathlib import Path
 from umbra import config
+from .test_common import log_start, log_stop
+
 
 class TestConfig(unittest.TestCase):
     """Test the config module that handles configuration optons."""
+
+    setUpClass = classmethod(lambda cls: log_start(cls.__module__ + "." + cls.__name__))
+    tearDownClass = classmethod(lambda cls: log_stop(cls.__module__ + "." + cls.__name__))
 
     def setUp(self):
         self.configs = ["", "install", "report"]
@@ -99,7 +104,3 @@ class TestConfig(unittest.TestCase):
             }
         tree_obs = config.update_tree(tree_old, tree_new)
         self.assertEqual(tree_obs, tree_exp)
-
-
-if __name__ == '__main__':
-    unittest.main()

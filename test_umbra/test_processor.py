@@ -526,6 +526,3 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
                 with warnings.catch_warnings():
                     self.proc.watch_and_process(poll=1, wait=True)
         self.proc.wait_for_jobs()
-
-if __name__ == '__main__':
-    unittest.main()

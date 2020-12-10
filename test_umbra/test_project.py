@@ -10,11 +10,11 @@ multiple simultaneous projects, either; see test_umbra.py for that.
 """
 
 import unittest
+from unittest.mock import Mock
 import warnings
 import datetime
 import logging
 from pathlib import Path
-from unittest.mock import Mock
 import yaml
 from umbra.illumina.run import Run
 from umbra.project import ProjectData, ProjectError
@@ -270,7 +270,3 @@ class TestProjectDataFromAlignment(TestBase):
             self.assertEqual(len(log_cm.output), 1)
             self.assertIn("Unrecognized character", log_cm.output[0])
         self.assertEqual(len(projs), 2)
-
-
-if __name__ == '__main__':
-    unittest.main()

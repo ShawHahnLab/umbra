@@ -5,16 +5,16 @@ More specifically, test the Alignment class that represents a specific
 subdirectory of an Illumina run directory on disk.
 """
 
-import unittest
 import os
 from shutil import move
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from distutils.dir_util import copy_tree
 from umbra.illumina.run import Alignment
+from . import test_common
 from .test_common import RUN_IDS, PATH_RUNS
 
-class TestAlignment(unittest.TestCase):
+class TestAlignment(test_common.TestBase):
     """Test an Alignment in a typical case (MiSeq, paired-end)."""
 
     def setUp(self):
@@ -247,7 +247,3 @@ class TestAlignmentErrored(TestAlignment):
     def test_error(self):
         """What's the error message for the alignment?"""
         self.assertEqual(self.alignment.error, "whoops")
-
-
-if __name__ == '__main__':
-    unittest.main()

@@ -15,6 +15,7 @@ import smtplib
 import asyncore
 import threading
 from umbra.mailer import Mailer
+from .test_common import log_start, log_stop
 
 
 class StubSMTP(smtpd.SMTPServer):
@@ -88,6 +89,9 @@ class StubSMTP(smtpd.SMTPServer):
 
 class TestMailer(unittest.TestCase):
     """ Test Mailer with a typical use case."""
+
+    setUpClass = classmethod(lambda cls: log_start(cls.__module__ + "." + cls.__name__))
+    tearDownClass = classmethod(lambda cls: log_stop(cls.__module__ + "." + cls.__name__))
 
     def setUp(self):
         self.set_up_smtp()
@@ -315,7 +319,3 @@ class TestMailerReplyTo(TestMailer):
         self.assertEqual(
             message["header"].get("Reply-To"),
             self.expected["mail_args"]["reply_to"])
-
-
-if __name__ == '__main__':
-    unittest.main()

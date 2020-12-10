@@ -2,6 +2,8 @@
 Common test code shared with the real tests.  Not much to see here.
 """
 
+import datetime
+import time
 import unittest
 import logging
 from tempfile import TemporaryDirectory
@@ -19,6 +21,13 @@ PATH_CONFIG = PATH_ROOT / ".." / "test_config.yml"
 TMP_PAUSE = False
 
 CONFIG = util.yaml_load(PATH_CONFIG)
+
+TESTLOGGER = logging.getLogger(__name__)
+TESTLOGGER.propagate = False
+TESTLOGGER.setLevel(logging.DEBUG)
+if CONFIG["logfile"]:
+    TESTLOGGER.addHandler(
+        logging.StreamHandler(open(CONFIG["logfile"], "at", buffering=1)))
 
 def md5(text):
     """MD5 Checksum of the given text."""
@@ -43,9 +52,31 @@ class DumbLogHandler(logging.Handler):
         """Does some text appear in any of the records?"""
         return True in [txt in rec.msg for rec in self.records]
 
+TIMINGS = {}
+
+def log_start(name):
+    """Store a global time reference under a given name."""
+    TIMINGS[name] = time.perf_counter()
+
+def log_stop(name):
+    """Log elapsed time since log_start(name) and del name reference."""
+    then = TIMINGS.get(name)
+    if then:
+        now = datetime.datetime.now()
+        delta = time.perf_counter() - then
+        TESTLOGGER.info("%s, %12.8f seconds, %s", now, delta, name)
+        del TIMINGS[name]
 
 class TestBase(unittest.TestCase):
     """Some setup/teardown shared with the real test classes."""
+
+    @classmethod
+    def setUpClass(cls):
+        log_start(cls.__module__ + "." + cls.__name__)
+
+    @classmethod
+    def tearDownClass(cls):
+        log_stop(cls.__module__ + "." + cls.__name__)
 
     def setUp(self):
         self.set_up_tmpdir()

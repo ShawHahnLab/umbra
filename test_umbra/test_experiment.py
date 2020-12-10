@@ -4,7 +4,8 @@ Tests for experiment metadata handlers.
 
 from collections import OrderedDict
 from umbra import experiment
-from .test_common import TestBase
+from .test_common import TestBase, log_start, log_stop
+
 
 class TestLoadMetadata(TestBase):
     """Test basic metadata loading.
@@ -12,6 +13,9 @@ class TestLoadMetadata(TestBase):
     Each version of metadata.csv should provide the same list of
     dictionaries.
     """
+
+    setUpClass = classmethod(lambda cls: log_start(cls.__module__ + "." + cls.__name__))
+    tearDownClass = classmethod(lambda cls: log_stop(cls.__module__ + "." + cls.__name__))
 
     def setUp(self):
         super().setUp()

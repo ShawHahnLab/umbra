@@ -8,9 +8,9 @@ import unittest
 import unittest.mock
 from pathlib import Path
 from umbra import task
-from .test_task import TestTask
+from . import test_task
 
-class TestTaskMetadata(TestTask):
+class TestTaskMetadata(test_task.TestTask):
     """Test TaskMetadata."""
 
     def setUp(self):

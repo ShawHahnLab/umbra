@@ -8,9 +8,9 @@ import unittest
 import unittest.mock
 from pathlib import Path
 from umbra import task
-from .test_task import TestTask
+from . import test_task
 
-class TestTaskGeneious(TestTask):
+class TestTaskGeneious(test_task.TestTask):
     """Test TaskGeneious."""
 
     def setUp(self):

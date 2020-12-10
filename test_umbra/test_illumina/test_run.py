@@ -5,7 +5,6 @@ More specifically, test the Run class that represents an Illumina run directory
 on disk.
 """
 
-import unittest
 from unittest.mock import Mock
 import time
 import datetime
@@ -15,9 +14,10 @@ from pathlib import Path
 from distutils.dir_util import copy_tree
 from shutil import move
 from umbra.illumina.run import Run
+from . import test_common
 from .test_common import RUN_IDS, PATH_RUNS
 
-class TestRun(unittest.TestCase):
+class TestRun(test_common.TestBase):
     """Base test case for a Run.
 
     This is built around a mock MiSeq run directory.
@@ -229,7 +229,7 @@ class TestRunMisnamed(TestRun):
             self.assertEqual(0, len(warn_list))
 
 
-class TestRunInvalid(unittest.TestCase):
+class TestRunInvalid(test_common.TestBase):
     """Test case for a directory that is not an Illumina run."""
 
     def test_init(self):

@@ -16,12 +16,15 @@ from pathlib import Path
 import threading
 import queue
 from umbra.box_uploader import BoxUploader
-from .test_common import CONFIG
+from .test_common import CONFIG, log_start, log_stop
 from .shims import mock_boxsdk
 
 
 class TestBoxUploaderBase(unittest.TestCase):
     """A shared setup for testing Box uploads."""
+
+    setUpClass = classmethod(lambda cls: log_start(cls.__module__ + "." + cls.__name__))
+    tearDownClass = classmethod(lambda cls: log_stop(cls.__module__ + "." + cls.__name__))
 
     def setUp(self):
         self.data_exp = b"test_upload\n"
@@ -197,7 +200,3 @@ class TestBoxUploaderMockDisconnect(TestBoxUploaderMock):
                 self.assertEqual(len(logging_context.output), 2)
         mock_boxsdk.FOLDER.upload.assert_called()
         self.assertEqual(len(self.box.list()), 1)
-
-
-if __name__ == '__main__':
-    unittest.main()

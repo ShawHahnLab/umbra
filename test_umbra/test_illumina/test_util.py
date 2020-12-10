@@ -2,12 +2,12 @@
 Tests for illumina.util helper functions.
 """
 
-import unittest
 import csv
 from umbra.illumina import util
+from . import test_common
 from .test_common import PATH_OTHER
 
-class TestLoadCSV(unittest.TestCase):
+class TestLoadCSV(test_common.TestBase):
     """Base test case for a CSV file.
 
     This and the child clsses test load_csv against the complexities that come
@@ -152,7 +152,7 @@ class TestLoadCSVMissing(TestLoadCSV):
             util.load_csv(self.path, csv.DictReader)
 
 
-class TestLoadCheckpoint0(unittest.TestCase):
+class TestLoadCheckpoint0(test_common.TestBase):
     """Base test case for a Checkpoint.txt file.
 
     This and child classes test parsing of the Checkpoint.txt file that
@@ -185,7 +185,7 @@ class TestLoadCheckpoint3(TestLoadCheckpoint0):
         self.data_exp = [3, ""]
 
 
-class TestLoadBCLStats(unittest.TestCase):
+class TestLoadBCLStats(test_common.TestBase):
     """Base test case for a .stats file."""
 
     def setUp(self):

@@ -15,9 +15,14 @@ import logging
 import importlib
 from pathlib import Path
 from umbra import task
+from ..test_common import log_start, log_stop
+
 
 class TestTaskModule(unittest.TestCase):
     """Tests on the task module."""
+
+    setUpClass = classmethod(lambda cls: log_start(cls.__module__ + "." + cls.__name__))
+    tearDownClass = classmethod(lambda cls: log_stop(cls.__module__ + "." + cls.__name__))
 
     def setUp(self):
         self.tasks_expected = set((
@@ -96,6 +101,9 @@ class TestTaskModule(unittest.TestCase):
 
 class TestTaskClass(unittest.TestCase):
     """Tests on the Task class itself."""
+
+    setUpClass = classmethod(lambda cls: log_start(cls.__module__ + "." + cls.__name__))
+    tearDownClass = classmethod(lambda cls: log_stop(cls.__module__ + "." + cls.__name__))
 
     def setUp(self):
         self.thing = task.Task
