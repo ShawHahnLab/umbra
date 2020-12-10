@@ -6,3 +6,4 @@ box:
 mailer:
   skip: True
 save_report: null
+logfile: "/tmp/test_umbra.log"

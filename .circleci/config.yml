@@ -47,6 +47,8 @@ jobs:
           command: |
             source ~/miniconda/bin/activate test-environment
             python -m unittest
+      - store_artifacts:
+          path: /tmp/test_umbra.log
       - run:
           name: Test command line interface
           command: |
