@@ -30,7 +30,7 @@ jobs:
       - save_cache:
           key: conda-env-{{ checksum "setup.py" }}
           paths:
-            - $HOME/miniconda
+            - ../miniconda
       - run:
           name: Check conda environment
           command: ~/miniconda/bin/conda list -n test-environment
