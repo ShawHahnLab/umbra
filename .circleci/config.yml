@@ -38,7 +38,7 @@ jobs:
       # pip below
       - run:
           name: Install OS dependencies
-          command: sudo apt-get install -qq rsync
+          command: sudo apt-get update && sudo apt-get install -qq rsync
       # Python package install
       - run:
           name: Install Python package
