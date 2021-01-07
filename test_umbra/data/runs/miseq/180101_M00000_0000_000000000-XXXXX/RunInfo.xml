@@ -5,10 +5,10 @@
     <Instrument>M00000</Instrument>
     <Date>180101</Date>
     <Reads>
-      <Read NumCycles="151" Number="1" IsIndexedRead="N" />
-      <Read NumCycles="8" Number="2" IsIndexedRead="Y" />
-      <Read NumCycles="8" Number="3" IsIndexedRead="Y" />
-      <Read NumCycles="151" Number="4" IsIndexedRead="N" />
+      <Read NumCycles="4" Number="1" IsIndexedRead="N" />
+      <Read NumCycles="4" Number="2" IsIndexedRead="Y" />
+      <Read NumCycles="4" Number="3" IsIndexedRead="Y" />
+      <Read NumCycles="4" Number="4" IsIndexedRead="N" />
     </Reads>
     <FlowcellLayout LaneCount="1" SurfaceCount="2" SwathCount="1" TileCount="4" />
   </Run>
