@@ -10,7 +10,8 @@ import time
 import datetime
 import warnings
 from umbra.illumina.run import Run
-from .test_common import TestBase, dummy_bcl_stats
+from .test_common import dummy_bcl_stats
+from ..test_common import TestBase
 
 
 class TestRun(TestBase):

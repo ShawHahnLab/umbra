@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 Test umbra.box_uploader
 
@@ -8,23 +7,20 @@ test will also be run, over the real Box API.
 """
 
 import urllib.request
-import unittest
 import copy
 import sys
+import warnings
 from tempfile import NamedTemporaryFile
 from pathlib import Path
 import threading
 import queue
 from umbra.box_uploader import BoxUploader
-from .test_common import CONFIG, log_start, log_stop
+from .test_common import CONFIG, TestBase
 from .shims import mock_boxsdk
 
 
-class TestBoxUploaderBase(unittest.TestCase):
+class TestBoxUploaderBase(TestBase):
     """A shared setup for testing Box uploads."""
-
-    setUpClass = classmethod(lambda cls: log_start(cls.__module__ + "." + cls.__name__))
-    tearDownClass = classmethod(lambda cls: log_stop(cls.__module__ + "." + cls.__name__))
 
     def setUp(self):
         self.data_exp = b"test_upload\n"
@@ -38,11 +34,11 @@ class TestBoxUploaderBase(unittest.TestCase):
         try:
             path = self.box_config.get("credentials_path")
             if not path:
-                raise unittest.SkipTest(msg)
+                self.skipTest(msg)
             box = BoxUploader(path, self.box_config)
             return box
         except FileNotFoundError:
-            raise unittest.SkipTest(msg)
+            self.skipTest(msg)
 
     def tearDown(self):
         for item in self.box.list():
@@ -85,7 +81,6 @@ class TestBoxUploader(TestBoxUploaderBase):
         # the depths of boxsdk sockets are getting left open at times.
         # https://stackoverflow.com/q/26563711/4499968
         if not sys.warnoptions:
-            import warnings
             warnings.simplefilter("ignore", ResourceWarning)
 
     def test_upload(self):

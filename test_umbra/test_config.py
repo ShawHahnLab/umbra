@@ -1,19 +1,14 @@
-#!/usr/bin/env python
 """
 Tests for config module functions.
 """
 
-import unittest
 from pathlib import Path
 from umbra import config
-from .test_common import log_start, log_stop
+from .test_common import TestBase
 
 
-class TestConfig(unittest.TestCase):
+class TestConfig(TestBase):
     """Test the config module that handles configuration optons."""
-
-    setUpClass = classmethod(lambda cls: log_start(cls.__module__ + "." + cls.__name__))
-    tearDownClass = classmethod(lambda cls: log_stop(cls.__module__ + "." + cls.__name__))
 
     def setUp(self):
         self.configs = ["", "install", "report"]

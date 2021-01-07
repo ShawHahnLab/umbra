@@ -4,9 +4,10 @@ Tests for illumina.util helper functions.
 
 import csv
 from umbra.illumina import util
-from . import test_common
+from .test_common import make_bcl_stats_dict
+from ..test_common import TestBase
 
-class TestLoadCSV(test_common.TestBase):
+class TestLoadCSV(TestBase):
     """Base test case for a CSV file.
 
     This and the child clsses test load_csv against the complexities that come
@@ -138,7 +139,7 @@ class TestLoadCSVMissing(TestLoadCSV):
             util.load_csv(self.path / "test.csv", csv.DictReader)
 
 
-class TestLoadCheckpoint0(test_common.TestBase):
+class TestLoadCheckpoint0(TestBase):
     """Base test case for a Checkpoint.txt file.
 
     This and child classes test parsing of the Checkpoint.txt file that
@@ -167,12 +168,12 @@ class TestLoadCheckpoint3(TestLoadCheckpoint0):
         self.assertEqual(data, [3, ""])
 
 
-class TestLoadBCLStats(test_common.TestBase):
+class TestLoadBCLStats(TestBase):
     """Base test case for a .stats file."""
 
     def test_load_bcl_stats(self):
         """Test that a list of dicts is created, exactly as expected."""
-        expected = test_common.make_bcl_stats_dict()
+        expected = make_bcl_stats_dict()
         observed = util.load_bcl_stats(self.path / "base.stats")
         self.assertEqual(observed, expected)
         self.assertEqual(

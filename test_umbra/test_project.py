@@ -18,11 +18,11 @@ from pathlib import Path
 import yaml
 from umbra.illumina.run import Run
 from umbra.project import ProjectData, ProjectError
-from .test_common import TestBase
+from .test_common import TestBaseHeavy
 
 DEFAULT_TASKS = ["metadata", "package", "upload", "email"]
 
-class TestProjectData(TestBase):
+class TestProjectData(TestBaseHeavy):
     """Main tests for ProjectData.
 
     This became unwieldy pretty fast.  Merge into TestProjectDataOneTask,
@@ -191,7 +191,7 @@ class TestProjectData(TestBase):
 
 
 @unittest.skip("not yet implemented")
-class TestProjectDataBlank(TestBase):
+class TestProjectDataBlank(TestBaseHeavy):
     """Test with no tasks at all.
 
     This just needs to confim that the TASK_NULL code correctly inserts "copy"
@@ -200,14 +200,14 @@ class TestProjectDataBlank(TestBase):
 
 
 @unittest.skip("not yet implemented")
-class TestProjectDataAlreadyProcessing(TestBase):
+class TestProjectDataAlreadyProcessing(TestBaseHeavy):
     """Test project whose existing metadata points to an existent process.
 
     We should abort in that case.
     """
 
 
-class TestProjectDataFromAlignment(TestBase):
+class TestProjectDataFromAlignment(TestBaseHeavy):
     """Tests for ProjectData.from_alignment."""
 
     def set_up_vars(self):

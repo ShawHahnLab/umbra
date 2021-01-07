@@ -67,7 +67,28 @@ def log_stop(name):
         TESTLOGGER.info("%s, %12.8f seconds, %s", now, delta, name)
         del TIMINGS[name]
 
+
 class TestBase(unittest.TestCase):
+    """Helper for test cases
+
+    This tracks test case duration by logging the time between class setup and
+    teardown and provides a default file path for supporting files for each
+    test, based on the class name.
+    """
+
+    setUpClass = classmethod(lambda cls: log_start(cls.__module__ + "." + cls.__name__))
+    tearDownClass = classmethod(lambda cls: log_stop(cls.__module__ + "." + cls.__name__))
+
+    @property
+    def path(self):
+        """Path for supporting files for each class."""
+        path = self.__class__.__module__.split(".") + [self.__class__.__name__]
+        path.insert(1, "data")
+        path = Path("/".join(path))
+        return path
+
+
+class TestBaseHeavy(unittest.TestCase):
     """Some setup/teardown shared with the real test classes."""
 
     @classmethod

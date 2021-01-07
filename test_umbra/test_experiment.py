@@ -4,10 +4,10 @@ Tests for experiment metadata handlers.
 
 from collections import OrderedDict
 from umbra import experiment
-from .test_common import TestBase, log_start, log_stop
+from .test_common import TestBaseHeavy, log_start, log_stop
 
 
-class TestLoadMetadata(TestBase):
+class TestLoadMetadata(TestBaseHeavy):
     """Test basic metadata loading.
 
     Each version of metadata.csv should provide the same list of

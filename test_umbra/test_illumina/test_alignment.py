@@ -8,7 +8,7 @@ subdirectory of an Illumina run directory on disk.
 from unittest.mock import Mock
 from pathlib import Path
 from umbra.illumina.run import Alignment
-from .test_common import TestBase
+from ..test_common import TestBase
 
 class TestAlignment(TestBase):
     """Test an Alignment in a typical case (MiSeq, paired-end)."""
