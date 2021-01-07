@@ -91,7 +91,7 @@ jobs:
           command: sudo systemctl start umbra
       - run:
           name: Check service
-          command: sudo systemctl status umbra
+          command: sudo systemctl status umbra --no-pager
 
 workflows:
   main:
