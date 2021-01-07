@@ -46,7 +46,7 @@ jobs:
           name: Unit tests
           command: |
             source ~/miniconda/bin/activate test-environment
-            python -m unittest
+            python -m unittest test_umbra.test_illumina.test_{run,alignment,util}
       - store_artifacts:
           path: /tmp/test_umbra.log
       - run:
