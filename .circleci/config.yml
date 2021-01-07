@@ -6,6 +6,11 @@ version: 2.1
 
 jobs:
   main:
+    # Using a machine executor instead of a docker image because we need to
+    # interact with systemd to run a full test, which doesn't play nicely with
+    # docker.
+    # https://circleci.com/docs/2.0/executor-types/#using-machine
+    # https://lkhill.com/circleci-docker-systemd
     machine:
       image: ubuntu-2004:202010-01
     steps:
