@@ -6,7 +6,7 @@ subdirectory of an Illumina run directory on disk.
 """
 
 from unittest.mock import Mock
-from shutil import move
+from pathlib import Path
 from umbra.illumina.run import Alignment
 from . import test_common
 
@@ -96,33 +96,84 @@ class TestAlignment(test_common.TestBase):
 
 
 class TestAlignmentToComplete(test_common.TestBase):
-    """Tests for the incomplete -> complete transition."""
+    """Tests for the incomplete -> complete transition.
 
-    def todo_test_complete(self):
-        """Is an Alignment complete?"""
-        # An alignment is complete if Checkpoint exists and is 3, is not
-        # complete otherwise.
-        self.assertTrue(self.aln.complete)
-        aln = Alignment(
-            self.path / "miseq-no-checkpoint" /
+    Instead of a typical TestAlignment with all methods and properties tested,
+    this checks the behavior of a few key things during the transition from an
+    incomplete state to complete.  With each test a Checkpoint.txt file is
+    created and removed to simulate a completed alignment and then reset the
+    state for the next test.
+    """
+
+    def setUp(self):
+        self.path_aln = (
+            self.path /
             "180101_M00000_0000_000000000-XXXXX" /
             "Data/Intensities/BaseCalls/Alignment")
-        self.assertFalse(aln.complete)
+        self.aln_callback = Mock()
+        self.aln = Alignment(
+            self.path_aln, completion_callback=self.aln_callback)
 
-    def todo_test_refresh(self):
-        # Starting without a Checkpoint.txt, alignment is marked incomplete.
-        self.skipTest("not yet re-implemented")
-        # TODO
-        move(str(self.aln.paths["checkpoint"]), str(self.paths["run"]))
+    def tearDown(self):
+        self.reset_complete()
+
+    def make_complete(self):
+        """Create a Checkpoint.txt file so the alignment is complete"""
+        checkpoint = Path(self.path_aln) / "Checkpoint.txt"
+        with open(checkpoint, "wt") as f_out:
+            f_out.write("3\r\n\r\n")
+
+    def reset_complete(self):
+        """Remove the Checkpoint.txt file, if any."""
+        checkpoint = Path(self.path_aln) / "Checkpoint.txt"
+        try:
+            checkpoint.unlink()
+        except FileNotFoundError:
+            pass
+
+    def test_paths(self):
+        """Test the paths dictionary attribute.
+
+        These paths are defined whether the files actually exist or not.
+        """
+        paths_exp = {
+            "checkpoint": "Checkpoint.txt",
+            "fastq": "..",
+            "job_info": "CompletedJobInfo.xml",
+            "sample_sheet": "SampleSheetUsed.csv"}
+        paths_exp = {k: (self.path_aln / v).resolve() for k, v in paths_exp.items()}
+        self.assertEqual(self.aln.paths, paths_exp)
+        self.make_complete()
+        self.assertEqual(self.aln.paths, paths_exp)
+
+    def test_complete(self):
+        """Is an Alignment complete?
+
+        Not until the Checkpoint file arrives with the right content and the
+        object is refreshed.
+        """
         self.assertFalse(self.aln.complete)
-        # It doesn't update automatically.
-        move(
-            str(self.paths["run"] / "Checkpoint.txt"),
-            str(self.aln.paths["checkpoint"]))
+        self.make_complete()
         self.assertFalse(self.aln.complete)
-        # On refresh, it is now seen as complete.
         self.aln.refresh()
         self.assertTrue(self.aln.complete)
+
+    def test_refresh(self):
+        """Does refresh catch completion?
+
+        At first the callback function should not have been called at all.
+        Only when the alignment is complete *and* refresh is called should the
+        callback be called.
+        """
+        self.aln_callback.assert_not_called()
+        self.aln.refresh()
+        self.aln_callback.assert_not_called()
+        self.make_complete()
+        self.aln_callback.assert_not_called()
+        self.aln.refresh()
+        self.aln_callback.assert_called_once()
+        self.aln.refresh()
+        self.aln_callback.assert_called_once()
 
 
 class TestAlignmentSingleEnded(TestAlignment):
