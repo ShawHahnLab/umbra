@@ -34,11 +34,9 @@ jobs:
       - run:
           name: Check conda environment
           command: ~/miniconda/bin/conda list -n test-environment
-      # rsync and rsyslog are currently the only thing we need not handled by
-      # conda above or pip below
       - run:
           name: Install OS dependencies
-          command: sudo apt-get update && sudo apt-get install -qq rsync rsyslog
+          command: sudo apt-get update && sudo apt-get install -qq rsync rsyslog systemd
       # Python package install
       - run:
           name: Install Python package
