@@ -5,6 +5,7 @@ More specifically, test the Alignment class that represents a specific
 subdirectory of an Illumina run directory on disk.
 """
 
+from unittest.mock import Mock
 from shutil import move
 from umbra.illumina.run import Alignment
 from . import test_common
@@ -17,7 +18,9 @@ class TestAlignment(test_common.TestBase):
             self.path /
             "180101_M00000_0000_000000000-XXXXX" /
             "Data/Intensities/BaseCalls/Alignment")
-        self.aln = Alignment(self.path_aln)
+        self.aln_callback = Mock()
+        self.aln = Alignment(
+            self.path_aln, completion_callback=self.aln_callback)
 
     def test_paths(self):
         """Test the paths dictionary attribute."""
@@ -43,14 +46,7 @@ class TestAlignment(test_common.TestBase):
 
     def test_complete(self):
         """Is an Alignment complete?"""
-        # An alignment is complete if Checkpoint exists and is 3, is not
-        # complete otherwise.
         self.assertTrue(self.aln.complete)
-        aln = Alignment(
-            self.path / "miseq-no-checkpoint" /
-            "180101_M00000_0000_000000000-XXXXX" /
-            "Data/Intensities/BaseCalls/Alignment")
-        self.assertFalse(aln.complete)
 
     def test_experiment(self):
         """Is the Experiment name available?"""
@@ -94,6 +90,26 @@ class TestAlignment(test_common.TestBase):
 
     def test_refresh(self):
         """Does refresh catch completion?"""
+        self.aln_callback.assert_called_once()
+        self.aln.refresh()
+        self.aln_callback.assert_called_once()
+
+
+class TestAlignmentToComplete(test_common.TestBase):
+    """Tests for the incomplete -> complete transition."""
+
+    def todo_test_complete(self):
+        """Is an Alignment complete?"""
+        # An alignment is complete if Checkpoint exists and is 3, is not
+        # complete otherwise.
+        self.assertTrue(self.aln.complete)
+        aln = Alignment(
+            self.path / "miseq-no-checkpoint" /
+            "180101_M00000_0000_000000000-XXXXX" /
+            "Data/Intensities/BaseCalls/Alignment")
+        self.assertFalse(aln.complete)
+
+    def todo_test_refresh(self):
         # Starting without a Checkpoint.txt, alignment is marked incomplete.
         self.skipTest("not yet re-implemented")
         # TODO
@@ -120,10 +136,9 @@ class TestAlignmentSingleEnded(TestAlignment):
             self.path /
             "180105_M00000_0000_000000000-XXXXX" /
             "Data/Intensities/BaseCalls/Alignment")
-        self.aln = Alignment(self.path_aln)
-
-    def test_complete(self):
-        self.assertTrue(self.aln.complete)
+        self.aln_callback = Mock()
+        self.aln = Alignment(
+            self.path_aln, completion_callback=self.aln_callback)
 
     def test_sample_paths_for_num(self):
         first_files = ["GA_S1_L001_R1_001.fastq.gz"]
@@ -141,9 +156,6 @@ class TestAlignmentSingleEnded(TestAlignment):
 
 class TestAlignmentFilesMissing(TestAlignment):
     """Test an Alignment when files are missing"""
-
-    def test_complete(self):
-        self.assertTrue(self.aln.complete)
 
     def test_sample_paths_for_num(self):
         # By default a missing file throws FileNotFound error.
@@ -180,10 +192,9 @@ class TestAlignmentMiniSeq(TestAlignment):
     def setUp(self):
         self.path_aln = (
             self.path / "180103_M000000_0000_0000000000" / "Alignment_1")
-        self.aln = Alignment(self.path_aln)
-
-    def test_complete(self):
-        self.assertTrue(self.aln.complete)
+        self.aln_callback = Mock()
+        self.aln = Alignment(
+            self.path_aln, completion_callback=self.aln_callback)
 
     def test_paths(self):
         paths_exp = {
@@ -217,6 +228,3 @@ class TestAlignmentErrored(TestAlignment):
     def test_error(self):
         """What's the error message for the alignment?"""
         self.assertEqual(self.aln.error, "Whoops")
-
-    def test_complete(self):
-        self.assertTrue(self.aln.complete)
