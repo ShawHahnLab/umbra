@@ -175,7 +175,7 @@ class BoxUploader:
         # https://medium.com/@echohack/patterns-with-python-poll-an-api-832173a03e93
         upload_error = None
         box_file = None
-        time_delta = 4
+        time_delta = 1
         time_mult = 2
         for trynum in range(tries):
             try:
