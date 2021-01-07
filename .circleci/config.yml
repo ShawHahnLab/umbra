@@ -6,8 +6,8 @@ version: 2.1
 
 jobs:
   main:
-    docker:
-      - image: cimg/base:2020.01
+    machine:
+      image: ubuntu-2004:202010-01
     steps:
       # Initial setup
       - checkout
@@ -36,7 +36,7 @@ jobs:
           command: ~/miniconda/bin/conda list -n test-environment
       - run:
           name: Install OS dependencies
-          command: sudo apt-get update && sudo apt-get install -qq rsync rsyslog systemd
+          command: sudo apt-get update && sudo apt-get install -qq rsync rsyslog
       # Python package install
       - run:
           name: Install Python package
