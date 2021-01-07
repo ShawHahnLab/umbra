@@ -9,39 +9,8 @@ from unittest.mock import Mock
 import time
 import datetime
 import warnings
-from shutil import move
 from umbra.illumina.run import Run
-from .test_common import RUN_IDS, PATH_RUNS, TestBase
-
-def dummy_bcl_stats(cycles, lanes):
-    """Build mock bcl stats list with zeros."""
-    expected = []
-    for lane in range(1, lanes+1):
-        for cycle in range(cycles):
-            for tile in [1101, 1102]:
-                expected.append({
-                    'cycle': cycle,
-                    'avg_intensity': 0.0,
-                    'avg_int_all_A': 0.0,
-                    'avg_int_all_C': 0.0,
-                    'avg_int_all_G': 0.0,
-                    'avg_int_all_T': 0.0,
-                    'avg_int_cluster_A': 0.0,
-                    'avg_int_cluster_C': 0.0,
-                    'avg_int_cluster_G': 0.0,
-                    'avg_int_cluster_T': 0.0,
-                    'num_clust_call_A': 0,
-                    'num_clust_call_C': 0,
-                    'num_clust_call_G': 0,
-                    'num_clust_call_T': 0,
-                    'num_clust_call_X': 0,
-                    'num_clust_int_A': 0,
-                    'num_clust_int_C': 0,
-                    'num_clust_int_G': 0,
-                    'num_clust_int_T': 0,
-                    'lane': lane,
-                    'tile': tile})
-    return expected
+from .test_common import TestBase, dummy_bcl_stats
 
 
 class TestRun(TestBase):
@@ -161,53 +130,81 @@ class TestRunIncomplete(TestRun):
         self.run.refresh()
         self.aln_callback.assert_not_called()
 
+class TestRunToComplete(TestBase):
+    """Tests for the incomplete -> complete transition.
 
-# TODO this should find a new home in a special test case for the incomplete -> complete transition.
-#
-#    def check_refresh_run(self):
-#        # Starting without a RTAComplete.txt, run is marked incomplete.  We'll
-#        # also check how the alignment refresh behaves.  It shouldn't call the
-#        # given callback, if any, until the run itself is complete.  This is an
-#        # edge case since in theory the run needs to be complete if the
-#        # alignment is, but I did run into this in a real run directory that
-#        # was incompletely transferred and this behavior makes the most sense
-#        # in that situation.
-#        move(str(self.path_run / "RTAComplete.txt"), str(self.path_run / "tmp.txt"))
-#        callback = Mock()
-#        self.run = Run(self.path_run, alignment_callback=callback)
-#        self.assertFalse(self.run.complete)
-#        self.assertEqual(self.run.rta_complete, None)
-#        callback.assert_not_called()
-#        # It doesn't update automatically.
-#        move(str(self.path_run / "tmp.txt"), str(self.path_run / "RTAComplete.txt"))
-#        self.assertFalse(self.run.complete)
-#        # On refresh, it is now seen as complete.
-#        self.run.refresh()
-#        callback.assert_called_once()
-#        self.assertTrue(self.run.complete)
-#        self.run.refresh()
-#        callback.assert_called_once()
-#
-#    def check_refresh_alignments(self):
-#        orig_als = self.run.alignments
-#        path_checkpoint = self.run.alignments[0].paths["checkpoint"]
-#        move(str(path_checkpoint), str(self.path_run / "tmp.txt"))
-#        self.run = Run(self.path_run)
-#        self.assertEqual(len(self.run.alignments), len(orig_als))
-#        self.assertFalse(self.run.alignments[0].complete)
-#        move(str(self.path_run / "tmp.txt"), str(path_checkpoint))
-#        self.assertFalse(self.run.alignments[0].complete)
-#        self.run.refresh()
-#        self.assertTrue(self.run.alignments[0].complete)
-#        # Now, load any new alignments
-#        path_al = self.run.alignments[0].path
-#        move(str(path_al), str(self.path_run / "tmp"))
-#        self.run = Run(self.path_run)
-#        self.assertEqual(len(self.run.alignments), len(orig_als)-1)
-#        move(str(self.path_run / "tmp"), str(path_al))
-#        self.assertEqual(len(self.run.alignments), len(orig_als)-1)
-#        self.run.refresh()
-#        self.assertEqual(len(self.run.alignments), len(orig_als))
+    Instead of a typical TestRun with all methods and properties tested,
+    this checks the behavior of a few key things during the transition from an
+    incomplete state to complete.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.aln_callback = Mock()
+        self.run = Run(
+            self.path / "180101_M00000_0000_000000000-XXXXX",
+            alignment_callback=self.aln_callback)
+
+    def tearDown(self):
+        self.reset_complete()
+
+    def make_complete(self):
+        """Create a RTAComplete.txt file so the alignment is complete"""
+        rta = self.run.path / "RTAComplete.txt"
+        with open(rta, "wt") as f_out:
+            f_out.write("1/1/2018,06:21:31.705,Illumina RTA 1.18.54\r\n")
+
+    def reset_complete(self):
+        """Remove the RTAComplete.txt file, if any."""
+        rta = self.run.path / "RTAComplete.txt"
+        try:
+            rta.unlink()
+        except FileNotFoundError:
+            pass
+
+    def test_rta_complete(self):
+        """Test the rta_complete property.
+
+        This should be a small dictionary parsed parsed from RTAComplete.txt.
+        """
+        self.assertIsNone(self.run.rta_complete)
+        self.make_complete()
+        self.assertIsNone(self.run.rta_complete)
+        self.run.refresh()
+        self.assertEqual(
+            self.run.rta_complete,
+            {
+                "Date": datetime.datetime(2018, 1, 1, 6, 21, 31, 705000),
+                "Version": "Illumina RTA 1.18.54"})
+
+    def test_refresh(self):
+        """Does run refresh catch completion?
+
+        At first the alignment callback function should not have been called at
+        all, whatever state of the alignment.  Only when both the run and
+        alignment are complete *and* refresh is called should the callback be
+        called.
+        """
+        self.aln_callback.assert_not_called()
+        self.run.refresh()
+        self.aln_callback.assert_not_called()
+        self.make_complete()
+        self.aln_callback.assert_not_called()
+        self.run.refresh()
+        self.aln_callback.assert_called_once()
+        self.run.refresh()
+        self.aln_callback.assert_called_once()
+
+    def test_complete(self):
+        """Is the Run complete?
+
+        Not until the RTAComplete.txt file arrives and the object is refreshed.
+        """
+        self.assertFalse(self.run.complete)
+        self.make_complete()
+        self.assertFalse(self.run.complete)
+        self.run.refresh()
+        self.assertTrue(self.run.complete)
 
 
 class TestRunSingle(TestBase):
@@ -221,19 +218,23 @@ class TestRunSingle(TestBase):
             alignment_callback=self.aln_callback)
 
     def test_run_id(self):
+        """Test the run_id str property."""
         self.assertEqual(
             self.run.run_id,
             "180105_M00000_0000_000000000-XXXXX")
 
     def test_run_info(self):
+        """Test the run_info XML object property."""
         self.assertEqual(
             self.run.run_info.find("Run").attrib["Id"],
             "180105_M00000_0000_000000000-XXXXX")
 
     def test_flowcell(self):
+        """Test the flowcell str property."""
         self.assertEqual("000000000-XXXXX", self.run.flowcell)
 
     def test_rta_complete(self):
+        """Test the rta_complete property."""
         self.assertEqual(
             self.run.rta_complete,
             {
@@ -241,6 +242,7 @@ class TestRunSingle(TestBase):
                 "Version": "Illumina RTA 1.18.54"})
 
     def test_completed_job_info(self):
+        """Test the completed_job_info property."""
         self.assertEqual(
             self.run.completed_job_info.find("StartTime").text,
             "2018-01-05T13:38:15.2566992-04:00")
@@ -249,11 +251,17 @@ class TestRunSingle(TestBase):
             "2018-01-05T13:38:45.3021522-04:00")
 
     def test_refresh(self):
+        """Test the refresh method."""
         self.aln_callback.assert_called_once()
         self.run.refresh()
         self.aln_callback.assert_called_once()
 
     def test_load_all_bcl_stats(self):
+        """Test the load_all_bcl_stats method.
+
+        There are just fewer cycles here with no R2 but otherwise the idea is
+        the same as for the paired-end run.
+        """
         observed = self.run.load_all_bcl_stats()
         expected = dummy_bcl_stats(12, 1)
         self.assertEqual(observed, expected)
@@ -276,6 +284,7 @@ class TestRunMiniSeq(TestBase):
             alignment_callback=self.aln_callback)
 
     def test_rta_complete(self):
+        """Test the rta_complete property."""
         self.assertEqual(
             self.run.rta_complete,
             {
@@ -283,6 +292,7 @@ class TestRunMiniSeq(TestBase):
                 "Version": "RTA 2.8.6"})
 
     def test_completed_job_info(self):
+        """Test the completed_job_info property."""
         self.assertEqual(
             self.run.completed_job_info.find("StartTime").text,
             "2018-01-04T11:15:03.8237582-04:00")
@@ -297,16 +307,19 @@ class TestRunMiniSeq(TestBase):
         self.aln_callback.assert_called_once()
 
     def test_run_id(self):
+        """Test the run_id str property."""
         self.assertEqual(
             self.run.run_id,
             "180103_M000000_0000_0000000000")
 
     def test_run_info(self):
+        """Test the run_info XML object property."""
         self.assertEqual(
             self.run.run_info.find("Run").attrib["Id"],
             "180103_M000000_0000_0000000000")
 
     def test_flowcell(self):
+        """Test the flowcell str property."""
         self.assertEqual("000000000", self.run.flowcell)
 
     def test_load_all_bcl_stats(self):
@@ -345,7 +358,7 @@ class TestRunInvalid(TestBase):
 
     def test_init(self):
         """Test that Run initialization handles invalid an run directory."""
-        path = PATH_RUNS / RUN_IDS["not a run"]
+        path = self.path / "not a run"
         with self.assertRaises(ValueError):
             Run(path)
         with warnings.catch_warnings(record=True) as warn_list:
@@ -353,7 +366,7 @@ class TestRunInvalid(TestBase):
             run = Run(path, strict=False)
             self.assertEqual(1, len(warn_list))
             self.assertTrue(run.invalid)
-        path = PATH_RUNS / RUN_IDS["nonexistent"]
+        path = self.path / "nonexistent"
         with self.assertRaises(ValueError):
             Run(path)
         with warnings.catch_warnings(record=True) as warn_list:
@@ -369,27 +382,27 @@ class TestRunMinAlignmentAge(TestBase):
     This should not warn about empty alignment directories if they're newer (by
     ctime) than a certain age."""
 
-    # TODO this will no longer work with the new static file approach for most
-    # tests.  Needs to be rebuilt.
-    def check_refresh_alignments(self):
-        # We just need to override the alignment refresh check method.  Last
-        # time we didn't have Checkpoint.txt, so it didn't consider it
-        # complete.  This time we'll see what happens with Alignment
-        # directories with no SampleSheetUsed.csv.
+    def setUp(self):
+        super().setUp()
+        self.path_run = self.path / "180101_M00000_0000_000000000-XXXXX"
+        self.run = Run(self.path_run)
+
+    def test_init(self):
+        """Does Run instantiation respect min_alignment_dir_age?"""
         orig_als = self.run.alignments
         # min_alignment_dir_age should make the Run object skip the "too new"
         # alignment directories.  We'll use a one-second setting for this test,
         # and will touch the directory to reset the ctime.
         self.run.alignments[0].path.touch()
         with self.assertLogs(level="DEBUG") as log_context:
-            self.run = Run(self.path_run, min_alignment_dir_age=1)
+            self.run = Run(self.path_run, min_alignment_dir_age=0.2)
         # That alignment shouldn't have been added to the list yet.  No
         # warnings should have been generated, just a debug log message about
         # the skip.
         self.assertEqual(len(log_context.output), 1)
         self.assertEqual(len(self.run.alignments), len(orig_als)-1)
         # After enough time has passed it should be loaded.
-        time.sleep(1.1)
+        time.sleep(0.5)
         self.assertEqual(len(self.run.alignments), len(orig_als)-1)
         self.run.refresh()
         self.assertEqual(len(self.run.alignments), len(orig_als))

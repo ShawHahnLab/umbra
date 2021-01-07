@@ -8,9 +8,9 @@ subdirectory of an Illumina run directory on disk.
 from unittest.mock import Mock
 from pathlib import Path
 from umbra.illumina.run import Alignment
-from . import test_common
+from .test_common import TestBase
 
-class TestAlignment(test_common.TestBase):
+class TestAlignment(TestBase):
     """Test an Alignment in a typical case (MiSeq, paired-end)."""
 
     def setUp(self):
@@ -95,7 +95,7 @@ class TestAlignment(test_common.TestBase):
         self.aln_callback.assert_called_once()
 
 
-class TestAlignmentToComplete(test_common.TestBase):
+class TestAlignmentToComplete(TestBase):
     """Tests for the incomplete -> complete transition.
 
     Instead of a typical TestAlignment with all methods and properties tested,
@@ -103,6 +103,11 @@ class TestAlignmentToComplete(test_common.TestBase):
     incomplete state to complete.  With each test a Checkpoint.txt file is
     created and removed to simulate a completed alignment and then reset the
     state for the next test.
+
+    There is one edge case not tested for anymore after some test cleanup: a
+    run marked incomplete with alignment(s) marked complete.  This is probably
+    where it should be tested, if at all, rather than in TestRun.test_refresh.
+    https://github.com/ShawHahnLab/umbra/pull/108
     """
 
     def setUp(self):
