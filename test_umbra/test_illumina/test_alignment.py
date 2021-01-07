@@ -54,12 +54,12 @@ class TestAlignment(test_common.TestBase):
 
     def test_sample_numbers(self):
         """Test for expected number of samples."""
-        nums = [i+1 for i in range(35)]
+        nums = [i+1 for i in range(4)]
         self.assertEqual(self.aln.sample_numbers, nums)
 
     def test_sample_names(self):
         """Test existence (not content, currently) of sample names."""
-        self.assertEqual(len(self.aln.sample_names), 35)
+        self.assertEqual(len(self.aln.sample_names), 4)
 
     def test_samples(self):
         """Test for consistency of sample metadata with sample sheet."""

@@ -96,7 +96,7 @@ class TestRun(TestBase):
         .stats files.
         """
         observed = self.run.load_all_bcl_stats()
-        expected = dummy_bcl_stats(318, 1)
+        expected = dummy_bcl_stats(16, 1)
         self.assertEqual(observed, expected)
 
     def test_run_id(self):
@@ -255,7 +255,7 @@ class TestRunSingle(TestBase):
 
     def test_load_all_bcl_stats(self):
         observed = self.run.load_all_bcl_stats()
-        expected = dummy_bcl_stats(518, 1)
+        expected = dummy_bcl_stats(12, 1)
         self.assertEqual(observed, expected)
 
 

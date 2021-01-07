@@ -8,9 +8,9 @@
       <Instrument>M00000</Instrument>
       <Date>180805</Date>
       <Reads>
-        <Read NumCycles="451" StartFromCycle="1" EndWithCycle="451" IsIndexedRead="N" />
-        <Read NumCycles="8" StartFromCycle="1" EndWithCycle="8" IsIndexedRead="Y" />
-        <Read NumCycles="8" StartFromCycle="1" EndWithCycle="8" IsIndexedRead="Y" />
+        <Read NumCycles="4" StartFromCycle="1" EndWithCycle="4" IsIndexedRead="N" />
+        <Read NumCycles="4" StartFromCycle="1" EndWithCycle="4" IsIndexedRead="Y" />
+        <Read NumCycles="4" StartFromCycle="1" EndWithCycle="4" IsIndexedRead="Y" />
       </Reads>
       <FlowcellLayout LaneCount="1" SurfaceCount="1" SwathCount="1" TileCount="2" />
       <AlignToPhiX />
