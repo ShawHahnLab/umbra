@@ -10,7 +10,6 @@ import unittest.mock
 from pathlib import Path
 from umbra import task
 from . import test_task
-from ..test_common import PATH_DATA
 
 class TestTaskAssemble(test_task.TestTask):
     """Test TaskAssemble."""
@@ -19,8 +18,8 @@ class TestTaskAssemble(test_task.TestTask):
         self.tmpdir = tempfile.TemporaryDirectory()
         # Copy all spades-assembled and merged fastq from the test data dir
         # into the temp processing dir
-        dir_input = PATH_DATA / "other" / "tasks" / "task_assemble" / "input"
-        dir_output = PATH_DATA / "other" / "tasks" / "task_assemble" / "output"
+        dir_input = self.path / "input"
+        dir_output = self.path / "output"
         dir_proc = Path(self.tmpdir.name) / "proc"
         copy_tree(str(dir_input), str(dir_proc))
         # set up a mock project object for testing
@@ -113,8 +112,8 @@ class TestTaskAssembleManyContigs(TestTaskAssemble):
         self.tmpdir = tempfile.TemporaryDirectory()
         # Copy all spades-assembled and merged fastq from the test data dir
         # into the temp processing dir
-        dir_input = PATH_DATA / "other" / "tasks" / "task_assemble" / "input-many-contigs"
-        dir_output = PATH_DATA / "other" / "tasks" / "task_assemble" / "output-many-contigs"
+        dir_input = self.path / "input"
+        dir_output = self.path / "output"
         dir_proc = Path(self.tmpdir.name) / "proc"
         copy_tree(str(dir_input), str(dir_proc))
         # set up a mock project object for testing

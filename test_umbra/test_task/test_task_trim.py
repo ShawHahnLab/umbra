@@ -10,7 +10,6 @@ import unittest.mock
 from pathlib import Path
 from umbra import task
 from . import test_task
-from ..test_common import PATH_DATA
 
 class TestTaskTrim(test_task.TestTask):
     """Test TaskTrim."""
@@ -18,8 +17,8 @@ class TestTaskTrim(test_task.TestTask):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         # Copy all fastq.gz from the test data dir into the temp processing dir
-        dir_input = PATH_DATA / "other" / "tasks" / "task_trim" / "input"
-        dir_output = PATH_DATA / "other" / "tasks" / "task_trim" / "output"
+        dir_input = self.path / "input"
+        dir_output = self.path / "output"
         dir_proc = Path(self.tmpdir.name) / "proc"
         dir_proc.mkdir()
         for fastqgz in dir_input.glob("*.fastq.gz"):
@@ -108,8 +107,8 @@ class TestTaskTrimManyContigs(TestTaskTrim):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         # Copy all fastq.gz from the test data dir into the temp processing dir
-        dir_input = PATH_DATA / "other" / "tasks" / "task_trim" / "input-many-contigs"
-        dir_output = PATH_DATA / "other" / "tasks" / "task_trim" / "output-many-contigs"
+        dir_input = self.path / "input"
+        dir_output = self.path / "output"
         dir_proc = Path(self.tmpdir.name) / "proc"
         dir_proc.mkdir()
         for fastqgz in dir_input.glob("*.fastq.gz"):

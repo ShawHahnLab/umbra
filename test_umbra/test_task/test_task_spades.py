@@ -10,7 +10,6 @@ import unittest.mock
 from pathlib import Path
 from umbra import task
 from . import test_task
-from ..test_common import PATH_DATA
 
 class TestTaskSpades(test_task.TestTask):
     """Test TaskSpades."""
@@ -19,8 +18,8 @@ class TestTaskSpades(test_task.TestTask):
         self.tmpdir = tempfile.TemporaryDirectory()
         # Copy all merge fastq from the test data dir into the temp processing
         # dir
-        dir_input = PATH_DATA / "other" / "tasks" / "task_spades" / "input"
-        dir_output = PATH_DATA / "other" / "tasks" / "task_spades" / "output"
+        dir_input = self.path / "input"
+        dir_output = self.path / "output"
         dir_proc = Path(self.tmpdir.name) / "proc"
         dir_proc.mkdir()
         (dir_proc / "PairedReads").mkdir()
@@ -113,8 +112,8 @@ class TestTaskSpadesManyContigs(TestTaskSpades):
         self.tmpdir = tempfile.TemporaryDirectory()
         # Copy all merge fastq from the test data dir into the temp processing
         # dir
-        dir_input = PATH_DATA / "other" / "tasks" / "task_spades" / "input-many-contigs"
-        dir_output = PATH_DATA / "other" / "tasks" / "task_spades" / "output-many-contigs"
+        dir_input = self.path / "input"
+        dir_output = self.path / "output"
         dir_proc = Path(self.tmpdir.name) / "proc"
         dir_proc.mkdir()
         (dir_proc / "PairedReads").mkdir()

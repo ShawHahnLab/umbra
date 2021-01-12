@@ -6,8 +6,7 @@ This tests general behavior of the class and a hypothetical instance.  See the
 other test_task_* modules for specific cases.
 """
 
-import unittest
-import unittest.mock
+from unittest.mock import Mock
 import subprocess
 import tempfile
 import copy
@@ -15,14 +14,11 @@ import logging
 import importlib
 from pathlib import Path
 from umbra import task
-from ..test_common import log_start, log_stop
+from ..test_common import TestBase
 
 
-class TestTaskModule(unittest.TestCase):
+class TestTaskModule(TestBase):
     """Tests on the task module."""
-
-    setUpClass = classmethod(lambda cls: log_start(cls.__module__ + "." + cls.__name__))
-    tearDownClass = classmethod(lambda cls: log_stop(cls.__module__ + "." + cls.__name__))
 
     def setUp(self):
         self.tasks_expected = set((
@@ -99,11 +95,8 @@ class TestTaskModule(unittest.TestCase):
         self.assertEqual(set(cls_dict.keys()), self.tasks_expected)
 
 
-class TestTaskClass(unittest.TestCase):
+class TestTaskClass(TestBase):
     """Tests on the Task class itself."""
-
-    setUpClass = classmethod(lambda cls: log_start(cls.__module__ + "." + cls.__name__))
-    tearDownClass = classmethod(lambda cls: log_stop(cls.__module__ + "." + cls.__name__))
 
     def setUp(self):
         self.thing = task.Task
@@ -170,7 +163,7 @@ class TestTask(TestTaskClass):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         # set up a mock project object for testing
-        self.proj = unittest.mock.Mock(
+        self.proj = Mock(
             path_proc=Path(self.tmpdir.name) / "proc",
             nthreads=1,
             conf={},
@@ -342,7 +335,7 @@ class TestTaskImplicit(TestTask):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         # set up a mock project object for testing
-        self.proj = unittest.mock.Mock(
+        self.proj = Mock(
             path_proc=Path(self.tmpdir.name) / "proc",
             nthreads=1,
             conf={
