@@ -54,7 +54,7 @@ jobs:
           name: Unit tests
           command: |
             source ~/miniconda/bin/activate test-environment
-            python -m unittest test_umbra.test_{box_uploader,config,experiment,illumina.test_{run,alignment,util},mailer}
+            python -m unittest test_umbra.test_{box_uploader,config,experiment,illumina.test_{run,alignment,util},mailer} test_umbra/test_task/test*.py
       - store_artifacts:
           path: /tmp/test_umbra.log
       - run:
