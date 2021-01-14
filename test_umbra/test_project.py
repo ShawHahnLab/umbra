@@ -45,7 +45,7 @@ class TestProjectData(TestBaseHeavy):
             self.mailer)
         # switch to dictionary to make these easier to work with
         self.projs = {p.name: p for p in self.projs}
-        self.exp_path = str(self.paths["exp"] / "Partials_1_1_18" / "metadata.csv")
+        self.exp_path = str(self.paths["exp"] / "Experiment" / "metadata.csv")
         # Make sure we have what we expect before the real tests
         self.assertEqual(
             sorted(self.projs.keys()),
@@ -96,14 +96,14 @@ class TestProjectData(TestBaseHeavy):
         md_se = dict(mdata)
 
         exp_info_str = {
-            "name": "Partials_1_1_18",
+            "name": "Experiment",
             "sample_names": ["1086S1_01", "1086S1_02"],
             "tasks": ['trim'],
             "contacts": {'Jesse': 'ancon@upenn.edu'},
             "path": self.exp_path
             }
         exp_info_se = {
-            "name": "Partials_1_1_18",
+            "name": "Experiment",
             "sample_names": ["1086S1_03", "1086S1_04"],
             "tasks": [],
             "contacts": {
@@ -230,7 +230,7 @@ class TestProjectDataFromAlignment(TestBaseHeavy):
                 fqgz_path / "1086S4-01_S4_L001_R2_001.fastq.gz"]
             }
         self.alignment = Mock(
-            experiment="Partials_1_1_18",
+            experiment="Experiment",
             index=0,
             path=fqgz_path / "Alignment",
             sample_paths=lambda: sample_paths,

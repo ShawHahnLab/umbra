@@ -17,9 +17,6 @@ PATH_ROOT = Path(__file__).parent
 PATH_DATA = PATH_ROOT / "data"
 PATH_CONFIG = PATH_ROOT / ".." / "test_config.yml"
 
-# Wait for enter key before removing tempdir on each test?
-TMP_PAUSE = False
-
 CONFIG = util.yaml_load(PATH_CONFIG)
 
 TESTLOGGER = logging.getLogger(__name__)
@@ -88,23 +85,15 @@ class TestBase(unittest.TestCase):
         return path
 
 
-class TestBaseHeavy(unittest.TestCase):
-    """Some setup/teardown shared with the real test classes."""
-
-    @classmethod
-    def setUpClass(cls):
-        log_start(cls.__module__ + "." + cls.__name__)
-
-    @classmethod
-    def tearDownClass(cls):
-        log_stop(cls.__module__ + "." + cls.__name__)
+class TestBaseHeavy(TestBase):
+    """Legacy base class for my awfully convoluted original tests."""
 
     def setUp(self):
         self.set_up_tmpdir()
         self.set_up_vars()
 
     def tearDown(self):
-        if TMP_PAUSE:
+        if CONFIG.get("pause"):
             sys.stderr.write("\n\ntmpdir = %s\n\n" % self.tmpdir.name)
             input()
         self.tear_down_tmpdir()
@@ -112,7 +101,16 @@ class TestBaseHeavy(unittest.TestCase):
     def set_up_tmpdir(self):
         """Make a full copy of the testdata to a temporary location."""
         self.tmpdir = TemporaryDirectory()
-        copy_tree(PATH_DATA, self.tmpdir.name)
+        copy_tree(str(PATH_DATA / "experiments"), self.tmpdir.name + "/experiments")
+        copy_tree(str(PATH_DATA / "status"), self.tmpdir.name + "/status")
+        copy_tree(str(PATH_DATA / "processed"), self.tmpdir.name + "/processed")
+        copy_tree(str(PATH_DATA / "packaged"), self.tmpdir.name + "/packaged")
+        # Account for the extra layer of nested directories
+        for category in ["miseq", "miniseq"]:
+            thing = PATH_DATA / "runs" / category
+            for run in thing.glob("*"):
+                #newpath = (run / ".." / ".." / run.name).resolve()
+                copy_tree(str(run), self.tmpdir.name + "/runs/" + run.name)
         self.paths = {
             "top":  Path(self.tmpdir.name),
             "runs": Path(self.tmpdir.name) / "runs",

@@ -487,7 +487,7 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
         # Previously I used a write-protected file to cause it to fail, but now
         # we do more upfront checking so a contrived failure is the easiest
         # way.
-        fp_md = self.paths["exp"] / "Partials_1_1_18/metadata.csv"
+        fp_md = self.paths["exp"] / "Experiment/metadata.csv"
         with open(fp_md) as f_in:
             lines = f_in.readlines()
         failify = lambda line: re.sub(",[A-Za-z]*$", ",fail", line)
