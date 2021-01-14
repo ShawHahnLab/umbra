@@ -21,9 +21,9 @@ from tempfile import TemporaryDirectory
 import umbra.processor
 from umbra.processor import IlluminaProcessor
 from umbra.project import ProjectData
-from .test_common import TestBase, CONFIG, md5, DumbLogHandler
+from .test_common import TestBaseHeavy, CONFIG, md5, DumbLogHandler
 
-class TestIlluminaProcessor(TestBase):
+class TestIlluminaProcessor(TestBaseHeavy):
     """Main tests for IlluminaProcessor."""
 
     def setUp(self):
@@ -51,7 +51,7 @@ class TestIlluminaProcessor(TestBase):
             # MD5 sum of the report CSV text, minus the RunPath column.  This
             # is after fulling loading the default data, but before starting
             # processing.
-            "report_md5": "03937ca84ebc70d670f3e4b9650f4a1a",
+            "report_md5": "b6ac25cbd2038a3484b9809fa2e3f760",
             # The header entries we expect to see in the CSV report text.
             "report_fields": [
                 "RunId",
@@ -263,7 +263,7 @@ class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
         self.expected["warn_msg"] += "run-files-custom-name / "
         self.expected["warn_msg"] += "180102_M00000_0000_000000000-XXXXX"
         # There's an extra line in the report due to the duplicated run
-        self.expected["report_md5"] = "4aea937d44b81dfc92307999b032ce64"
+        self.expected["report_md5"] = "6b46db0dfae622297dc03544a8a262a4"
 
     def test_load(self):
         # One run dir in particular is named oddly and is a duplicate of the
@@ -316,7 +316,7 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
     def set_up_vars(self):
         super().set_up_vars()
         # All projects inactive in this case
-        self.expected["report_md5"] = "1fb1fce577c9bf7b0124ed56dac43fd6"
+        self.expected["report_md5"] = "c0648d51f810f043385300ccdafb526b"
 
     def test_refresh(self):
         """Basic scenario for refresh(): a new run directory appears.
@@ -366,7 +366,7 @@ class TestIlluminaProcessorReportConfig(TestIlluminaProcessor):
         # used in the test below will wait, so we'll get a completed
         # ProjectData for one case.  Need an MD5 for a slightly different
         # report in that case.
-        report_md5 = "16f00124545186c2070e8adee26d1aad"
+        report_md5 = "24dc22f744c89ba7ace2283253c03264"
         self._watch_and_process_maybe_warning()
         # If a report was configured, it should exist
         with open(self.report_path) as f_in:
@@ -479,8 +479,8 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
 
     def setUp(self):
         super().setUp()
-        # Use the dummy storing mailer provided by TestBase.  We'll make sure
-        # it's called with the right arguments when processing fails.
+        # Use the dummy storing mailer provided by TestBaseHeavy.  We'll make
+        # sure it's called with the right arguments when processing fails.
         self.proc.mailerobj = lambda: None
         self.proc.mailerobj.mail = self.mailer
         # Tell the project to throw a ProjectError during processing.
