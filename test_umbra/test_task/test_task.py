@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 Tests for Task objects (and classes!)
 
@@ -55,9 +54,8 @@ class TestTaskModule(TestBase):
 
     def test_task_classes_extra(self):
         """Check that loading additional Task classes works."""
-        path = "test_umbra/data/other/tasks/task_extra.py"
         with self.assertLogs(level=logging.DEBUG) as logging_context:
-            task.load_extra_task_classes(path)
+            task.load_extra_task_classes(self.path / "tasks" / "task_extra.py")
             # 1 file, 1 class
             self.assertEqual(len(logging_context.output), 2)
         cls_dict = task.task_classes()
@@ -70,9 +68,8 @@ class TestTaskModule(TestBase):
 
         In this case a second file and task class should be loaded.
         """
-        path = "test_umbra/data/other/tasks"
         with self.assertLogs(level=logging.DEBUG) as logging_context:
-            task.load_extra_task_classes(path)
+            task.load_extra_task_classes(self.path / "tasks")
             # 2 files, 2 classes
             self.assertEqual(len(logging_context.output), 4)
         cls_dict = task.task_classes()
