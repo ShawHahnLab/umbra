@@ -8,7 +8,7 @@ SEQROOT=${1-demo_1_seq}
 CONFIG=${2-demo/demo_1.yml}
 
 function run_demo_1 {
-	rsync -r test_umbra/data/ $SEQROOT
+	rsync -r test_umbra/data/demo/ $SEQROOT
 	run_umbra "$SEQROOT" "$CONFIG"
 }
 
