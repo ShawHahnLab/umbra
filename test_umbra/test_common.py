@@ -99,21 +99,9 @@ class TestBaseHeavy(TestBase):
         self.tear_down_tmpdir()
 
     def set_up_tmpdir(self):
-        """Make a full copy of the testdata to a temporary location."""
+        """Make a full copy of the demo testdata to a temporary location."""
         self.tmpdir = TemporaryDirectory()
         copy_tree(str(PATH_DATA / "demo"), self.tmpdir.name)
-        #copy_tree(str(PATH_DATA / "experiments"), self.tmpdir.name + "/experiments")
-        #copy_tree(str(PATH_DATA / "status"), self.tmpdir.name + "/status")
-        #copy_tree(str(PATH_DATA / "processed"), self.tmpdir.name + "/processed")
-        #copy_tree(str(PATH_DATA / "packaged"), self.tmpdir.name + "/packaged")
-        ## Account for the extra layer of nested directories
-        #for category in ["miseq", "miniseq", "miseq-se"]:
-        #    thing = PATH_DATA / "runs" / category
-        #    for run in thing.glob("*"):
-        #        #newpath = (run / ".." / ".." / run.name).resolve()
-        #        copy_tree(str(run), self.tmpdir.name + "/runs/" + run.name)
-        #        if run.name == "180102_M00000_0000_000000000-XXXXX":
-        #            copy_tree(str(run), self.tmpdir.name + "/runs/" + "run-files-custom-name")
         self.paths = {
             "top":  Path(self.tmpdir.name),
             "runs": Path(self.tmpdir.name) / "runs",
