@@ -1,6 +1,6 @@
 # Changelog
 
-## dev
+## 0.0.5 - 2021-01-19
 
 ### Added
 
