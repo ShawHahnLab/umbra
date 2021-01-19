@@ -10,19 +10,19 @@ multiple simultaneous projects, either; see test_umbra.py for that.
 """
 
 import unittest
+from unittest.mock import Mock
 import warnings
 import datetime
 import logging
 from pathlib import Path
-from unittest.mock import Mock
 import yaml
 from umbra.illumina.run import Run
 from umbra.project import ProjectData, ProjectError
-from .test_common import TestBase
+from .test_common import TestBaseHeavy
 
 DEFAULT_TASKS = ["metadata", "package", "upload", "email"]
 
-class TestProjectData(TestBase):
+class TestProjectData(TestBaseHeavy):
     """Main tests for ProjectData.
 
     This became unwieldy pretty fast.  Merge into TestProjectDataOneTask,
@@ -45,7 +45,7 @@ class TestProjectData(TestBase):
             self.mailer)
         # switch to dictionary to make these easier to work with
         self.projs = {p.name: p for p in self.projs}
-        self.exp_path = str(self.paths["exp"] / "Partials_1_1_18" / "metadata.csv")
+        self.exp_path = str(self.paths["exp"] / "Experiment" / "metadata.csv")
         # Make sure we have what we expect before the real tests
         self.assertEqual(
             sorted(self.projs.keys()),
@@ -96,14 +96,14 @@ class TestProjectData(TestBase):
         md_se = dict(mdata)
 
         exp_info_str = {
-            "name": "Partials_1_1_18",
+            "name": "Experiment",
             "sample_names": ["1086S1_01", "1086S1_02"],
             "tasks": ['trim'],
             "contacts": {'Jesse': 'ancon@upenn.edu'},
             "path": self.exp_path
             }
         exp_info_se = {
-            "name": "Partials_1_1_18",
+            "name": "Experiment",
             "sample_names": ["1086S1_03", "1086S1_04"],
             "tasks": [],
             "contacts": {
@@ -191,7 +191,7 @@ class TestProjectData(TestBase):
 
 
 @unittest.skip("not yet implemented")
-class TestProjectDataBlank(TestBase):
+class TestProjectDataBlank(TestBaseHeavy):
     """Test with no tasks at all.
 
     This just needs to confim that the TASK_NULL code correctly inserts "copy"
@@ -200,14 +200,14 @@ class TestProjectDataBlank(TestBase):
 
 
 @unittest.skip("not yet implemented")
-class TestProjectDataAlreadyProcessing(TestBase):
+class TestProjectDataAlreadyProcessing(TestBaseHeavy):
     """Test project whose existing metadata points to an existent process.
 
     We should abort in that case.
     """
 
 
-class TestProjectDataFromAlignment(TestBase):
+class TestProjectDataFromAlignment(TestBaseHeavy):
     """Tests for ProjectData.from_alignment."""
 
     def set_up_vars(self):
@@ -230,7 +230,7 @@ class TestProjectDataFromAlignment(TestBase):
                 fqgz_path / "1086S4-01_S4_L001_R2_001.fastq.gz"]
             }
         self.alignment = Mock(
-            experiment="Partials_1_1_18",
+            experiment="Experiment",
             index=0,
             path=fqgz_path / "Alignment",
             sample_paths=lambda: sample_paths,
@@ -270,7 +270,3 @@ class TestProjectDataFromAlignment(TestBase):
             self.assertEqual(len(log_cm.output), 1)
             self.assertIn("Unrecognized character", log_cm.output[0])
         self.assertEqual(len(projs), 2)
-
-
-if __name__ == '__main__':
-    unittest.main()

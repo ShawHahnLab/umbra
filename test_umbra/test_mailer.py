@@ -1,11 +1,9 @@
-#!/usr/bin/env python
 """
 Tests for Mailer objects.
 
 This uses a temporary SMTP server to receive and check "sent" messages.
 """
 
-import unittest
 import pwd
 import socket
 import os
@@ -15,6 +13,7 @@ import smtplib
 import asyncore
 import threading
 from umbra.mailer import Mailer
+from .test_common import TestBase
 
 
 class StubSMTP(smtpd.SMTPServer):
@@ -86,7 +85,7 @@ class StubSMTP(smtpd.SMTPServer):
         self.rcpttos = rcpttos
 
 
-class TestMailer(unittest.TestCase):
+class TestMailer(TestBase):
     """ Test Mailer with a typical use case."""
 
     def setUp(self):
@@ -315,7 +314,3 @@ class TestMailerReplyTo(TestMailer):
         self.assertEqual(
             message["header"].get("Reply-To"),
             self.expected["mail_args"]["reply_to"])
-
-
-if __name__ == '__main__':
-    unittest.main()

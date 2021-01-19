@@ -79,10 +79,13 @@ class Run:
         # First refresh any existing alignments
         for aln in self.alignments:
             aln.refresh()
-        # Load from expected paths, using patterns for MiSeq and MiniSeq
+        # Load from expected paths, using patterns for MiSeq and MiniSeq Make
+        # the paths absolute and canonical, since resolved paths are used
+        # within the alignment objects
         al_loc1 = self.path.glob("Data/Intensities/BaseCalls/Alignment*")
         al_loc2 = self.path.glob("Alignment*")
         al_loc = list(al_loc1) + list(al_loc2)
+        al_loc = [path.resolve() for path in al_loc]
         # Filter out those already loaded and process new ones
         al_loc_known = [aln.path for aln in self.alignments]
         is_new = lambda d: not d in al_loc_known

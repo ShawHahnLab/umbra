@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 Tests for Task objects (and classes!)
 
@@ -6,17 +5,17 @@ This tests general behavior of the class and a hypothetical instance.  See the
 other test_task_* modules for specific cases.
 """
 
-import unittest
-import unittest.mock
+from unittest.mock import Mock
 import subprocess
 import tempfile
-import copy
 import logging
 import importlib
 from pathlib import Path
 from umbra import task
+from ..test_common import TestBase
 
-class TestTaskModule(unittest.TestCase):
+
+class TestTaskModule(TestBase):
     """Tests on the task module."""
 
     def setUp(self):
@@ -55,9 +54,8 @@ class TestTaskModule(unittest.TestCase):
 
     def test_task_classes_extra(self):
         """Check that loading additional Task classes works."""
-        path = "test_umbra/data/other/tasks/task_extra.py"
         with self.assertLogs(level=logging.DEBUG) as logging_context:
-            task.load_extra_task_classes(path)
+            task.load_extra_task_classes(self.path / "tasks" / "task_extra.py")
             # 1 file, 1 class
             self.assertEqual(len(logging_context.output), 2)
         cls_dict = task.task_classes()
@@ -70,9 +68,8 @@ class TestTaskModule(unittest.TestCase):
 
         In this case a second file and task class should be loaded.
         """
-        path = "test_umbra/data/other/tasks"
         with self.assertLogs(level=logging.DEBUG) as logging_context:
-            task.load_extra_task_classes(path)
+            task.load_extra_task_classes(self.path / "tasks")
             # 2 files, 2 classes
             self.assertEqual(len(logging_context.output), 4)
         cls_dict = task.task_classes()
@@ -94,7 +91,7 @@ class TestTaskModule(unittest.TestCase):
         self.assertEqual(set(cls_dict.keys()), self.tasks_expected)
 
 
-class TestTaskClass(unittest.TestCase):
+class TestTaskClass(TestBase):
     """Tests on the Task class itself."""
 
     def setUp(self):
@@ -159,47 +156,44 @@ class TestTask(TestTaskClass):
     Everything that works on a Task class should work on a Task instance, and
     more."""
 
-    def setUp(self):
+    def setUp(self, task_class=task.Task):
+        # pylint: disable=arguments-differ
         self.tmpdir = tempfile.TemporaryDirectory()
+        dir_proc = Path(self.tmpdir.name) / "proc"
         # set up a mock project object for testing
-        self.proj = unittest.mock.Mock(
-            path_proc=Path(self.tmpdir.name) / "proc",
+        self.proj = Mock(
+            path_proc=dir_proc,
             nthreads=1,
             conf={},
-            sample_paths={"sample_name": ["R1.fastq.gz", "R2.fastq.gz"]},
+            sample_paths={
+                "sample": [
+                    dir_proc/"sample_S1_L001_R1_001.fastq.gz",
+                    dir_proc/"sample_S1_L001_R2_001.fastq.gz"]},
             work_dir="work_dir_name",
             experiment_info={"tasks": []}
             )
-        # Expected values during tests
-        self.expected = {
-            "nthreads": 1,
-            "log_path": self.proj.path_proc / "logs/log_task.txt",
-            "sample_paths": copy.deepcopy(self.proj.sample_paths),
-            "work_dir_name": "work_dir_name",
-            "task_dir_parent": self.proj.path_proc
-            }
-        self.thing = task.Task({}, self.proj)
+        # pylint: disable=no-member
+        self.thing = task_class({}, self.proj)
+        self.log_path = self.proj.path_proc / ("logs/log_%s.txt" % self.thing.name)
 
     def tearDown(self):
         self.tmpdir.cleanup()
 
     def test_work_dir_name(self):
         """Test work_dir_name attribute that should come from the project."""
-        self.assertEqual(
-            self.thing.work_dir_name,
-            self.expected["work_dir_name"])
+        self.assertEqual(self.thing.work_dir_name, "work_dir_name")
 
     def test_log_path(self):
         """Test log path attribute."""
-        self.assertEqual(self.thing.log_path, self.expected["log_path"])
+        self.assertEqual(self.thing.log_path, self.log_path)
 
     def test_sample_paths(self):
         """Check dict mapping sample names to sample file paths."""
-        self.assertEqual(self.thing.sample_paths, self.expected["sample_paths"])
+        self.assertEqual(self.thing.sample_paths, self.proj.sample_paths)
 
     def test_nthreads(self):
         """Check number of threads configured for processing."""
-        self.assertEqual(self.thing.nthreads, self.expected["nthreads"])
+        self.assertEqual(self.thing.nthreads, 1)
 
     def test_run(self):
         """Test that the run method is left unimplemented by default."""
@@ -219,9 +213,9 @@ class TestTask(TestTaskClass):
             self.thing.runwrapper()
         # Since we encountered an exception here, the log should be closed and
         # the exception logged.
-        self.assertTrue(self.expected["log_path"].exists())
+        self.assertTrue(self.log_path.exists())
         self.assertFalse(self.is_log_open())
-        with open(self.expected["log_path"]) as f_in:
+        with open(self.log_path) as f_in:
             self.assertTrue("NotImplementedError" in f_in.read())
 
     def test_runcmd(self):
@@ -236,7 +230,7 @@ class TestTask(TestTaskClass):
             self.assertEqual(
                 logging_context.output,
                 ["DEBUG:umbra.task:runcmd: ['true']"])
-        self.assertTrue(self.expected["log_path"].exists())
+        self.assertTrue(self.log_path.exists())
         # Nonzero exit code triggers exception
         with self.assertRaises(subprocess.CalledProcessError):
             self.thing.runcmd(["false"])
@@ -291,7 +285,7 @@ class TestTask(TestTaskClass):
         """Check parent directory for task outputs."""
         # pylint: disable=no-member
         parent = self.thing.task_dir_parent(self.thing.name)
-        self.assertEqual(parent, self.expected["task_dir_parent"])
+        self.assertEqual(parent, self.proj.path_proc)
 
     def test_log_setup(self):
         """Test log setup helper."""
@@ -304,7 +298,7 @@ class TestTask(TestTaskClass):
     def is_log_open(self):
         """True if any process has the log file path open."""
         out = subprocess.run(
-            args=["fuser", str(self.expected["log_path"])],
+            args=["fuser", str(self.log_path)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False)
@@ -315,12 +309,12 @@ class TestTask(TestTaskClass):
         if before:
             # Log is not yet set up; path does not exist and member hasn't been
             # set to a file object.
-            self.assertFalse(self.expected["log_path"].exists())
+            self.assertFalse(self.log_path.exists())
             self.assertTrue(self.thing.logf is None)
         else:
             # Log has been set up.  file exists and member file object is
             # opened for writing.
-            self.assertTrue(self.expected["log_path"].exists())
+            self.assertTrue(self.log_path.exists())
             self.assertTrue(self.thing.logf.writable())
 
 
@@ -332,9 +326,10 @@ class TestTaskImplicit(TestTask):
     """
 
     def setUp(self):
+        # pylint: disable=arguments-differ
         self.tmpdir = tempfile.TemporaryDirectory()
         # set up a mock project object for testing
-        self.proj = unittest.mock.Mock(
+        self.proj = Mock(
             path_proc=Path(self.tmpdir.name) / "proc",
             nthreads=1,
             conf={
@@ -345,12 +340,11 @@ class TestTaskImplicit(TestTask):
             # in the tests here, so it should be considered implicit.
             experiment_info={"tasks": []}
             )
-        # Expected values during tests
-        self.expected = {
-            "nthreads": 1,
-            "log_path": self.proj.path_proc / "logs/log_task.txt",
-            "sample_paths": copy.deepcopy(self.proj.sample_paths),
-            "work_dir_name": "work_dir_name",
-            "task_dir_parent": self.proj.path_proc / "implicit"
-            }
         self.thing = task.Task({}, self.proj)
+        # pylint: disable=no-member
+        self.log_path = self.proj.path_proc / ("logs/log_%s.txt" % self.thing.name)
+
+    def test_task_dir_parent(self):
+        # pylint: disable=no-member
+        parent = self.thing.task_dir_parent(self.thing.name)
+        self.assertEqual(parent, self.proj.path_proc / "implicit")

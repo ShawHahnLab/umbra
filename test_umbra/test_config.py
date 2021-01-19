@@ -1,13 +1,13 @@
-#!/usr/bin/env python
 """
 Tests for config module functions.
 """
 
-import unittest
 from pathlib import Path
 from umbra import config
+from .test_common import TestBase
 
-class TestConfig(unittest.TestCase):
+
+class TestConfig(TestBase):
     """Test the config module that handles configuration optons."""
 
     def setUp(self):
@@ -99,7 +99,3 @@ class TestConfig(unittest.TestCase):
             }
         tree_obs = config.update_tree(tree_old, tree_new)
         self.assertEqual(tree_obs, tree_exp)
-
-
-if __name__ == '__main__':
-    unittest.main()

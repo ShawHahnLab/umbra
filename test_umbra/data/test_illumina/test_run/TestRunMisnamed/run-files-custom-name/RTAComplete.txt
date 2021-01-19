@@ -1,0 +1,1 @@
+../../../../runs/miseq/180101_M00000_0000_000000000-XXXXX/RTAComplete.txt

@@ -2,6 +2,8 @@
 Common test code shared with the real tests.  Not much to see here.
 """
 
+import datetime
+import time
 import unittest
 import logging
 from tempfile import TemporaryDirectory
@@ -15,10 +17,14 @@ PATH_ROOT = Path(__file__).parent
 PATH_DATA = PATH_ROOT / "data"
 PATH_CONFIG = PATH_ROOT / ".." / "test_config.yml"
 
-# Wait for enter key before removing tempdir on each test?
-TMP_PAUSE = False
-
 CONFIG = util.yaml_load(PATH_CONFIG)
+
+TESTLOGGER = logging.getLogger(__name__)
+TESTLOGGER.propagate = False
+TESTLOGGER.setLevel(logging.DEBUG)
+if CONFIG["logfile"]:
+    TESTLOGGER.addHandler(
+        logging.StreamHandler(open(CONFIG["logfile"], "at", buffering=1)))
 
 def md5(text):
     """MD5 Checksum of the given text."""
@@ -43,24 +49,59 @@ class DumbLogHandler(logging.Handler):
         """Does some text appear in any of the records?"""
         return True in [txt in rec.msg for rec in self.records]
 
+TIMINGS = {}
+
+def log_start(name):
+    """Store a global time reference under a given name."""
+    TIMINGS[name] = time.perf_counter()
+
+def log_stop(name):
+    """Log elapsed time since log_start(name) and del name reference."""
+    then = TIMINGS.get(name)
+    if then:
+        now = datetime.datetime.now()
+        delta = time.perf_counter() - then
+        TESTLOGGER.info("%s, %12.8f seconds, %s", now, delta, name)
+        del TIMINGS[name]
+
 
 class TestBase(unittest.TestCase):
-    """Some setup/teardown shared with the real test classes."""
+    """Helper for test cases
+
+    This tracks test case duration by logging the time between class setup and
+    teardown and provides a default file path for supporting files for each
+    test, based on the class name.
+    """
+
+    setUpClass = classmethod(lambda cls: log_start(cls.__module__ + "." + cls.__name__))
+    tearDownClass = classmethod(lambda cls: log_stop(cls.__module__ + "." + cls.__name__))
+
+    @property
+    def path(self):
+        """Path for supporting files for each class."""
+        path = self.__class__.__module__.split(".") + [self.__class__.__name__]
+        path.insert(1, "data")
+        path = Path("/".join(path))
+        return path
+
+
+class TestBaseHeavy(TestBase):
+    """Legacy base class for my awfully convoluted original tests."""
 
     def setUp(self):
         self.set_up_tmpdir()
         self.set_up_vars()
 
     def tearDown(self):
-        if TMP_PAUSE:
+        if CONFIG.get("pause"):
             sys.stderr.write("\n\ntmpdir = %s\n\n" % self.tmpdir.name)
             input()
         self.tear_down_tmpdir()
 
     def set_up_tmpdir(self):
-        """Make a full copy of the testdata to a temporary location."""
+        """Make a full copy of the demo testdata to a temporary location."""
         self.tmpdir = TemporaryDirectory()
-        copy_tree(PATH_DATA, self.tmpdir.name)
+        copy_tree(str(PATH_DATA / "demo"), self.tmpdir.name)
         self.paths = {
             "top":  Path(self.tmpdir.name),
             "runs": Path(self.tmpdir.name) / "runs",

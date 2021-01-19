@@ -2,38 +2,16 @@
 Test TaskEmail.
 """
 
-import copy
-import tempfile
-import unittest
-import unittest.mock
 from pathlib import Path
 from umbra import task
-from .test_task import TestTask
+from . import test_task
 
-class TestTaskEmail(TestTask):
+class TestTaskEmail(test_task.TestTask):
     """Test TaskEmail."""
 
     def setUp(self):
-        self.tmpdir = tempfile.TemporaryDirectory()
-        # set up a mock project object for testing
-        self.proj = unittest.mock.Mock(
-            path_proc=Path(self.tmpdir.name) / "proc",
-            nthreads=1,
-            conf={},
-            sample_paths={"sample_name": ["R1.fastq.gz", "R2.fastq.gz"]},
-            work_dir="work_dir_name",
-            experiment_info={"tasks": []}
-            )
-        # Expected values during tests
-        self.expected = {
-            "nthreads": 1,
-            "log_path": self.proj.path_proc / "logs/log_email.txt",
-            "sample_paths": copy.deepcopy(self.proj.sample_paths),
-            "work_dir_name": "work_dir_name",
-            "task_dir_parent": self.proj.path_proc
-            }
-        # pylint: disable=no-member
-        self.thing = task.TaskEmail({}, self.proj)
+        # pylint: disable=no-member,arguments-differ
+        super().setUp(task.TaskEmail)
 
     def test_name(self):
         self.assertEqual(self.thing.name, "email")

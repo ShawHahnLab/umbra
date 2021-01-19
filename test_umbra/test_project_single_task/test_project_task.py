@@ -18,12 +18,12 @@ import yaml
 from umbra import illumina, util
 from umbra.illumina.run import Run
 from umbra.project import ProjectData, ProjectError
-from ..test_common import TestBase, md5
+from ..test_common import TestBaseHeavy, md5
 from ..test_project import DEFAULT_TASKS
 
 # Single-task ProjectData tests.
 
-class TestProjectDataOneTask(TestBase):
+class TestProjectDataOneTask(TestBaseHeavy):
     """Base class for one-project-one-task tests.
 
     This handles the noop case and can be subclassed for other cases.
@@ -51,10 +51,10 @@ class TestProjectDataOneTask(TestBase):
         else:
             tasks = [self.task] + DEFAULT_TASKS
         self.expected = {
-            "experiment_name": "Partials_1_1_18",
+            "experiment_name": "Experiment",
             "experiment_path": str(
                 self.paths["exp"] /
-                "Partials_1_1_18" /
+                "Experiment" /
                 "metadata.csv"),
             "contacts": {"Name Lastname": "name@example.com"},
             "work_dir": "2018-01-01-TestProject-Name-XXXXX",
