@@ -25,7 +25,8 @@ class TaskMetadata(task.Task):
         # ignore anything non-unicode here since it should have already been
         # complained about when first parsed.  (There's also the already-parsed
         # data structure within self.proj but the original line-by-line CSV is
-        # already gone at that point.)
+        # already gone at that point.)  Ideally the non_unicode behavior would
+        # be defined in one place instead of both here and in ProjectData.
         data = load_csv(self.proj.exp_path, csv.DictReader, non_unicode="strip")
         with open(path_md_out, "w") as f_out:
             # Write out the experiment spreadsheet but only include our rows

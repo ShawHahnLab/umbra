@@ -38,6 +38,11 @@ class TestTaskMetadata(test_task.TestTask):
         summary_expected = "\n".join(summary_expected)
         self.assertEqual(self.thing.summary, summary_expected)
 
+    # I can think of two test cases here, a simple metadata.csv case and one
+    # with strange characters like that tested in TestProjectDataFromAlignment's
+    # test_from_alignment_iso8859.  Ideally the behavior for non-unicode text
+    # would be centralized but it's currently defined in both ProjectData and
+    # TaskMetadata independently.
     def test_run(self):
         self.skipTest("not yet implemented")
 
