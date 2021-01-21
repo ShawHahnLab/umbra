@@ -18,8 +18,9 @@
 
  * Only process an alignment when its containing run is marked complete
    ([#108])
- * Handle non-unicode characters in CSV files ([#105])
+ * Handle non-unicode characters in CSV files ([#105], [#115])
 
+[#115]: https://github.com/ShawHahnLab/umbra/pull/115
 [#111]: https://github.com/ShawHahnLab/umbra/pull/111
 [#108]: https://github.com/ShawHahnLab/umbra/pull/108
 [#106]: https://github.com/ShawHahnLab/umbra/pull/106
