@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<RunInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Version="4">
+  <Run Id="180103_M000000_0000_0000000000" Number="322">
+    <Flowcell>000000000</Flowcell>
+    <Instrument>M000000</Instrument>
+    <Date>180103</Date>
+    <Reads>
+      <Read Number="1" NumCycles="151" IsIndexedRead="N" />
+      <Read Number="2" NumCycles="8" IsIndexedRead="Y" />
+      <Read Number="3" NumCycles="8" IsIndexedRead="Y" />
+      <Read Number="4" NumCycles="151" IsIndexedRead="N" />
+    </Reads>
+    <FlowcellLayout LaneCount="1" SurfaceCount="2" SwathCount="3" TileCount="6" SectionPerLane="1" LanePerSection="1">
+      <TileSet TileNamingConvention="FiveDigit">
+        <Tiles>
+          <Tile>1_11101</Tile>
+          <Tile>1_21101</Tile>
+          <Tile>1_11102</Tile>
+          <Tile>1_21102</Tile>
+          <Tile>1_11103</Tile>
+          <Tile>1_21103</Tile>
+          <Tile>1_11104</Tile>
+          <Tile>1_21104</Tile>
+          <Tile>1_12101</Tile>
+          <Tile>1_22101</Tile>
+          <Tile>1_12102</Tile>
+          <Tile>1_22102</Tile>
+          <Tile>1_12103</Tile>
+          <Tile>1_22103</Tile>
+          <Tile>1_12104</Tile>
+          <Tile>1_22104</Tile>
+          <Tile>1_13101</Tile>
+          <Tile>1_23101</Tile>
+          <Tile>1_13102</Tile>
+          <Tile>1_23102</Tile>
+          <Tile>1_13103</Tile>
+          <Tile>1_23103</Tile>
+          <Tile>1_13104</Tile>
+          <Tile>1_23104</Tile>
+        </Tiles>
+      </TileSet>
+    </FlowcellLayout>
+    <ImageDimensions Width="2592" Height="1944" />
+    <ImageChannels>
+      <Name>Red</Name>
+      <Name>Green</Name>
+    </ImageChannels>
+  </Run>
+</RunInfo>

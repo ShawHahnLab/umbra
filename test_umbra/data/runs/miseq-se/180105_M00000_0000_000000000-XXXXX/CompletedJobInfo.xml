@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<AnalysisJobInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Version="0">
+  <AlignmentFolder>D:\Illumina\MiSeqAnalysis\180105_M00000_0000_000000000-XXXXX\Data\Intensities\BaseCalls\Alignment</AlignmentFolder>
+  <CompletionTime>2018-01-05T13:38:45.3021522-04:00</CompletionTime>
+  <RTARunInfo Version="2">
+    <Run Id="180105_M00000_0000_000000000-XXXXX" Number="262">
+      <Flowcell>000000000-XXXXX</Flowcell>
+      <Instrument>M00000</Instrument>
+      <Date>180805</Date>
+      <Reads>
+        <Read NumCycles="4" StartFromCycle="1" EndWithCycle="4" IsIndexedRead="N" />
+        <Read NumCycles="4" StartFromCycle="1" EndWithCycle="4" IsIndexedRead="Y" />
+        <Read NumCycles="4" StartFromCycle="1" EndWithCycle="4" IsIndexedRead="Y" />
+      </Reads>
+      <FlowcellLayout LaneCount="1" SurfaceCount="1" SwathCount="1" TileCount="2" />
+      <AlignToPhiX />
+    </Run>
+  </RTARunInfo>
+  <RunFolder>D:\Illumina\MiSeqAnalysis\180105_M00000_0000_000000000-XXXXX</RunFolder>
+  <Sheet>
+    <Type>MiSeq</Type>
+    <WorkflowType>GenerateFASTQ</WorkflowType>
+    <Header>
+      <Chemistry>Amplicon</Chemistry>
+      <Date>8/16/17</Date>
+      <ExperimentName>Madhu_8_16_17</ExperimentName>
+      <InvestigatorName>Alexa</InvestigatorName>
+    </Header>
+  </Sheet>
+  <StartTime>2018-01-05T13:38:15.2566992-04:00</StartTime>
+  <Workflow>
+    <WorkflowSettings>
+      <AdapterSequences />
+      <AdapterSequences2 />
+      <TrimFastq>false</TrimFastq>
+      <FastQInput>false</FastQInput>
+      <StitchReads>false</StitchReads>
+      <MaximumThreadCount>0</MaximumThreadCount>
+      <ReadTrimQualityScoreLevel>0</ReadTrimQualityScoreLevel>
+      <ReverseComplement>false</ReverseComplement>
+      <VarCallerSettings>
+        <Filters>
+          <FilterOutSingleProbePoolVariants>false</FilterOutSingleProbePoolVariants>
+          <FilterOutSingleStrandVariants>false</FilterOutSingleStrandVariants>
+          <IndelRepeatFilterCutoff>8</IndelRepeatFilterCutoff>
+          <MinQScore>0</MinQScore>
+          <MinimumCoverageDepthEmitCutoff>-1</MinimumCoverageDepthEmitCutoff>
+          <MinimumDepthCutoff>-1</MinimumDepthCutoff>
+          <MinimumGQCutoff>0</MinimumGQCutoff>
+          <MinimumGQXCutoff>0</MinimumGQXCutoff>
+          <MinimumMQCutoff>-1</MinimumMQCutoff>
+          <MinimumQDCutoff>0</MinimumQDCutoff>
+          <MinimumQualCutoff>-1</MinimumQualCutoff>
+          <MinimumQualityEmitCutoff>-1</MinimumQualityEmitCutoff>
+          <OnlyCallInROI>false</OnlyCallInROI>
+          <OnlyUseProperPairs>false</OnlyUseProperPairs>
+          <CallPhasedSNVs>false</CallPhasedSNVs>
+          <StrandBiasFilterCutoff>0</StrandBiasFilterCutoff>
+          <MaxSizePhasedSNV>100</MaxSizePhasedSNV>
+          <QualityModel>Poisson</QualityModel>
+          <VariantFrequencyEmitCutoff>0.1</VariantFrequencyEmitCutoff>
+          <VariantFrequencyFilterCutoff>0.2</VariantFrequencyFilterCutoff>
+          <FilterOffTargetVariants>false</FilterOffTargetVariants>
+        </Filters>
+        <Annotation>MARS</Annotation>
+        <SVAnnotation>None</SVAnnotation>
+        <AnnotationSource>refseq</AnnotationSource>
+        <AnnotateHGMD>false</AnnotateHGMD>
+        <OutputGenomeVcf>false</OutputGenomeVcf>
+        <GVcfBlockCompression>true</GVcfBlockCompression>
+      </VarCallerSettings>
+      <VariantCaller>None</VariantCaller>
+      <ComputePerTileStats>true</ComputePerTileStats>
+      <CompressBam>false</CompressBam>
+    </WorkflowSettings>
+    <Analysis>GenerateFASTQ</Analysis>
+    <WorkflowVersion>0.0.0.0</WorkflowVersion>
+  </Workflow>
+  <AnalysisSoftwareVersion>2.6.2.3</AnalysisSoftwareVersion>
+  <RTAOutputFolder>\\192.168.2.1\sequencing-incoming\180105_M00000_0000_000000000-XXXXX</RTAOutputFolder>
+</AnalysisJobInfo>

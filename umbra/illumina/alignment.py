@@ -64,7 +64,7 @@ class Alignment:
         If the alignment has just completed, and a callback function was
         provided during instantiation, call it."""
         self.__path_attrs = load_sample_filenames(self.paths["fastq"])
-        if not self.complete:
+        if (self.run is None or self.run.complete) and not self.complete:
             self.checkpoint = load_checkpoint(self.paths["checkpoint"])
             if self.complete and self.completion_callback:
                 self.completion_callback(self)
@@ -82,6 +82,18 @@ class Alignment:
             except ValueError:
                 idx = len(self.run.alignments)
             return idx
+        return None
+
+    @property
+    def error(self):
+        """Text of the Error entry in CompletedJobInfo.xml
+
+        None if there is no XML file or Error entry.
+        """
+        if self.completed_job_info:
+            elem = self.completed_job_info.find("Error")
+            if elem is not None:
+                return elem.text
         return None
 
     @property

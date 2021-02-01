@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.0.5 - 2021-01-19
+
+### Added
+
+ * `error` property for `illumina.alignment.Alignment` class ([#104])
+ * BCL stats file parsing functions for applicable Illumina runs ([#106])
+
+### Changed
+
+ * Use faster re-tries for small file uploads to Box ([#111])
+ * Use fully-resolved paths for alignment directory tracking in Run.refresh
+   ([#111])
+ * Reorganize unit tests for speed and simplicity ([#111])
+
+### Fixed
+
+ * Only process an alignment when its containing run is marked complete
+   ([#108])
+ * Handle non-unicode characters in CSV files ([#105], [#115])
+
+[#115]: https://github.com/ShawHahnLab/umbra/pull/115
+[#111]: https://github.com/ShawHahnLab/umbra/pull/111
+[#108]: https://github.com/ShawHahnLab/umbra/pull/108
+[#106]: https://github.com/ShawHahnLab/umbra/pull/106
+[#105]: https://github.com/ShawHahnLab/umbra/pull/105
+[#104]: https://github.com/ShawHahnLab/umbra/pull/104
+
 ## 0.0.4 - 2020-09-08
 
 ### Added

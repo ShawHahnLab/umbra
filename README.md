@@ -1,8 +1,7 @@
 # Umbra
 
 A Python package and executable for Linux to help manage Illumina sequencing
-runs.  *The below and included Python docstrings are a start, but this draft
-version requires much more documentation and testing.*
+runs.
 
 Umbra will watch a directory for incoming sequencing runs and dispatch a number
 of parallel processors to handle new run data.  Automated processing tasks
@@ -17,7 +16,7 @@ functionality.
 
 Requirements:
 
- * Python 3.6+ with packages: Biopython, BoxSDK, PyYAML, cutadapt
+ * Python 3.7+ with packages: Biopython, BoxSDK, PyYAML, cutadapt
  * Other programs: [SPAdes]
  * Box API credentials for automated uploads (optional)
  * Access to an SMTP mail server for sending mail, for example, a local postfix

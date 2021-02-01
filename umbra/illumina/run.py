@@ -4,11 +4,12 @@ A read-only interface to an Illumina run directory.
 See the Run class for usage.
 """
 
+import re
 import warnings
 import logging
 import time
 from pathlib import Path
-from .util import load_xml, load_rta_complete
+from .util import load_xml, load_rta_complete, load_bcl_stats
 from .alignment import Alignment
 
 LOGGER = logging.getLogger(__name__)
@@ -78,10 +79,13 @@ class Run:
         # First refresh any existing alignments
         for aln in self.alignments:
             aln.refresh()
-        # Load from expected paths, using patterns for MiSeq and MiniSeq
+        # Load from expected paths, using patterns for MiSeq and MiniSeq Make
+        # the paths absolute and canonical, since resolved paths are used
+        # within the alignment objects
         al_loc1 = self.path.glob("Data/Intensities/BaseCalls/Alignment*")
         al_loc2 = self.path.glob("Alignment*")
         al_loc = list(al_loc1) + list(al_loc2)
+        al_loc = [path.resolve() for path in al_loc]
         # Filter out those already loaded and process new ones
         al_loc_known = [aln.path for aln in self.alignments]
         is_new = lambda d: not d in al_loc_known
@@ -115,6 +119,23 @@ class Run:
             return None
         else:
             return aln
+
+    def load_all_bcl_stats(self):
+        """Load all BCL stats files into list of dictionaries.
+
+        Each dictionary represents one stats file for one run cycle, lane, and tile
+        combination.  The values in each dictionary are the 19 defined in the
+        binary stats file plus the lane and tile integers from each filename.
+        """
+        stats = []
+        for stats_path in self.path.glob("Data/Intensities/BaseCalls/**/s_*.stats"):
+            match = re.match("s_([0-9]+)_([0-9]+)", stats_path.stem)
+            data = load_bcl_stats(stats_path)
+            data["lane"] = int(match.group(1))
+            data["tile"] = int(match.group(2))
+            stats.append(data)
+        stats = sorted(stats, key=lambda stat: (stat["cycle"], stat["lane"], stat["tile"]))
+        return stats
 
     @property
     def run_id(self):

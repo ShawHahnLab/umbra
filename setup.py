@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="umbra",
-    version="0.0.4",
+    version="0.0.5",
     description="A package and executable for handling Illumina sequencing runs",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -17,6 +17,7 @@ setuptools.setup(
         "cutadapt>=1.18",
         "pyyaml>=3.13"
         ],
+    python_requires='>=3.7',
     packages=setuptools.find_packages(exclude=["test_*"]),
     include_package_data=True,
     entry_points={'console_scripts': [

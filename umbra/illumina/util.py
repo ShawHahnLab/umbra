@@ -4,6 +4,7 @@ Utility functions used throughout the package.
 These are largely just wrappers for filesystem operations or text manipulation.
 """
 
+import struct
 from pathlib import Path
 import xml.etree.ElementTree
 import datetime
@@ -22,18 +23,44 @@ def load_xml(path):
     elem = xml.etree.ElementTree.parse(path).getroot()
     return elem
 
-def load_csv(path, loader=csv.reader):
+def load_csv(path, loader=csv.reader, non_unicode=None):
     """Load CSV data from a given file path.
 
     By default returns a list of lists using csv.reader, but another reader
     than can operate on a file object (e.g. csv.DictReader) can be supplied
     instead.  Supports UTF8 (with or without a byte order mark) and
     equivalently ASCII.
+
+    The behavior for non-unicode characters is controlled by the non_unicode
+    argument.  If None (default), no special handling is provided so a Unicode
+    parsing exception would be raised.  If "replace", every instance of a
+    non-unicode character is replaced with unicode's placeholder "replacement
+    character" U+FFFD.  If "strip", the replacement is performed first and then
+    all replacement characters are removed.  (Note that this means any
+    replacement characters already there will *also* be removed, but it's an
+    edge case to an edge case.)
     """
+
+    # Set up the handling for non-unicode text.  In most cases we don't change
+    # the text so there's a no-op lambda function.  Only in the "strip" case
+    # does mapfunc do something.
+    mapfunc = lambda _: _
+    if non_unicode == "replace":
+        errors_mode = "replace"
+    elif non_unicode is None or non_unicode == "strict":
+        errors_mode = "strict"
+    elif non_unicode == "strip":
+        errors_mode = "replace"
+        mapfunc = lambda x: re.sub("\N{REPLACEMENT CHARACTER}", "", x)
+    else:
+        raise ValueError('non_unicode should be one of None, "replace", "mask"')
     # Explicitly setting the encoding to utf-8-sig allows the byte order mark
-    # to be automatically stripped out if present.
-    with open(path, 'r', newline='', encoding='utf-8-sig') as fin:
-        data = [row for row in loader(fin)]
+    # to be automatically stripped out if present.  Anything that's non-unicode
+    # will be handled as defined in the errors argument, set up above.
+    with open(path, 'r', newline='', encoding='utf-8-sig', errors=errors_mode) as fin:
+        # mapfunc will alter the text during the iteration, but only if the
+        # "strip" option was given.
+        data = list(loader(map(mapfunc, fin)))
     return data
 
 def load_sample_sheet(path):
@@ -70,7 +97,7 @@ def load_sample_sheet(path):
         for row in rows:
             if not row:
                 continue
-            elif len(row) == 1:
+            if len(row) == 1:
                 fields[row[0]] = ""
             else:
                 fields[row[0]] = row[1]
@@ -85,7 +112,7 @@ def load_sample_sheet(path):
     cols = data["Data"].pop(0)
     samples = []
     for row in data["Data"]:
-        samples.append({k: v for k, v in zip(cols, row)})
+        samples.append(dict(zip(cols, row)))
     data["Data"] = samples
 
     return data
@@ -162,3 +189,44 @@ def load_sample_filenames(dirpath):
         path_attrs.append(attrs)
     path_attrs = sorted(path_attrs, key=lambda x: (x["sample_num"], x["read"], x["path"]))
     return path_attrs
+
+# https://support.illumina.com/content/dam/illumina-support/documents/documentation/software_documentation/bcl2fastq/bcl2fastq_letterbooklet_15038058brpmi.pdf
+#
+# Start    Description                                                    Data type
+# Byte 0   Cycle number                                                   integer
+# Byte 4   Average Cycle Intensity                                        double
+# Byte 12  Average intensity for A over all clusters with intensity for A double
+# Byte 20  Average intensity for C over all clusters with intensity for C double
+# Byte 28  Average intensity for G over all clusters with intensity for G double
+# Byte 36  Average intensity for T over all clusters with intensity for T double
+# Byte 44  Average intensity for A over clusters with base call A         double
+# Byte 52  Average intensity for C over clusters with base call C         double
+# Byte 60  Average intensity for G over clusters with base call G         double
+# Byte 68  Average intensity for T over clusters with base call T         double
+# Byte 76  Number of clusters with base call A                            integer
+# Byte 80  Number of clusters with base call C                            integer
+# Byte 84  Number of clusters with base call G                            integer
+# Byte 88  Number of clusters with base call T                            integer
+# Byte 92  Number of clusters with base call X                            integer
+# Byte 96  Number of clusters with intensity for A                        integer
+# Byte 100 Number of clusters with intensity for C                        integer
+# Byte 104 Number of clusters with intensity for G                        integer
+# Byte 108 Number of clusters with intensity for T                        integer
+def load_bcl_stats(path):
+    """Load a single BCL stats file into a dictionary.
+
+    See Illumina's bcl2fastq documentation for details on the values.  Note
+    that cycle number here is zero-indexed while in the directory names it's
+    indexed by one.
+    """
+    fmt = "<IdddddddddIIIIIIIII"
+    with open(path, "rb") as f_in:
+        raw = f_in.read(112)
+    data = struct.unpack(fmt, raw)
+    keys = ["cycle", "avg_intensity"] + \
+        ["avg_int_all_%s" % base for base in ["A", "C", "G", "T"]] + \
+        ["avg_int_cluster_%s" % base for base in ["A", "C", "G", "T"]] + \
+        ["num_clust_call_%s" % base for base in ["A", "C", "G", "T", "X"]] + \
+        ["num_clust_int_%s" % base for base in ["A", "C", "G", "T"]]
+    data = dict(zip(keys, data))
+    return data

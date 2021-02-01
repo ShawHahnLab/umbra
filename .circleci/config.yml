@@ -1,0 +1,102 @@
+# https://circleci.com/docs/2.0/language-python/
+# https://circleci.com/docs/2.0/configuration-reference/
+# https://circleci.com/docs/2.0/executor-intro/
+# https://circleci.com/docs/2.0/sample-config/
+version: 2.1
+
+jobs:
+  main:
+    # Using a machine executor instead of a docker image because we need to
+    # interact with systemd to run a full test, which doesn't play nicely with
+    # docker.
+    # https://circleci.com/docs/2.0/executor-types/#using-machine
+    # https://lkhill.com/circleci-docker-systemd
+    machine:
+      image: ubuntu-2004:202010-01
+    steps:
+      # Initial setup
+      - checkout
+      - restore_cache:
+          keys:
+            - conda-{{ checksum "setup.py" }}
+      - run:
+          name: Set up conda environemnt
+          working_directory: ..
+          command: |
+            if [ -d $HOME/miniconda ]; then
+              exit 0
+            fi
+            wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+            bash miniconda.sh -b -p $HOME/miniconda
+            export PATH="$HOME/miniconda/bin:$PATH"
+            conda config --set always_yes yes --set changeps1 no
+            conda update -q conda
+            conda create -q -n test-environment -c bioconda spades python=3.7
+      - save_cache:
+          key: conda-{{ checksum "setup.py" }}
+          paths:
+            - ../miniconda
+      - run:
+          name: Check conda environment
+          command: ~/miniconda/bin/conda list -n test-environment
+      - run:
+          name: Install OS dependencies
+          command: sudo apt-get update && sudo apt-get install -qq rsync rsyslog
+      # Python package install
+      - run:
+          name: Install Python package
+          command: |
+            export PATH="$HOME/miniconda/bin:$PATH"
+            source activate test-environment
+            python setup.py install
+      # Python package tests
+      - run:
+          name: Unit tests
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            python -m unittest
+      - store_artifacts:
+          path: /tmp/test_umbra.log
+      - run:
+          name: Test command line interface
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            python -m umbra -h
+      - run:
+          name: Test demo 1
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            bash demo/demo_1.sh
+      - run:
+          name: Test demo 2
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            bash demo/demo_2.sh
+      - run:
+          name: Test installed command line interface
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            umbra -h
+      - run:
+          name: Test version argument
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            umbra --version
+      # OS install
+      - run:
+          name: Test dry run installation
+          command: sudo -E $HOME/miniconda/envs/test-environment/bin/umbra --action install --dry-run
+      - run:
+          name: Install
+          command: sudo -E $HOME/miniconda/envs/test-environment/bin/umbra --action install
+      - run:
+          name: Start service
+          command: sudo systemctl start umbra
+      - run:
+          name: Check service
+          command: sudo systemctl status umbra --no-pager
+
+workflows:
+  main:
+    jobs:
+      - main
