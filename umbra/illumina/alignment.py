@@ -7,6 +7,7 @@ See the Alignment class for usage.
 import gzip
 import re
 from pathlib import Path
+from datetime import datetime
 from .util import load_sample_sheet, load_xml, load_checkpoint, load_sample_filenames
 
 class Alignment:
@@ -56,6 +57,7 @@ class Alignment:
             self.completed_job_info = load_xml(self.paths["job_info"])
         except FileNotFoundError:
             self.completed_job_info = None
+        self.__fastq_first_checked = None
         self.refresh()
 
     def refresh(self):
@@ -66,8 +68,24 @@ class Alignment:
         self.__path_attrs = load_sample_filenames(self.paths["fastq"])
         if (self.run is None or self.run.complete) and not self.complete:
             self.checkpoint = load_checkpoint(self.paths["checkpoint"])
-            if self.complete and self.completion_callback:
-                self.completion_callback(self)
+            if self.complete:
+                try:
+                    if not self.__fastq_first_checked:
+                        self.__fastq_first_checked = datetime.now()
+                    self.sample_paths()
+                except FileNotFoundError:
+                    # If FASTQ files are missing, delay declaring the Alignment
+                    # complete for a while (up to ten minutes) in case it's a file
+                    # transfer issue.
+                    # This is a kludgy attempted fix to buy us time while I
+                    # figure out the root cause of these temporarily "missing"
+                    # fastq files.
+                    delta = self.__fastq_first_checked - datetime.now()
+                    if not self.__fastq_first_checked or delta.seconds < 600:
+                        self.checkpoint = None
+                        return
+                if self.completion_callback:
+                    self.completion_callback(self)
 
     @property
     def index(self):
