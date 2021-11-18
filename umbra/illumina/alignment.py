@@ -16,7 +16,7 @@ class Alignment:
     This is the output of the FASTQGeneration workflow that runs on the
     sequencer, consisting of a specific sample sheet and set of demultiplexed
     fastq.gz files. This can happen multiple times per run, even though the
-    .bcl files and other output form Real Time Analysis are the same."""
+    .bcl files and other output from Real Time Analysis are the same."""
 
     def __init__(self, path, run=None, completion_callback=None):
         self.run = run
@@ -27,27 +27,33 @@ class Alignment:
         # Absolute path to various files within the Alignment directory
         self.paths = {}
         try:
-            # MiSeq, directly in Alignment folder
-            self.paths["sample_sheet"] = (path/"SampleSheetUsed.csv").resolve(strict=True)
-            self.paths["fastq"] = (path / "..").resolve()
-            self.paths["checkpoint"] = path/"Checkpoint.txt"
-            self.paths["job_info"] = path/"CompletedJobInfo.xml"
-        except FileNotFoundError:
-            # MiniSeq, within timstamped subfolder
-            filt = lambda p: re.match("[0-9]{8}_[0-9]{6}", p.name)
-            dirs = [d for d in path.glob("*") if d.is_dir() and filt(d)]
-            # If there are no subdirectories this doesn't look like a MiniSeq alignment
-            if not dirs:
-                raise ValueError('Not a recognized Illumina alignment: "%s"' % path)
             try:
-                self.paths["sample_sheet"] = (dirs[0]/"SampleSheetUsed.csv").resolve(strict=True)
-            # If both possible sample sheet paths threw FileNotFound, we won't
-            # consider this input path to be an alignment directory.
+                # MiSeq, directly in Alignment folder
+                self.paths["sample_sheet"] = (path/"SampleSheetUsed.csv").resolve(strict=True)
+                self.paths["fastq"] = (path / "..").resolve()
+                self.paths["checkpoint"] = path/"Checkpoint.txt"
+                self.paths["job_info"] = path/"CompletedJobInfo.xml"
             except FileNotFoundError:
-                raise ValueError('Not a recognized Illumina alignment: "%s"' % path)
-            self.paths["fastq"] = dirs[0] / "Fastq"
-            self.paths["checkpoint"] = dirs[0]/"Checkpoint.txt"
-            self.paths["job_info"] = dirs[0]/"CompletedJobInfo.xml"
+                # MiniSeq, within timstamped subfolder
+                filt = lambda p: re.match("[0-9]{8}_[0-9]{6}", p.name)
+                dirs = [d for d in path.glob("*") if d.is_dir() and filt(d)]
+                # If there are no subdirectories this doesn't look like a MiniSeq alignment
+                if not dirs:
+                    raise ValueError('Not a recognized Illumina alignment: "%s"' % path)
+                try:
+                    self.paths["sample_sheet"] = (dirs[0]/"SampleSheetUsed.csv").resolve(strict=True)
+                # If both possible sample sheet paths threw FileNotFound, we won't
+                # consider this input path to be an alignment directory.
+                except FileNotFoundError:
+                    raise ValueError('Not a recognized Illumina alignment: "%s"' % path)
+                self.paths["fastq"] = dirs[0] / "Fastq"
+                self.paths["checkpoint"] = dirs[0]/"Checkpoint.txt"
+                self.paths["job_info"] = dirs[0]/"CompletedJobInfo.xml"
+        except PermissionError as err:
+            # I'm seeing this happen sporadically with the updated MiSeq
+            # software.  Looks like the permissions are restricted temporarily,
+            # I'm thinking until the alignment dir is ready?
+            raise ValueError("Permission error accessing %s" % path) from err
         self.sample_sheet = load_sample_sheet(self.paths["sample_sheet"])
         # This doesn't always exist.  On our MiniSeq and one of two MiSeqs it's
         # always written, but on a newer MiSeq we only have the copy saved to
@@ -75,13 +81,13 @@ class Alignment:
                     self.sample_paths()
                 except FileNotFoundError:
                     # If FASTQ files are missing, delay declaring the Alignment
-                    # complete for a while (up to ten minutes) in case it's a file
+                    # complete for a while (up to 30 minutes) in case it's a file
                     # transfer issue.
                     # This is a kludgy attempted fix to buy us time while I
                     # figure out the root cause of these temporarily "missing"
                     # fastq files.
                     delta = self.__fastq_first_checked - datetime.now()
-                    if not self.__fastq_first_checked or delta.seconds < 600:
+                    if not self.__fastq_first_checked or delta.seconds < 1800:
                         self.checkpoint = None
                         return
                 if self.completion_callback:
