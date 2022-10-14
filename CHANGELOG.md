@@ -1,5 +1,14 @@
 # Changelog
 
+## dev
+
+### Changed
+
+ * Reorganized Box client and updated auth URL to search for in server logs
+   when authenticating with OAuth ([#120])
+
+[#120]: https://github.com/ShawHahnLab/umbra/pull/120
+
 ## 0.0.5 - 2021-01-19
 
 ### Added
