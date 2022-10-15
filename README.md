@@ -19,7 +19,7 @@ functionality.
 Requirements:
 
  * Python 3.7+ with packages: Biopython, BoxSDK, PyYAML, cutadapt
- * Other programs: [SPAdes]
+ * Other programs: [SPAdes], [PEAR]
  * Box API credentials for automated uploads (optional)
  * Access to an SMTP mail server for sending mail, for example, a local postfix
    installation (optional)
@@ -31,3 +31,4 @@ Limitations/assumptions:
 
 [Box]: https://www.box.com/
 [SPAdes]: http://cab.spbu.ru/software/spades/
+[PEAR]: https://cme.h-its.org/exelixis/web/software/pear/
