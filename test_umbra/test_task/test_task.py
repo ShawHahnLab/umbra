@@ -25,6 +25,7 @@ class TestTaskModule(TestBase):
             "copy",
             "trim",
             "merge",
+            "mergereads",
             "spades",
             "assemble",
             "manual",
