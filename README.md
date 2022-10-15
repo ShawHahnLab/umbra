@@ -1,5 +1,7 @@
 # Umbra
 
+[![CircleCI Build Status](https://circleci.com/gh/ShawHahnLab/umbra.svg?style=shield)](https://circleci.com/gh/ShawHahnLab/umbra)
+
 A Python package and executable for Linux to help manage Illumina sequencing
 runs.
 
