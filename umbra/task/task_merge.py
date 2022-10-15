@@ -22,7 +22,7 @@ class TaskMerge(task.Task):
                 self.task_dir_parent(self.name) /
                 "PairedReads" /
                 self.read_file_product(paths[0], ".merged.fastq"))
-            merge_pair(fq_out, fqs_in)
+            interleave_pair(fq_out, fqs_in)
             # Merge each file pair. If the expected output file is missing,
             # raise an exception.
             if not Path(fq_out).exists():
@@ -35,8 +35,8 @@ class TaskMerge(task.Task):
             "trimmed" /
             self.read_file_product(path, ".trimmed.fastq", merged=False))
 
-def merge_pair(fq_out, fqs_in):
-    """Merge reads from the pair of input FASTQs to a single output FASTQ."""
+def interleave_pair(fq_out, fqs_in):
+    """Interleave reads from the pair of input FASTQs to a single output FASTQ."""
     task.mkparent(fq_out)
     with open(fq_out, "w") as f_out, \
             open(fqs_in[0], "r") as f_r1, \
