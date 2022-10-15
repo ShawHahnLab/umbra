@@ -17,10 +17,9 @@ jobs:
       # Initial setup
       - checkout
       - restore_cache:
-          keys:
-            - conda-{{ checksum "setup.py" }}-{{ checksum ".circleci/env.yml" }}
+          key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}
       - run:
-          name: Set up conda environemnt
+          name: Set up conda environment
           working_directory: ..
           command: |
             if [ -d $HOME/miniconda ]; then
@@ -31,9 +30,9 @@ jobs:
             export PATH="$HOME/miniconda/bin:$PATH"
             conda config --set always_yes yes --set changeps1 no
             conda update -q conda
-            conda env update --file .circleci/env.yml
+            conda env update --file project/.circleci/env.yml
       - save_cache:
-          key: conda-{{ checksum "setup.py" }}-{{ checksum ".circleci/env.yml" }}
+          key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}
           paths:
             - ../miniconda
       - run:
