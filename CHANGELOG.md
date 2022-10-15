@@ -2,11 +2,17 @@
 
 ## dev
 
+### Added
+
+ * "mergereads" task for merging forward and reverse reads using
+   [PEAR](https://cme.h-its.org/exelixis/web/software/pear/) ([#121])
+
 ### Changed
 
  * Reorganized Box client and updated auth URL to search for in server logs
    when authenticating with OAuth ([#120])
 
+[#121]: https://github.com/ShawHahnLab/umbra/pull/121
 [#120]: https://github.com/ShawHahnLab/umbra/pull/120
 
 ## 0.0.5 - 2021-01-19
