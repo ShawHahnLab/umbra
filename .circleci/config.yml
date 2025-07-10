@@ -12,15 +12,14 @@ jobs:
     # https://circleci.com/docs/2.0/executor-types/#using-machine
     # https://lkhill.com/circleci-docker-systemd
     machine:
-      image: ubuntu-2004:202010-01
+      image: ubuntu-2004:2024.11.1
     steps:
       # Initial setup
       - checkout
       - restore_cache:
-          keys:
-            - conda-{{ checksum "setup.py" }}
+          key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}
       - run:
-          name: Set up conda environemnt
+          name: Set up conda environment
           working_directory: ..
           command: |
             if [ -d $HOME/miniconda ]; then
@@ -31,9 +30,9 @@ jobs:
             export PATH="$HOME/miniconda/bin:$PATH"
             conda config --set always_yes yes --set changeps1 no
             conda update -q conda
-            conda create -q -n test-environment -c bioconda spades python=3.7
+            conda env update --file project/.circleci/env.yml
       - save_cache:
-          key: conda-{{ checksum "setup.py" }}
+          key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}
           paths:
             - ../miniconda
       - run:
@@ -48,7 +47,7 @@ jobs:
           command: |
             export PATH="$HOME/miniconda/bin:$PATH"
             source activate test-environment
-            python setup.py install
+            pip install .
       # Python package tests
       - run:
           name: Unit tests

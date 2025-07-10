@@ -60,6 +60,11 @@ class TestAlignment(TestBase):
     def test_sample_names(self):
         """Test existence (not content, currently) of sample names."""
         self.assertEqual(len(self.aln.sample_names), 4)
+        # Even if the sample sheet didn't supply a Sample_Name column it should
+        # still return a list for the names, just full of None
+        for row in self.aln.sample_sheet["Data"]:
+            del row["Sample_Name"]
+        self.assertEqual(self.aln.sample_names, [None] * 4)
 
     def test_samples(self):
         """Test for consistency of sample metadata with sample sheet."""

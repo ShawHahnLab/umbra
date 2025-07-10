@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.0.6 - 2025-07-10
+
+### Added
+
+ * "mergereads" task for merging forward and reverse reads using
+   [PEAR](https://cme.h-its.org/exelixis/web/software/pear/) ([#121])
+
+### Changed
+
+ * Configured Alignment setup to skip and retry later if a permission error
+   occurs, and Alignment refresh to wait up to 10 minutes for .fastq.gz files
+   to appear
+ * Reorganized Box client and updated auth URL to search for in server logs
+   when authenticating with OAuth ([#120])
+
+### Fixed
+
+ * No longer crash when encountering runs missing the `Sample_Name` column in
+   their sample sheets ([#129])
+ * Ignore leading and/or trailing whitespace in the Contact column when loading
+   an experiment metadata CSV, so all-whitespace entries are now treated as
+   missing contact info rather than causing a crash during parsing ([#128])
+
+[#129]: https://github.com/ShawHahnLab/umbra/pull/129
+[#128]: https://github.com/ShawHahnLab/umbra/pull/128
+[#127]: https://github.com/ShawHahnLab/umbra/pull/127
+[#121]: https://github.com/ShawHahnLab/umbra/pull/121
+[#120]: https://github.com/ShawHahnLab/umbra/pull/120
+
 ## 0.0.5 - 2021-01-19
 
 ### Added
