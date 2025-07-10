@@ -9,9 +9,13 @@
 
 ### Changed
 
+ * Configured Alignment setup to skip and retry later if a permission error
+   occurs, and Alignment refresh to wait up to 10 minutes for .fastq.gz files
+   to appear
  * Reorganized Box client and updated auth URL to search for in server logs
    when authenticating with OAuth ([#120])
 
+[#127]: https://github.com/ShawHahnLab/umbra/pull/127
 [#121]: https://github.com/ShawHahnLab/umbra/pull/121
 [#120]: https://github.com/ShawHahnLab/umbra/pull/120
 
