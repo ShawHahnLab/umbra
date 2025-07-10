@@ -15,6 +15,13 @@
  * Reorganized Box client and updated auth URL to search for in server logs
    when authenticating with OAuth ([#120])
 
+### Fixed
+
+ * Ignore leading and/or trailing whitespace in the Contact column when loading
+   an experiment metadata CSV, so all-whitespace entries are now treated as
+   missing contact info rather than causing a crash during parsing ([#128])
+
+[#128]: https://github.com/ShawHahnLab/umbra/pull/128
 [#127]: https://github.com/ShawHahnLab/umbra/pull/127
 [#121]: https://github.com/ShawHahnLab/umbra/pull/121
 [#120]: https://github.com/ShawHahnLab/umbra/pull/120

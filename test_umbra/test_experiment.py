@@ -47,6 +47,32 @@ class TestLoadMetadataEmptycols(TestLoadMetadata):
     Empty columns should be silently removed.
     """
 
+class TestLoadMetadataContactsWhitespace(TestLoadMetadata):
+    """Test metadata loading including leading/trailing whitespace in Contacts.
+
+    The whitespace should be stripped out, and all-whitespace entries should be
+    equivalent to rows with no contact info supplied.
+    """
+
+    def test_load_metadata(self):
+        fp_metadata = self.path / "metadata.csv"
+        info = experiment.load_metadata(fp_metadata)
+        expected = [ \
+            OrderedDict([
+                ('Sample_Name', '1086S1_01'), ('Project', 'STR'),
+                ('Contacts', {'Jesse': 'ancon@upenn.edu'}), ('Tasks', ['trim'])]),
+            OrderedDict([
+                ('Sample_Name', '1086S1_02'), ('Project', 'STR'),
+                ('Contacts', {'Jesse': 'ancon@upenn.edu'}), ('Tasks', ['trim'])]),
+            OrderedDict([
+                ('Sample_Name', '1086S1_03'), ('Project', 'Something Else'),
+                ('Contacts', {}), ('Tasks', [])]),
+            OrderedDict([
+                ('Sample_Name', '1086S1_04'), ('Project', 'Something Else'),
+                ('Contacts', {}),
+                ('Tasks', [])])]
+        self.assertEqual(expected, info)
+
 
 class TestLoadMetadataISO8859(TestLoadMetadata):
     """Test metadata loading with non-unicode file.
