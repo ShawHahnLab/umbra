@@ -12,7 +12,7 @@ jobs:
     # https://circleci.com/docs/2.0/executor-types/#using-machine
     # https://lkhill.com/circleci-docker-systemd
     machine:
-      image: ubuntu-2004:202010-01
+      image: ubuntu-2004:2024.11.1
     steps:
       # Initial setup
       - checkout
