@@ -18,7 +18,7 @@ def _parse_contacts(text):
     {'Name': 'email@example.com', 'Someone Else': 'user@site.gov'}
     """
 
-    chunks = re.split("[,;]+", text)
+    chunks = re.split("[,;]+", text.strip())
     contacts = {}
     for chunk in chunks:
         if not chunk:
