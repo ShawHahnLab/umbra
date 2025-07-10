@@ -2,7 +2,10 @@
 Tests for illumina.util helper functions.
 """
 
+import os
 import csv
+from tempfile import TemporaryDirectory
+from datetime import datetime
 from umbra.illumina import util
 from .test_common import make_bcl_stats_dict
 from ..test_common import TestBase
@@ -137,6 +140,28 @@ class TestLoadCSVMissing(TestLoadCSV):
         """Test that a csv.DictReader works too."""
         with self.assertRaises(FileNotFoundError):
             util.load_csv(self.path / "test.csv", csv.DictReader)
+
+
+class TestLoadRTAComplete(TestBase):
+    """Tests for parsing RTAComplete.txt files"""
+
+    def test_load_rta_complete(self):
+        with TemporaryDirectory() as tmpdir:
+            path = f"{tmpdir}/rta_complete.txt"
+            with self.subTest("older RTAComplete.txt format"):
+                with open(path, "w") as f_out:
+                    f_out.write('RTA 2.11.4.0 completed on 2/19/2025 9:35:05 AM\n')
+                obs = util.load_rta_complete(path)
+                self.assertEqual({
+                        "Date": datetime(2025, 2, 19, 9, 35, 5),
+                        "Version": "RTA 2.11.4.0"},
+                    obs)
+            with self.subTest("newer RTAComplete.txt format"):
+                with open(path, "w") as f_out:
+                    f_out.write(' ')
+                os.utime(path, (0, 0))
+                obs = util.load_rta_complete(path)
+                self.assertEqual({"Date": datetime.fromtimestamp(0)}, obs)
 
 
 class TestLoadCheckpoint0(TestBase):
