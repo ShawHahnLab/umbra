@@ -18,7 +18,8 @@ def _parse_contacts(text):
     {'Name': 'email@example.com', 'Someone Else': 'user@site.gov'}
     """
 
-    chunks = re.split("[,;]+", text)
+    # TODO formally fix https://github.com/ShawHahnLab/umbra/issues/124
+    chunks = re.split("[,;]+", text.strip())
     contacts = {}
     for chunk in chunks:
         if not chunk:

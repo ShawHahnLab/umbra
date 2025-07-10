@@ -134,6 +134,8 @@ def load_rta_complete(path):
     # RTA 2.8.6 completed on 3/17/2017 8:19:33 AM
     if len(data) == 1:
         match = re.match("(RTA [0-9.]+) completed on ([^ ]+) (.+)", data[0])
+        if not match:
+            return None
         version = match.group(1)
         date_str_date = date_pad(match.group(2))
         date_str_time = time_pad(match.group(3))
