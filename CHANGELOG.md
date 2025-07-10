@@ -4,6 +4,15 @@
 
 ### Added
 
+ * `illumina.util.load_rta_complete` now handles the syntax used by NextSeq and
+   MiSeq i100 Plus software for RTAComplete.txt ([#132])
+
+[#132]: https://github.com/ShawHahnLab/umbra/pull/132
+
+## 0.0.6 - 2025-07-10
+
+### Added
+
  * "mergereads" task for merging forward and reverse reads using
    [PEAR](https://cme.h-its.org/exelixis/web/software/pear/) ([#121])
 
