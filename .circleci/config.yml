@@ -47,7 +47,7 @@ jobs:
           command: |
             export PATH="$HOME/miniconda/bin:$PATH"
             source activate test-environment
-            python setup.py install
+            pip install .
       # Python package tests
       - run:
           name: Unit tests
