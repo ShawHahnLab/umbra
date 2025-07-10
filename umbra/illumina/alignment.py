@@ -155,7 +155,7 @@ class Alignment:
     @property
     def sample_names(self):
         """Ordered list of all sample names."""
-        names = [row["Sample_Name"] for row in self.sample_sheet["Data"]]
+        names = [row.get("Sample_Name") for row in self.sample_sheet["Data"]]
         return names
 
     @property
