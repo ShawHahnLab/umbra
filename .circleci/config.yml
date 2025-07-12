@@ -36,9 +36,6 @@ jobs:
           paths:
             - ../miniconda
       - run:
-          name: Check conda environment
-          command: ~/miniconda/bin/conda list -n test-environment
-      - run:
           name: Install OS dependencies
           command: sudo apt-get update && sudo apt-get install -qq rsync rsyslog
       # Python package install
@@ -48,6 +45,22 @@ jobs:
             export PATH="$HOME/miniconda/bin:$PATH"
             source activate test-environment
             pip install .
+      - run:
+          name: Store conda env shell environment
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            env | tee /tmp/env.txt
+      - run:
+          name: Store conda env package list
+          # Will include pip stuff
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            conda list | tee /tmp/packages.txt
+      - run:
+          name: Store conda env package list with explicit URLs
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            conda list --explicit | tee /tmp/packages_explicit.txt
       # Python package tests
       - run:
           name: Unit tests
@@ -55,6 +68,16 @@ jobs:
             source ~/miniconda/bin/activate test-environment
             python -m unittest
       - store_artifacts:
+          name: "Store Artifacts: conda shell environment"
+          path: /tmp/env.txt
+      - store_artifacts:
+          name: "Store Artifacts: conda packages"
+          path: /tmp/packages.txt
+      - store_artifacts:
+          name: "Store Artifacts: conda packages with explicit URLs"
+          path: /tmp/packages_explicit.txt
+      - store_artifacts:
+          name: "Store Artifacts: unit test log"
           path: /tmp/test_umbra.log
       - run:
           name: Test command line interface
@@ -84,10 +107,14 @@ jobs:
       # OS install
       - run:
           name: Test dry run installation
-          command: sudo -E $HOME/miniconda/envs/test-environment/bin/umbra --action install --dry-run
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            sudo -E $(which umbra) --action install --dry-run
       - run:
           name: Install
-          command: sudo -E $HOME/miniconda/envs/test-environment/bin/umbra --action install
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            sudo -E $(which umbra) --action install
       - run:
           name: Start service
           command: sudo systemctl start umbra

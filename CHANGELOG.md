@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.0.7 - 2025-07-11
+
+### Added
+
+ * `illumina.util.load_rta_complete` now handles the syntax used by NextSeq and
+   MiSeq i100 Plus software for RTAComplete.txt ([#132])
+
+### Changed
+
+ * Minimum supported python version is now 3.9 ([#135])
+
+### Fixed
+
+ * Install procedure now skips setting up directory paths if they are
+   explicitly configured as blank in an existing config file ([#138])
+
+[#138]: https://github.com/ShawHahnLab/umbra/pull/138
+[#135]: https://github.com/ShawHahnLab/umbra/pull/135
+[#132]: https://github.com/ShawHahnLab/umbra/pull/132
+
 ## 0.0.6 - 2025-07-10
 
 ### Added

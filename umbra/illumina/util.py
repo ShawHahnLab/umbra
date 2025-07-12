@@ -121,13 +121,20 @@ def load_rta_complete(path):
     """Parse an RTAComplete.txt file.
 
     Creates a dictionary with the Date and Illumina Real-Time Analysis
-    software version.  This file should exist for a run if real-time analysis
-    that does basecalling and generates BCL files has finished.
+    software version, if present.  This file should exist for a run if
+    real-time analysis that does basecalling and generates BCL files has
+    finished.
     """
     try:
         data = load_csv(path)[0]
     except (FileNotFoundError, IndexError):
         return None
+    # Newer Illumina software (on NextSeq, MiSeq i100 Plus, others?) just puts
+    # a single space in this file and nothing else.  As a stopgap (since we
+    # currently use this to define the date part of the work directory names in
+    # Project) we'll just use the modification time of the file.
+    if data == [" "]:
+        return {"Date": datetime.datetime.fromtimestamp(Path(path).stat().st_mtime)}
     date_pad = lambda txt: "/".join([x.zfill(2) for x in txt.split("/")])
     time_pad = lambda txt: ":".join([x.zfill(2) for x in txt.split(":")])
     # MiniSeq (RTA 2x?)
