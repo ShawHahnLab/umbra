@@ -1,6 +1,6 @@
 # Changelog
 
-## dev
+## 0.0.7 - 2025-7-11
 
 ### Added
 
