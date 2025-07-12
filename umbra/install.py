@@ -230,10 +230,12 @@ def _setup_paths(config_data, uid, gid):
         ("box", "credentials_path", 0o700),
         ("mailer", "credentials_path", 0o700)]
     for section, key, mode in others:
-        dir_path = Path(config_data[section][key]).parent
-        if not dir_path in created:
-            _install_dir(dir_path, uid, gid, mode)
-        created.add(dir_path)
+        path = config_data[section][key]
+        if path:
+            dir_path = Path(path).parent
+            if not dir_path in created:
+                _install_dir(dir_path, uid, gid, mode)
+            created.add(dir_path)
 
 def _setup_config(config_path):
     LOGGER.info("Installing config file")
