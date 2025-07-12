@@ -42,9 +42,15 @@ jobs:
             env | tee /tmp/env.txt
       - run:
           name: Store conda env package list
+          # Will include pip stuff
           command: |
             source ~/miniconda/bin/activate test-environment
-            conda list --explicit | tee /tmp/packages.txt
+            conda list | tee /tmp/packages.txt
+      - run:
+          name: Store conda env package list with explicit URLs
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            conda list --explicit | tee /tmp/packages_explicit.txt
       - run:
           name: Install OS dependencies
           command: sudo apt-get update && sudo apt-get install -qq rsync rsyslog
@@ -67,6 +73,9 @@ jobs:
       - store_artifacts:
           name: "Store Artifacts: conda packages"
           path: /tmp/packages.txt
+      - store_artifacts:
+          name: "Store Artifacts: conda packages with explicit URLs"
+          path: /tmp/packages_explicit.txt
       - store_artifacts:
           name: "Store Artifacts: unit test log"
           path: /tmp/test_umbra.log
