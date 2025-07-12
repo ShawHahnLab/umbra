@@ -36,8 +36,15 @@ jobs:
           paths:
             - ../miniconda
       - run:
-          name: Check conda environment
-          command: ~/miniconda/bin/conda list -n test-environment
+          name: Store conda env shell environment
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            env | tee /tmp/env.txt
+      - run:
+          name: Store conda env package list
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            conda list --explicit | tee /tmp/packages.txt
       - run:
           name: Install OS dependencies
           command: sudo apt-get update && sudo apt-get install -qq rsync rsyslog
@@ -55,6 +62,13 @@ jobs:
             source ~/miniconda/bin/activate test-environment
             python -m unittest
       - store_artifacts:
+          name: "Store Artifacts: conda shell environment"
+          path: /tmp/env.txt
+      - store_artifacts:
+          name: "Store Artifacts: conda packages"
+          path: /tmp/packages.txt
+      - store_artifacts:
+          name: "Store Artifacts: unit test log"
           path: /tmp/test_umbra.log
       - run:
           name: Test command line interface
