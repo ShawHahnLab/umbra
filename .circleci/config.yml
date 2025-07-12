@@ -36,6 +36,16 @@ jobs:
           paths:
             - ../miniconda
       - run:
+          name: Install OS dependencies
+          command: sudo apt-get update && sudo apt-get install -qq rsync rsyslog
+      # Python package install
+      - run:
+          name: Install Python package
+          command: |
+            export PATH="$HOME/miniconda/bin:$PATH"
+            source activate test-environment
+            pip install .
+      - run:
           name: Store conda env shell environment
           command: |
             source ~/miniconda/bin/activate test-environment
@@ -51,16 +61,6 @@ jobs:
           command: |
             source ~/miniconda/bin/activate test-environment
             conda list --explicit | tee /tmp/packages_explicit.txt
-      - run:
-          name: Install OS dependencies
-          command: sudo apt-get update && sudo apt-get install -qq rsync rsyslog
-      # Python package install
-      - run:
-          name: Install Python package
-          command: |
-            export PATH="$HOME/miniconda/bin:$PATH"
-            source activate test-environment
-            pip install .
       # Python package tests
       - run:
           name: Unit tests
