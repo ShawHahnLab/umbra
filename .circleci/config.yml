@@ -107,10 +107,14 @@ jobs:
       # OS install
       - run:
           name: Test dry run installation
-          command: sudo -E $HOME/miniconda/envs/test-environment/bin/umbra --action install --dry-run
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            sudo -E $(which umbra) --action install --dry-run
       - run:
           name: Install
-          command: sudo -E $HOME/miniconda/envs/test-environment/bin/umbra --action install
+          command: |
+            source ~/miniconda/bin/activate test-environment
+            sudo -E $(which umbra) --action install
       - run:
           name: Start service
           command: sudo systemctl start umbra
