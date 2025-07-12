@@ -11,6 +11,12 @@
 
  * Minimum supported python version is now 3.9 ([#135])
 
+### Fixed
+
+ * Install procedure now skips setting up directory paths if they are
+   explicitly configured as blank in an existing config file ([#138])
+
+[#138]: https://github.com/ShawHahnLab/umbra/pull/138
 [#135]: https://github.com/ShawHahnLab/umbra/pull/135
 [#132]: https://github.com/ShawHahnLab/umbra/pull/132
 
