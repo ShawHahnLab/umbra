@@ -30,7 +30,8 @@ jobs:
             export PATH="$HOME/miniconda/bin:$PATH"
             conda config --set always_yes yes --set changeps1 no
             conda update -q conda
-            conda env update --file project/.circleci/env.yml
+            sed 's/^  - python=.*/  - python=<< python-version >>/' < project/.circleci/env.yml > env.yml
+            conda env update --file env.yml
       - save_cache:
           key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}
           paths:
@@ -125,4 +126,7 @@ jobs:
 workflows:
   main:
     jobs:
-      - main
+      - main:
+          matrix:
+            parameters:
+              python-versions: [3.9, 3.10, 3.11, 3.12]
