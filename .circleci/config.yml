@@ -20,7 +20,7 @@ jobs:
       # Initial setup
       - checkout
       - restore_cache:
-          key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}
+          key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}-python<< parameters.python-version >>
       - run:
           name: Set up conda environment
           working_directory: ..
@@ -36,7 +36,7 @@ jobs:
             sed 's/^  - python=.*/  - python=<< parameters.python-version >>/' < project/.circleci/env.yml > env.yml
             conda env update --file env.yml
       - save_cache:
-          key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}
+          key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}-python<< parameters.python-version >>
           paths:
             - ../miniconda
       - run:
