@@ -6,6 +6,9 @@ version: 2.1
 
 jobs:
   main:
+    parameters:
+      python-version:
+        type: string
     # Using a machine executor instead of a docker image because we need to
     # interact with systemd to run a full test, which doesn't play nicely with
     # docker.
