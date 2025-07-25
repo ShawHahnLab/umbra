@@ -154,14 +154,23 @@ class TestLoadSampleSheet(TestBase):
         # files, so hopefully we can do less of this sort of thing in the near
         # future.
         for case in ("miseq", "miniseq", "miseqi100p", "nextseq2000"):
-            with open(self.path/f"{case}.json") as f_in:
+            with open(self.path/f"{case}.json", encoding="ASCII") as f_in:
                 expected = json.load(f_in)
             with self.subTest(case):
                 observed = util.load_sample_sheet(self.path/f"{case}.csv")
                 self.assertEqual(observed, expected)
-        with self.subTest("version3"):
-            with self.assertRaises(ValueError, msg="version 3 should not be supported"):
-                util.load_sample_sheet(self.path/f"version3.csv")
+
+    def test_load_sample_sheet_ver3(self):
+        """Sample sheet version 3 should not be supported"""
+        with self.assertRaises(ValueError, msg="version 3 should not be supported"):
+            util.load_sample_sheet(self.path/"version3.csv")
+
+    def test_load_sample_sheet_unknown_app(self):
+        """Test a v2 sample sheet with sections for an arbitrary application"""
+        with open(self.path/"unknown_app.json", encoding="ASCII") as f_in:
+            expected = json.load(f_in)
+        observed = util.load_sample_sheet(self.path/"unknown_app.csv")
+        self.assertEqual(observed, expected)
 
 
 class TestLoadRTAComplete(TestBase):
