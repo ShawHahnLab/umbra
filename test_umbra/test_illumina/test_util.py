@@ -159,6 +159,9 @@ class TestLoadSampleSheet(TestBase):
             with self.subTest(case):
                 observed = util.load_sample_sheet(self.path/f"{case}.csv")
                 self.assertEqual(observed, expected)
+        with self.subTest("version3"):
+            with self.assertRaises(ValueError, "version 3 should not be supported"):
+                util.load_sample_sheet(self.path/f"version3.csv")
 
 
 class TestLoadRTAComplete(TestBase):
