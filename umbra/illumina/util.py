@@ -66,54 +66,82 @@ def load_csv(path, loader=csv.reader, non_unicode=None):
 def load_sample_sheet(path):
     """Load an Illumina CSV Sample Sheet.
 
-    The data is returned as a dictionary, using the named sections in the sheet
-    as the keys. Recognized sections are parsed further, and anything else is
-    left as lists-of-lists.
+    The sample sheet data is returned as a dictionary, using the named sections
+    in the sheet as the keys. Recognized sections are parsed further, and
+    anything else is left as lists-of-lists.
 
-    Header: dictionary with string values
-    Reads: list of integer lengths
-    Settings: dictionary with string values (not in MiniSeq)
-    Data: list of dictionaries using the first row as keys
+    Currently supports both verison 2 and the "old style" with no file version
+    explicitly given.  Any other value for FileFormatVersion will trigger an
+    exception.
+
+    Common sections:
+
+      Header: dictionary with string values
+      Reads: list of integer lengths (v1 sample sheet) or dictionary with int values (v2)
+      Settings: dictionary with string values
+      Data: list of dictionaries using the first row as keys
     """
     data_raw = load_csv(path)
     data = {}
+    name = None
     for row in data_raw:
         if not row:
             continue
         # Check for section name like [Header].  If found, initialize a section
         # with that name.
-        match = re.match("\\[([A-Za-z0-9]+)\\]", row[0])
-        if match:
+        if match := re.match("\\[([_A-Za-z0-9]+)\\]", row[0]):
             name = match.group(1)
             data[name] = []
         # Otherwise, append non-empty rows to the current named section.
         else:
-            if sum([len(x) for x in row]) > 0:
+            if sum(len(x) for x in row) > 0:
+                if name not in data:
+                    data[name] = []
                 data[name] += [row]
 
-    # Convert Header and Settings to dictionaries and Reads to a simple list
+    # Convert Header and Settings sections to dictionaries
     def parse_dict_fields(rows):
         fields = {}
         for row in rows:
-            if not row:
-                continue
-            if len(row) == 1:
-                fields[row[0]] = ""
-            else:
-                fields[row[0]] = row[1]
+            if row:
+                # (Some quite old sample sheets we have on disk have jagged CSV
+                # in the Header section with a missing Description value, but
+                # generally, it should always be key,val.)
+                fields[row[0]] = "" if len(row) == 1 else row[1]
         return fields
 
-    data["Header"] = parse_dict_fields(data["Header"])
-    data["Reads"] = [int(row[0]) for row in data["Reads"]]
-    if "Settings" in data.keys():
-        data["Settings"] = parse_dict_fields(data["Settings"])
+    if "Header" in data:
+        data["Header"] = parse_dict_fields(data["Header"])
+    # version 2 defines the version within the file, but the original (what I'm
+    # presuming is 1) doesn't
+    version = int(data.get("Header", {}).get("FileFormatVersion", 1))
+    if version not in (1, 2):
+        raise ValueError(f"Sample sheet version {version} not supported ({path})")
 
-    # Convert the Data section into a list of dictionaries
-    cols = data["Data"].pop(0)
-    samples = []
-    for row in data["Data"]:
-        samples.append(dict(zip(cols, row)))
-    data["Data"] = samples
+    if "Reads" in data:
+        if version == 1:
+            # reads is just a list of integers
+            data["Reads"] = [int(row[0]) for row in data["Reads"]]
+        elif version == 2:
+            # reads is key/value pairs
+            data["Reads"] = parse_dict_fields(data["Reads"])
+
+    # Convert any key,value settings sections into lists of dictionaries
+    # (V1 sample sheets have Settings but V2 have these other sections)
+    for settings_section in (
+            "Settings", "Sequencing_Settings", "BCLConvert_Settings", "Cloud_Settings"):
+        if settings_section in data:
+            data[settings_section] = parse_dict_fields(data[settings_section])
+
+    # Convert any tabular sections into lists of dictionaries
+    # (V1 sample sheets have Data but V2 have BCLConvert_Data and Cloud_Data.)
+    for table_section in ("Data", "BCLConvert_Data", "Cloud_Data"):
+        if table_section in data:
+            cols = data[table_section].pop(0)
+            rows = []
+            for row in data[table_section]:
+                rows.append(dict(zip(cols, row)))
+            data[table_section] = rows
 
     return data
 
