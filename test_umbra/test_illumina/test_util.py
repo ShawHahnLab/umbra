@@ -160,7 +160,7 @@ class TestLoadSampleSheet(TestBase):
                 observed = util.load_sample_sheet(self.path/f"{case}.csv")
                 self.assertEqual(observed, expected)
         with self.subTest("version3"):
-            with self.assertRaises(ValueError, "version 3 should not be supported"):
+            with self.assertRaises(ValueError, msg="version 3 should not be supported"):
                 util.load_sample_sheet(self.path/f"version3.csv")
 
 
