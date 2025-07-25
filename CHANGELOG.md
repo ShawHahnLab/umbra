@@ -2,10 +2,16 @@
 
 ## dev
 
+### Added
+
+ * Illumina's "v2" sample sheets, used by newer instruments like the MiSeq i100
+   Plus and NextSeq 200, are now supported ([#142])
+
 ### Changed
 
  * Python from 3.9 to 3.11 is supported ([#140])
 
+[#142]: https://github.com/ShawHahnLab/umbra/pull/142
 [#140]: https://github.com/ShawHahnLab/umbra/pull/140
 
 ## 0.0.7 - 2025-07-11
