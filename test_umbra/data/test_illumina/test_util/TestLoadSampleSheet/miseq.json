@@ -1,0 +1,56 @@
+{
+   "Data" : [
+      {
+         "Description" : "",
+         "I5_Index_ID" : "N502",
+         "I7_Index_ID" : "N701",
+         "Sample_ID" : "1",
+         "Sample_Name" : "1086S1_01",
+         "Sample_Plate" : "Shuyi",
+         "Sample_Project" : "",
+         "Sample_Well" : "A01",
+         "index" : "TAAGGCGA",
+         "index2" : "CTCTCTAT"
+      },
+      {
+         "Description" : "",
+         "I5_Index_ID" : "N502",
+         "I7_Index_ID" : "N702",
+         "Sample_ID" : "2",
+         "Sample_Name" : "1086S1_02",
+         "Sample_Plate" : "",
+         "Sample_Project" : "",
+         "Sample_Well" : "A02",
+         "index" : "CGTACTAG",
+         "index2" : "CTCTCTAT"
+      },
+      {
+         "Description" : "",
+         "I5_Index_ID" : "N502",
+         "I7_Index_ID" : "N703",
+         "Sample_ID" : "3",
+         "Sample_Name" : "1086S1_03",
+         "Sample_Plate" : "",
+         "Sample_Project" : "",
+         "Sample_Well" : "A03",
+         "index" : "AGGCAGAA",
+         "index2" : "CTCTCTAT"
+      }
+   ],
+   "Header" : {
+      "Application" : "FASTQ_Only",
+      "Assay" : "Nextera",
+      "Chemistry" : "Amplicon",
+      "Date" : "1_2_18",
+      "Description" : "",
+      "Experiment_Name" : "test",
+      "IEMFileVersion" : "4",
+      "Investigator_Name" : "Partials",
+      "Workflow" : "GenerateFASTQ"
+   },
+   "Reads" : [
+      151,
+      151
+   ],
+   "Settings" : {}
+}

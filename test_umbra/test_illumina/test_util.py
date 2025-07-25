@@ -4,6 +4,7 @@ Tests for illumina.util helper functions.
 
 import os
 import csv
+import json
 from tempfile import TemporaryDirectory
 from datetime import datetime
 from umbra.illumina import util
@@ -140,6 +141,36 @@ class TestLoadCSVMissing(TestLoadCSV):
         """Test that a csv.DictReader works too."""
         with self.assertRaises(FileNotFoundError):
             util.load_csv(self.path / "test.csv", csv.DictReader)
+
+
+class TestLoadSampleSheet(TestBase):
+    """Tests for parsing SampleSheet.csv files"""
+
+    def test_load_sample_sheet(self):
+        """Test that load_sample_sheet parses sample sheet data"""
+        # This is purely a "does the function parse the structured data from
+        # the CSV" sort of check.  As of 2025 and the Miseq i100 Plus, it looks
+        # like Illumina is heading toward supplying JSON directly in its output
+        # files, so hopefully we can do less of this sort of thing in the near
+        # future.
+        for case in ("miseq", "miniseq", "miseqi100p", "nextseq2000"):
+            with open(self.path/f"{case}.json", encoding="ASCII") as f_in:
+                expected = json.load(f_in)
+            with self.subTest(case):
+                observed = util.load_sample_sheet(self.path/f"{case}.csv")
+                self.assertEqual(observed, expected)
+
+    def test_load_sample_sheet_ver3(self):
+        """Sample sheet version 3 should not be supported"""
+        with self.assertRaises(ValueError, msg="version 3 should not be supported"):
+            util.load_sample_sheet(self.path/"version3.csv")
+
+    def test_load_sample_sheet_unknown_app(self):
+        """Test a v2 sample sheet with sections for an arbitrary application"""
+        with open(self.path/"unknown_app.json", encoding="ASCII") as f_in:
+            expected = json.load(f_in)
+        observed = util.load_sample_sheet(self.path/"unknown_app.csv")
+        self.assertEqual(observed, expected)
 
 
 class TestLoadRTAComplete(TestBase):
