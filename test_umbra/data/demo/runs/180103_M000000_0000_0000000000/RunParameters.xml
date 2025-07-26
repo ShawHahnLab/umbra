@@ -1,0 +1,101 @@
+<?xml version="1.0"?>
+<RunParameters xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <RunParametersVersion>MiniSeq_1_0_0</RunParametersVersion>
+  <Setup>
+    <SupportMultipleSurfacesInUI>true</SupportMultipleSurfacesInUI>
+    <ApplicationVersion>1.1.8.0</ApplicationVersion>
+    <ApplicationName>MiniSeq Control Software</ApplicationName>
+    <NumTilesPerSwath>6</NumTilesPerSwath>
+    <NumSwaths>3</NumSwaths>
+    <NumLanes>1</NumLanes>
+    <Read1>151</Read1>
+    <Read2>151</Read2>
+    <Index1Read>8</Index1Read>
+    <Index2Read>8</Index2Read>
+    <SectionPerLane>1</SectionPerLane>
+    <LanePerSection>1</LanePerSection>
+  </Setup>
+  <RunID>180103_M000000_0000_0000000000</RunID>
+  <InstrumentID>MN00123</InstrumentID>
+  <RunNumber>269</RunNumber>
+  <RTAVersion>2.8.6.0</RTAVersion>
+  <SystemSuiteVersion>1.1.8.0</SystemSuiteVersion>
+  <LocalRunManagerVersion>1.3.1.0</LocalRunManagerVersion>
+  <FlowCellRfidTag>
+    <SerialNumber>000H2FFJ5</SerialNumber>
+    <PartNumber>15073184</PartNumber>
+    <LotNumber>20208198</LotNumber>
+    <ExpirationDate>2018-10-10T00:00:00</ExpirationDate>
+  </FlowCellRfidTag>
+  <ReagentKitRfidTag>
+    <SerialNumber>ML2038836-REAGT</SerialNumber>
+    <PartNumber>20001311</PartNumber>
+    <LotNumber>20196445</LotNumber>
+    <ExpirationDate>2018-09-14T00:00:00</ExpirationDate>
+  </ReagentKitRfidTag>
+  <FlowCellSerial>000H2FFJ5</FlowCellSerial>
+  <ReagentKitSerial>ML2038836-REAGT</ReagentKitSerial>
+  <ExperimentName>miniseq_1-3-18</ExperimentName>
+  <RunDescription />
+  <Chemistry>MiniSeq Mid</Chemistry>
+  <SelectedTiles>
+    <Tile>1_11101</Tile>
+    <Tile>1_21101</Tile>
+    <Tile>1_11102</Tile>
+    <Tile>1_21102</Tile>
+    <Tile>1_11103</Tile>
+    <Tile>1_21103</Tile>
+    <Tile>1_11104</Tile>
+    <Tile>1_21104</Tile>
+    <Tile>1_12101</Tile>
+    <Tile>1_22101</Tile>
+    <Tile>1_12102</Tile>
+    <Tile>1_22102</Tile>
+    <Tile>1_12103</Tile>
+    <Tile>1_22103</Tile>
+    <Tile>1_12104</Tile>
+    <Tile>1_22104</Tile>
+    <Tile>1_13101</Tile>
+    <Tile>1_23101</Tile>
+    <Tile>1_13102</Tile>
+    <Tile>1_23102</Tile>
+    <Tile>1_13103</Tile>
+    <Tile>1_23103</Tile>
+    <Tile>1_13104</Tile>
+    <Tile>1_23104</Tile>
+  </SelectedTiles>
+  <RunFolder>D:\Illumina\MiniSeq Sequencing Temp\180103_M000000_0000_0000000000\</RunFolder>
+  <PreRunFolderRoot>D:\Illumina\MiniSeq PreRun</PreRunFolderRoot>
+  <PreRunFolder>D:\Illumina\MiniSeq PreRun\MN00123_2018-01-03__11_06_40</PreRunFolder>
+  <OutputFolder>\\192.168.3.1\sequencing-incoming\180103_M000000_0000_0000000000\</OutputFolder>
+  <RecipeFolder>C:\Illumina\MiniSeq Control Software\Recipe\Mid\v1</RecipeFolder>
+  <SimulationFolder />
+  <RunStartDate>180103</RunStartDate>
+  <FocusMethod>IXFocus</FocusMethod>
+  <SurfaceToScan>Both</SurfaceToScan>
+  <SaveFocusImages>false</SaveFocusImages>
+  <SaveScanImages>false</SaveScanImages>
+  <SelectiveSave>true</SelectiveSave>
+  <IsPairedEnd>true</IsPairedEnd>
+  <AnalysisWorkflowType>GenerateFASTQ</AnalysisWorkflowType>
+  <CustomReadOnePrimer>BP10</CustomReadOnePrimer>
+  <CustomReadTwoPrimer>BP11</CustomReadTwoPrimer>
+  <CustomIndexPrimer>BP14</CustomIndexPrimer>
+  <CustomIndexTwoPrimer>BP14</CustomIndexTwoPrimer>
+  <UsesCustomReadOnePrimer>false</UsesCustomReadOnePrimer>
+  <UsesCustomReadTwoPrimer>false</UsesCustomReadTwoPrimer>
+  <UsesCustomIndexPrimer>false</UsesCustomIndexPrimer>
+  <UsesCustomIndexTwoPrimer>false</UsesCustomIndexTwoPrimer>
+  <AnalysisPortalType>LocalRunManager</AnalysisPortalType>
+  <LocalRunManagerRunId>247247</LocalRunManagerRunId>
+  <BaseSpaceRunMode>None</BaseSpaceRunMode>
+  <ComputerName>MN00123</ComputerName>
+  <SequencingStarted>true</SequencingStarted>
+  <PlannedRead1Cycles>151</PlannedRead1Cycles>
+  <PlannedRead2Cycles>151</PlannedRead2Cycles>
+  <PlannedIndex1ReadCycles>8</PlannedIndex1ReadCycles>
+  <PlannedIndex2ReadCycles>8</PlannedIndex2ReadCycles>
+  <IsRehyb>false</IsRehyb>
+  <PurgeConsumables>true</PurgeConsumables>
+  <MaxCyclesSupportedByReagentKit>318</MaxCyclesSupportedByReagentKit>
+</RunParameters>
