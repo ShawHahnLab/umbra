@@ -51,6 +51,22 @@ class Run:
                 msg = 'Run directory does not match Run ID: %s / %s' % args
                 warnings.warn(msg)
 
+        # Also load RunParameters.xml as that provides some things like
+        # sequencer model
+        try:
+            self.rundata["run_parameters"] = load_xml(path/"RunParameters.xml")
+        except FileNotFoundError:
+            try:
+                # older MiSeq software, like we were using until 2021 or so,
+                # used a lowercased filename
+                self.rundata["run_parameters"] = load_xml(path/"runParameters.xml")
+            except FileNotFoundError as err:
+                msg = 'RunParameters.xml missing for run: "%s"' % path
+                # strict behavior: raise an error
+                if strict or strict is None:
+                    raise ValueError(msg) from err
+                else:
+                    warnings.warn(msg)
         # Load in RTA completion status and available alignment directories.
         self.rundata["rta_complete"] = None
         self.alignments = []
@@ -166,3 +182,18 @@ class Run:
     def flowcell(self):
         """Flow cell ID."""
         return self.run_info.find("./Run/Flowcell").text
+
+    @property
+    def instrument_type(self):
+        """Instrument Type like Miseq, MiniSeq, MiSeqi100Plus, NextSeq 2000, etc."""
+        # newer sequencers actually supply this directly in the XML, but older
+        # ones just hint at it indirectly
+        params = self.rundata["run_parameters"]
+        if (inst_type := params.find("./InstrumentType")) is not None:
+            return inst_type.text
+        if (params_ver := params.find("./RunParametersVersion")) is not None:
+            inst_type_txt = re.sub("_.*", "", params_ver.text)
+            return inst_type_txt
+        # If neither InstrumentType nor RunParametersVersion are in the file, I
+        # give up
+        return None

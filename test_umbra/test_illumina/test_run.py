@@ -95,6 +95,14 @@ class TestRun(TestBase):
         """
         self.assertEqual("000000000-XXXXX", self.run.flowcell)
 
+    def test_instrument_type(self):
+        """Test the instrument_type property.
+
+        This should be the sequencer model from the run metadata, either parsed
+        directly from the XML or inferred indirectly for the older instruments.
+        """
+        self.assertEqual("MiSeq", self.run.instrument_type)
+
     def test_complete(self):
         """Test the complete property (True for a completed run)."""
         self.assertTrue(self.run.complete)
@@ -327,6 +335,10 @@ class TestRunMiniSeq(TestBase):
         """Test that a MiniSeq run gives an empty list as it has no BCL stats files."""
         observed = self.run.load_all_bcl_stats()
         self.assertEqual(observed, [])
+
+    def test_instrument_type(self):
+        """Test the instrument_type property, like for MiSeq."""
+        self.assertEqual("MiniSeq", self.run.instrument_type)
 
 
 class TestRunMisnamed(TestRun):
