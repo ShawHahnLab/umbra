@@ -4,6 +4,8 @@
 
 ### Added
 
+ * `instrument_type` property for `Run` class to identify the sequencer model
+   of a given run ([#143])
  * Illumina's "v2" sample sheets, used by newer instruments like the MiSeq i100
    Plus and NextSeq 200, are now supported ([#142])
 
@@ -11,6 +13,7 @@
 
  * Python from 3.9 to 3.11 is supported ([#140])
 
+[#143]: https://github.com/ShawHahnLab/umbra/pull/143
 [#142]: https://github.com/ShawHahnLab/umbra/pull/142
 [#140]: https://github.com/ShawHahnLab/umbra/pull/140
 
