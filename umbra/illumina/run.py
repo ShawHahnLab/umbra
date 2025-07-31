@@ -95,13 +95,15 @@ class Run:
         # First refresh any existing analysis dirs
         for aln in self.analyses:
             aln.refresh()
-        # Load from expected paths, using patterns for MiSeq and MiniSeq Make
-        # the paths absolute and canonical, since resolved paths are used
-        # within the Analysis objects
-        # TODO include NextSeq/MiSeq i100 Plus top-level "Analysis" location
+        # Load from expected paths, making the paths absolute and canonical,
+        # since resolved paths are used within the Analysis objects
+        # Old MiSeq
         al_loc1 = self.path.glob("Data/Intensities/BaseCalls/Alignment*")
+        # Newer MiSeq, MiniSeq
         al_loc2 = self.path.glob("Alignment*")
-        al_loc = list(al_loc1) + list(al_loc2)
+        # MiSeq i100 Plus, NextSeq 2000
+        al_loc3 = (self.path/"Analysis").glob("*")
+        al_loc = list(al_loc1) + list(al_loc2) + list(al_loc3)
         al_loc = [path.resolve() for path in al_loc]
         # Filter out those already loaded and process new ones
         al_loc_known = [aln.path for aln in self.analyses]

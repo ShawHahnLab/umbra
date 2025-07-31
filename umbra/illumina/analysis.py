@@ -19,8 +19,6 @@ def init_analysis_obj(path, run, completion_callback=None):
     the run object provided.
     """
     analysis_by_instr = {
-    #"MiSeq": AnalysisMiSeq,
-    #"MiniSeq": AnalysisMiniSeq,
     "MiSeq": AnalysisClassic,
     "MiniSeq": AnalysisClassic,
     "MiSeqi100Plus": AnalysisMiSeqi100Plus,
@@ -173,10 +171,6 @@ class AnalysisClassic(Analysis):
     run = property(lambda self: self._run)
 
     def refresh(self):
-        """Reload alignment status from disk.
-
-        If the alignment has just completed, and a callback function was
-        provided during instantiation, call it."""
         self.__path_attrs = load_sample_filenames(self._paths["fastq"])
         if (self.run is None or self.run.complete) and not self.complete:
             self.checkpoint = load_checkpoint(self._paths["checkpoint"])
@@ -221,17 +215,53 @@ class AnalysisClassic(Analysis):
         return sample_paths
 
 
-class AnalysisMiniSeq(Analysis):
-    ...
-
-
-class AnalysisMiSeq(Analysis):
-    ...
-
-
 class AnalysisMiSeqi100Plus(Analysis):
-    ...
+    """Analysis directory for a MiSeq i100 Plus run."""
 
 
 class AnalysisNextSeq2000(Analysis):
-    ...
+    """Analysis directory for a NextSeq 2000 run."""
+
+    def __init__(self, path, run=None, completion_callback=None):
+        self._run = run
+        path = Path(path).resolve()
+        self._path = path
+        self._completion_callback = completion_callback
+        self._paths = {}
+        self._paths["sample_sheet"] = (path/"Data/Reports/SampleSheet.csv").resolve(strict=True)
+        self._paths["fastq"] = (path/"Data/fastq").resolve()
+        self._sample_sheet = load_sample_sheet(self._paths["sample_sheet"])
+        self._fastq_complete = None
+        self.refresh()
+
+    path = property(lambda self: self._path)
+    sample_sheet = property(lambda self: self._sample_sheet)
+    sample_sheet_path = property(lambda self: self._paths["sample_sheet"])
+    run = property(lambda self: self._run)
+
+    def refresh(self):
+        self.__path_attrs = load_sample_filenames(self._paths["fastq"])
+        if (self.run is None or self.run.complete) and not self.complete:
+            if (path := self.path/"Data/fastq/Logs/FastqComplete.txt").exists():
+                with open(path, encoding="UTF8") as f_in:
+                    self._fastq_complete = f_in.read()
+            if self.complete and self._completion_callback:
+                self._completion_callback(self)
+
+    @property
+    def complete(self):
+        return self._fastq_complete and "Fastq generation complete" in self._fastq_complete
+
+    def sample_paths(self, strict=True):
+        reads = ["R1", "R2"] if len(self._sample_sheet["Reads"]) > 1 else ["R1"]
+        fps = defaultdict(list)
+        for attrs in self.__path_attrs:
+            if attrs["read"] in reads:
+                fps[attrs["sample_num"]].append(Path(attrs["path"]).resolve(strict=strict))
+        sample_names = [row["Sample_ID"] for row in self._sample_sheet["BCLConvert_Data"]]
+        sample_paths = {s_name: fps.get(idx+1, []) for idx, s_name in enumerate(sample_names)}
+        if strict and any(len(vals) < len(reads) for vals in sample_paths.values()):
+            # we should have either R1 or R1 & R2 for each sample.  If not and
+            # if strict=True, raise an exception.
+            raise FileNotFoundError
+        return sample_paths

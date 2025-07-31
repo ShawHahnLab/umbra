@@ -206,14 +206,15 @@ def load_sample_filenames(dirpath):
     """
     path_attrs = []
     for path in Path(dirpath).glob("*.fastq.gz"):
-        match = re.match(
-            r"^(.+)_S([0-9]+)_L([0-9]{3})_(R1|R2|I1|I2)_([0-9]+)\.fastq\.gz$", path.name)
+        match = re.fullmatch(
+            r"(?P<prefix>.+)_S(?P<sample_num>[0-9]+)_?L?(?P<lane>[0-9]{3})?_"
+            r"(?P<read>R1|R2|I1|I2)_(?P<suffix>[0-9]+)\.fastq\.gz", path.name)
         if not match:
             continue
-        fields = ["prefix", "sample_num", "lane", "read", "suffix"]
-        attrs = dict(zip(fields, match.groups()))
+        attrs = match.groupdict()
         attrs["sample_num"] = int(attrs["sample_num"])
-        attrs["lane"] = int(attrs["lane"])
+        if attrs["lane"] is not None:
+            attrs["lane"] = int(attrs["lane"])
         attrs["suffix"] = int(attrs["suffix"])
         attrs["path"] = str(path)
         path_attrs.append(attrs)
