@@ -442,7 +442,6 @@ class IlluminaProcessor:
         Any projects with previously-created metadata on disk will be marked
         inactive and not processed."""
         LOGGER.debug("proccesing new alignment: %s", aln.path)
-        LOGGER.debug("alignment paths for %s: %s", aln.path, aln.paths)
         projs = project.ProjectData.from_analysis(
             analysis=aln,
             path_exp=self.paths["exp"],
