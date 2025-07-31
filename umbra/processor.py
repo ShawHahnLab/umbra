@@ -381,8 +381,8 @@ class IlluminaProcessor:
             run = Run(
                 run_dir,
                 strict=True,
-                alignment_callback=self._proc_new_alignment,
-                min_alignment_dir_age=min_age)
+                analysis_callback=self._proc_new_alignment,
+                min_analysis_dir_age=min_age)
         except Exception as exception:
             # ValueError for unrecognized or mismatched directories
             if isinstance(exception, ValueError):
@@ -443,8 +443,8 @@ class IlluminaProcessor:
         inactive and not processed."""
         LOGGER.debug("proccesing new alignment: %s", aln.path)
         LOGGER.debug("alignment paths for %s: %s", aln.path, aln.paths)
-        projs = project.ProjectData.from_alignment(
-            alignment=aln,
+        projs = project.ProjectData.from_analysis(
+            analysis=aln,
             path_exp=self.paths["exp"],
             dp_align=self.paths["status"],
             dp_proc=self.paths["proc"],

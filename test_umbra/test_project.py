@@ -34,9 +34,9 @@ class TestProjectData(TestBaseHeavy):
         # (don't blame me, pylint, I didn't make unittest)
         self.maxDiff = None
         self.runobj = Run(self.paths["runs"] / "180101_M00000_0000_000000000-XXXXX")
-        self.alignment = self.runobj.alignments[0]
-        self.projs = ProjectData.from_alignment(
-            self.alignment,
+        self.analysis = self.runobj.analyses[0]
+        self.projs = ProjectData.from_analysis(
+            self.analysis,
             self.paths["exp"],
             self.paths["status"],
             self.paths["proc"],
@@ -55,10 +55,10 @@ class TestProjectData(TestBaseHeavy):
         """Test various ProjectData properties."""
         path_stat = self.paths["status"] / self.runobj.run_id / "0"
         self.assertEqual(self.projs["STR"].name, "STR")
-        self.assertEqual(self.projs["STR"].alignment, self.alignment)
+        self.assertEqual(self.projs["STR"].analysis, self.analysis)
         self.assertEqual(self.projs["STR"].path, path_stat / "STR.yml")
         self.assertEqual(self.projs["Something Else"].name, "Something Else")
-        self.assertEqual(self.projs["Something Else"].alignment, self.alignment)
+        self.assertEqual(self.projs["Something Else"].analysis, self.analysis)
         self.assertEqual(
             self.projs["Something Else"].path,
             path_stat / "Something_Else.yml")
@@ -68,7 +68,7 @@ class TestProjectData(TestBaseHeavy):
         # make sure it gives "date-project-names"
         # test any edge cases that may come up for those components
         works = {
-            # The date stamp is by completion date of the alignment, not
+            # The date stamp is by completion date of the analysis, not
             # start date of the run (i.e., the date encoded in the Run ID).
             "STR": "2018-01-01-STR-Jesse-XXXXX",
             # The names are organized in the order presented in the
@@ -89,8 +89,8 @@ class TestProjectData(TestBaseHeavy):
         mdata["status"] = "none"
         mdata["run_info"] = {"path": str(self.runobj.path)}
         mdata["sample_paths"] = {}
-        mdata["alignment_info"] = {"path": str(self.alignment.path)}
-        mdata["run_info"]["path"] = str(self.alignment.run.path)
+        mdata["analysis_info"] = {"path": str(self.analysis.path)}
+        mdata["run_info"]["path"] = str(self.analysis.run.path)
 
         md_str = dict(mdata)
         md_se = dict(mdata)
@@ -207,8 +207,8 @@ class TestProjectDataAlreadyProcessing(TestBaseHeavy):
     """
 
 
-class TestProjectDataFromAlignment(TestBaseHeavy):
-    """Tests for ProjectData.from_alignment."""
+class TestProjectDataFromAnalysis(TestBaseHeavy):
+    """Tests for ProjectData.from_analysis."""
 
     def set_up_vars(self):
         super().set_up_vars()
@@ -229,7 +229,7 @@ class TestProjectDataFromAlignment(TestBaseHeavy):
                 fqgz_path / "1086S4-01_S4_L001_R1_001.fastq.gz",
                 fqgz_path / "1086S4-01_S4_L001_R2_001.fastq.gz"]
             }
-        self.alignment = Mock(
+        self.analysis = Mock(
             experiment="Experiment",
             index=0,
             path=fqgz_path / "Alignment",
@@ -239,10 +239,10 @@ class TestProjectDataFromAlignment(TestBaseHeavy):
                 flowcell="000000000-XXXXX",
                 rta_complete={"Date": datetime.datetime(2018, 1, 1)}))
 
-    def test_from_alignment(self):
-        """Basic alignment situation."""
-        projs = ProjectData.from_alignment(
-            self.alignment,
+    def test_from_analysis(self):
+        """Basic analysis situation."""
+        projs = ProjectData.from_analysis(
+            self.analysis,
             self.paths["exp"],
             self.paths["status"],
             self.paths["proc"],
@@ -251,16 +251,16 @@ class TestProjectDataFromAlignment(TestBaseHeavy):
             self.mailer)
         self.assertEqual(len(projs), 2)
 
-    def test_from_alignment_iso8859(self):
+    def test_from_analysis_iso8859(self):
         """Experiment metadata.csv has weird characters.
 
         Here the weird characters should be removed and a warning should be
         logged.
         """
-        self.alignment.experiment = "iso8859"
+        self.analysis.experiment = "iso8859"
         with self.assertLogs(level=logging.WARNING) as log_cm:
-            projs = ProjectData.from_alignment(
-                self.alignment,
+            projs = ProjectData.from_analysis(
+                self.analysis,
                 self.paths["exp"],
                 self.paths["status"],
                 self.paths["proc"],

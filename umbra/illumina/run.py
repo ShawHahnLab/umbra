@@ -10,7 +10,7 @@ import logging
 import time
 from pathlib import Path
 from .util import load_xml, load_rta_complete, load_bcl_stats
-from .alignment import Alignment
+from .analysis import init_analysis_obj
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,13 +21,13 @@ class Run:
             self,
             path,
             strict=None,
-            alignment_callback=None,
-            min_alignment_dir_age=None):
+            analysis_callback=None,
+            min_analysis_dir_age=None):
         # Setup run path
         path = Path(path).resolve()
         self.path = path
-        self.alignment_callback = alignment_callback
-        self.min_alignment_dir_age = min_alignment_dir_age
+        self.analysis_callback = analysis_callback
+        self.min_analysis_dir_age = min_analysis_dir_age
 
         self.invalid = False
         self.rundata = {}
@@ -67,13 +67,13 @@ class Run:
                     raise ValueError(msg) from err
                 else:
                     warnings.warn(msg)
-        # Load in RTA completion status and available alignment directories.
+        # Load in RTA completion status and available analysis directories.
         self.rundata["rta_complete"] = None
-        self.alignments = []
+        self.analyses = []
         self.refresh()
         # CompletedJobInfo.xml should be there if a workflow (job) completed,
         # like GenerateFASTQ.  It looks like this file is just copied over at
-        # the end of the most recent job from the Alignment sub-folder (or
+        # the end of the most recent job from the Analysis sub-folder (or
         # written there directly, for newer MiSeqs).
         try:
             self.rundata["completed_job_info"] = load_xml(path/"CompletedJobInfo.xml")
@@ -81,60 +81,60 @@ class Run:
             self.rundata["completed_job_info"] = None
 
     def refresh(self):
-        """Check for run completion and any new or completed alignments.
+        """Check for run completion and any new or completed analyses.
 
-        Aside from RTAComplete.txt and the Alignment directories, nothing else
+        Aside from RTAComplete.txt and the Analysis directories, nothing else
         is checked.  If other files may have changed, instatiate a new Run
         object."""
         if not self.rta_complete:
             fpath = self.path/"RTAComplete.txt"
             self.rundata["rta_complete"] = load_rta_complete(fpath)
-        self._refresh_alignments()
+        self._refresh_analyses()
 
-    def _refresh_alignments(self):
-        # First refresh any existing alignments
-        for aln in self.alignments:
+    def _refresh_analyses(self):
+        # First refresh any existing analysis dirs
+        for aln in self.analyses:
             aln.refresh()
         # Load from expected paths, using patterns for MiSeq and MiniSeq Make
         # the paths absolute and canonical, since resolved paths are used
-        # within the alignment objects
+        # within the Analysis objects
+        # TODO include NextSeq/MiSeq i100 Plus top-level "Analysis" location
         al_loc1 = self.path.glob("Data/Intensities/BaseCalls/Alignment*")
         al_loc2 = self.path.glob("Alignment*")
         al_loc = list(al_loc1) + list(al_loc2)
         al_loc = [path.resolve() for path in al_loc]
         # Filter out those already loaded and process new ones
-        al_loc_known = [aln.path for aln in self.alignments]
+        al_loc_known = [aln.path for aln in self.analyses]
         is_new = lambda d: not d in al_loc_known
         al_loc = [d for d in al_loc if is_new(d)]
-        aln = [self._alignment_setup(d) for d in al_loc]
-        # Filter out any blanks.  These were either not recognized as
-        # alignments or skipped as too new and potentially unfinished (and
-        # logged appropriately) below.
+        aln = [self._analysis_setup(d) for d in al_loc]
+        # Filter out any blanks.  These were either not recognized as analyses
+        # or skipped as too new and potentially unfinished (and logged
+        # appropriately) below.
         aln = [a for a in aln if a]
         # Merge new ones into existing list
-        self.alignments += aln
+        self.analyses += aln
 
-    def _alignment_setup(self, path):
-        # Try loading an alignment directory, but skip if the alignment
-        # directory looks too new on disk (according to min_alignment_dir_age)
+    def _analysis_setup(self, path):
+        # Try loading an Analysis directory, but skip if the Analysis
+        # directory looks too new on disk (according to min_analysis_dir_age)
         # or just throw a warning and return None if it doesn't look like an
-        # Alignment.  This should handle not-yet-complete Alignment directories
+        # Analysis.  This should handle not-yet-complete Analysis directories
         # on disk while avoiding spurious warnings.
-        min_age = self.min_alignment_dir_age
+        min_age = self.min_analysis_dir_age
         time_change = path.stat().st_ctime
         time_now = time.time()
         if min_age is not None and (time_now - time_change < min_age):
-            msg = "skipping alignment; timestamp too new:.../%s/.../%s" % (
+            LOGGER.debug(
+                "skipping analysis; timestamp too new:.../%s/.../%s",
                 self.path.name, path.name)
-            LOGGER.debug(msg)
             return None
         try:
-            aln = Alignment(path, self, self.alignment_callback)
+            aln = init_analysis_obj(path, self, self.analysis_callback)
         except ValueError:
-            warnings.warn("Alignment not recognized: %s" % path)
+            warnings.warn(f"Analysis dir not recognized: {path}")
             return None
-        else:
-            return aln
+        return aln
 
     def load_all_bcl_stats(self):
         """Load all BCL stats files into list of dictionaries.
@@ -152,6 +152,11 @@ class Run:
             stats.append(data)
         stats = sorted(stats, key=lambda stat: (stat["cycle"], stat["lane"], stat["tile"]))
         return stats
+
+    @property
+    def alignments(self):
+        """Alias for the analyses attribute."""
+        return self.analyses
 
     @property
     def run_id(self):

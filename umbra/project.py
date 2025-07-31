@@ -3,7 +3,7 @@ Handle processing of select samples from a single run.
 
 This is the glue that connects raw sequence data and additional metadata
 supplied separately, and executes any processing tasks defined.  Objects of
-class ProjectData are created primarily via ProjectData.from_alignment in
+class ProjectData are created primarily via ProjectData.from_analysis in
 IlluminaProcessor, creating an arbitrary number of ProjectData instances for a
 given run as defined by the supplied metadata.csv.
 
@@ -29,7 +29,7 @@ from . import task
 LOGGER = logging.getLogger(__name__)
 
 class ProjectData:
-    """The data for a Run and Alignment specific to one project.
+    """The data for a Run and Analysis specific to one project.
 
     This references the data files within a specific run relevant to a single
     project, tracks the associated additional metadata provided via the
@@ -48,10 +48,10 @@ class ProjectData:
     STATUS = [NONE, PROCESSING, PACKAGE_READY, COMPLETE, FAILED]
 
     @staticmethod
-    def from_alignment(alignment, path_exp, dp_align, dp_proc, dp_pack,
+    def from_analysis(analysis, path_exp, dp_align, dp_proc, dp_pack,
                        uploader, mailer, nthreads=1, readonly=False,
                        conf=None):
-        """Make set of ProjectData objects from alignment/experiment table.
+        """Make set of ProjectData objects from analysis/experiment table.
 
         This is called from IlluminaProcessor and so is protected from a set of
         "expected" errors and just logs them appropriately.  Exceptions outside
@@ -59,8 +59,8 @@ class ProjectData:
         and catch fire, though."""
 
         projects = set()
-        if alignment.experiment:
-            exp_path = path_exp / alignment.experiment / "metadata.csv"
+        if analysis.experiment:
+            exp_path = path_exp / analysis.experiment / "metadata.csv"
             # pylint: disable=broad-except
             # Specific cases will be handled quietly, while unspecified
             # failures loading metadata.csv will be caught but complained about
@@ -74,31 +74,31 @@ class ProjectData:
                         LOGGER.warning(
                             ("Unrecognized character while parsing metadata.csv for %s; "
                              "will remove while while re-parsing"),
-                            alignment.experiment)
+                            analysis.experiment)
                         experiment_info = experiment.load_metadata(exp_path, non_unicode="strip")
                 except FileNotFoundError:
                     return projects
             except Exception:
                 LOGGER.critical(
-                    "Unrecognized error parsing metadata.csv for %s", alignment.experiment)
+                    "Unrecognized error parsing metadata.csv for %s", analysis.experiment)
                 LOGGER.critical(traceback.format_exc())
             else:
                 sample_paths = None
                 try:
-                    sample_paths = alignment.sample_paths()
+                    sample_paths = analysis.sample_paths()
                 except FileNotFoundError as exception:
                     # In this case there's a mismatch in the data files expected
-                    # from the Alignment directory's metadata and the data files
+                    # from the Analysis directory's metadata and the data files
                     # actually on disk.
                     msg = "\nFASTQ file not found:\n"
-                    msg += "Run:       %s\n" % alignment.run.path
-                    msg += "Alignment: %s\n" % alignment.path
-                    msg += "File:      %s\n" % exception.filename
+                    msg += f"Run:       {analysis.run.path}\n"
+                    msg += f"Analysis:  {analysis.path}\n"
+                    msg += f"File:      {exception.filename}\n"
                     warnings.warn(msg)
                 # Set of unique names in the experiment spreadsheet
                 names = {row["Project"] for row in experiment_info}
-                run_id = alignment.run.run_id
-                al_idx = str(alignment.index)
+                run_id = analysis.run.run_id
+                al_idx = str(analysis.index)
                 for name in names:
                     proj_file = slugify(name) + ".yml"
                     fpath = Path(dp_align) / run_id / al_idx / proj_file
@@ -107,7 +107,7 @@ class ProjectData:
                         path=fpath,
                         dp_proc=dp_proc,
                         dp_pack=dp_pack,
-                        alignment=alignment,
+                        analysis=analysis,
                         exp_info_full=experiment_info,
                         uploader=uploader,
                         mailer=mailer,
@@ -123,18 +123,18 @@ class ProjectData:
                         # initialize already.
                         proj.fail()
                         msg = "ProjectData setup failed for %s (%s)"
-                        msg = msg % (proj.work_dir, alignment.run.run_id)
+                        msg = msg % (proj.work_dir, analysis.run.run_id)
                         logging.getLogger(__name__).error(msg)
                     projects.add(proj)
         return projects
 
     def __init__(
-            self, name, path, dp_proc, dp_pack, alignment, exp_info_full,
+            self, name, path, dp_proc, dp_pack, analysis, exp_info_full,
             uploader, mailer, exp_path=None, nthreads=1, readonly=False,
             conf=None):
 
         self.name = name
-        self.alignment = alignment
+        self.analysis = analysis
         self.exp_path = exp_path # Orig experiment spreadsheet (maybe >1 proj)
         self.path = path # YAML metadata path
         self.nthreads = nthreads # max threads to give tasks
@@ -146,7 +146,7 @@ class ProjectData:
         self._metadata = {"status": ProjectData.NONE}
         self.readonly = self.path.exists() or readonly
         self.load_metadata()
-        self._metadata["alignment_info"] = {}
+        self._metadata["analysis_info"] = {}
         self._metadata["experiment_info"] = self._setup_exp_info(exp_info_full)
         self._metadata["experiment_info"]["path"] = str(exp_path or "")
         self._metadata["run_info"] = {}
@@ -155,11 +155,11 @@ class ProjectData:
         self.tasks = self._setup_tasks()
         self._metadata["task_status"] = self._setup_task_status()
         self._metadata["task_output"] = {}
-        if self.alignment:
-            self._metadata["alignment_info"]["path"] = str(self.alignment.path)
-            self._metadata["experiment_info"]["name"] = self.alignment.experiment
-        if self.alignment.run:
-            self._metadata["run_info"]["path"] = str(self.alignment.run.path)
+        if self.analysis:
+            self._metadata["analysis_info"]["path"] = str(self.analysis.path)
+            self._metadata["experiment_info"]["name"] = self.analysis.experiment
+        if self.analysis.run:
+            self._metadata["run_info"]["path"] = str(self.analysis.run.path)
 
         self.path_proc = Path(dp_proc) / self.work_dir
         self.path_pack = Path(dp_pack) / (self.work_dir + ".zip")
@@ -176,14 +176,14 @@ class ProjectData:
         LOGGER.info("ProjectData initialized: %s", self.work_dir)
 
     def _init_work_dir_name(self):
-        txt_date = datestamp(self.alignment.run.rta_complete["Date"])
+        txt_date = datestamp(self.analysis.run.rta_complete["Date"])
         txt_proj = slugify(self.name)
         # first names of contacts given
         who = self.experiment_info["contacts"]
         who = [txt.split(" ")[0] for txt in who.keys()]
         who = "-".join(who)
         txt_name = slugify(who)
-        txt_flowcell = re.sub("^[-0]+", "", self.alignment.run.flowcell)
+        txt_flowcell = re.sub("^[-0]+", "", self.analysis.run.flowcell)
         txt_flowcell = slugify(txt_flowcell)
         fields = [txt_date, txt_proj, txt_name, txt_flowcell]
         fields = [f for f in fields if f]
@@ -191,6 +191,11 @@ class ProjectData:
         if not dirname:
             raise ProjectError("empty work_dir")
         return dirname
+
+    @property
+    def alignment(self):
+        """Alias for the analysis attribute."""
+        return self.analysis
 
     @property
     def status(self):
@@ -251,7 +256,7 @@ class ProjectData:
         # (Also implicitly excludes unrelated sample paths that may be for
         # other projects.)
         if sample_paths is None:
-            raise ProjectError("sample paths not given from alignment")
+            raise ProjectError("sample paths not given from analysis")
         from_exp = set(self.experiment_info["sample_names"])
         from_given = set(sample_paths.keys())
         keepers = from_exp & from_given
@@ -314,9 +319,8 @@ class ProjectData:
         LOGGER.info("ProjectData processing: %s", self.work_dir)
         if self.readonly:
             raise ProjectError("ProjectData is read-only")
-        elif self.status != ProjectData.NONE:
-            msg = "ProjectData status already defined as \"%s\"" % self.status
-            raise ProjectError(msg)
+        if self.status != ProjectData.NONE:
+            raise ProjectError(f"ProjectData status already defined as \"{self.status}\"")
         self.status = ProjectData.PROCESSING
         try:
             self.path_proc.mkdir(parents=True, exist_ok=True)
@@ -374,7 +378,7 @@ class ProjectData:
         exp_info = {
             "sample_names": [],
             "tasks": [],
-            "contacts": dict()
+            "contacts": {}
             }
         for row in exp_info_full:
             if row["Project"] == self.name:
@@ -441,11 +445,12 @@ class ProjectData:
     def _run_task(self, taskname):
         """Process the next pending task."""
 
-        msg = "ProjectData processing: %s, task: %s" % (self.work_dir, taskname)
-        LOGGER.debug(msg)
+        LOGGER.debug(
+            "ProjectData processing: %s, task: %s",
+            self.work_dir, taskname)
         # match name to object
         taskobj = next(task for task in self.tasks if task.name == taskname)
         if not taskobj:
             # This should never happen (so it probably will).
-            raise ProjectError("task \"%s\" not recognized" % taskname)
+            raise ProjectError(f"task \"{taskname}\" not recognized")
         self._metadata["task_output"][taskname] = taskobj.runwrapper() or {}
