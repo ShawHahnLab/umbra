@@ -89,7 +89,7 @@ class TestProjectData(TestBaseHeavy):
         mdata["status"] = "none"
         mdata["run_info"] = {"path": str(self.runobj.path)}
         mdata["sample_paths"] = {}
-        mdata["analysis_info"] = {"path": str(self.analysis.path)}
+        mdata["alignment_info"] = {"path": str(self.analysis.path)}
         mdata["run_info"]["path"] = str(self.analysis.run.path)
 
         md_str = dict(mdata)

@@ -146,7 +146,7 @@ class ProjectData:
         self._metadata = {"status": ProjectData.NONE}
         self.readonly = self.path.exists() or readonly
         self.load_metadata()
-        self._metadata["analysis_info"] = {}
+        self._metadata["alignment_info"] = {}
         self._metadata["experiment_info"] = self._setup_exp_info(exp_info_full)
         self._metadata["experiment_info"]["path"] = str(exp_path or "")
         self._metadata["run_info"] = {}
@@ -156,7 +156,7 @@ class ProjectData:
         self._metadata["task_status"] = self._setup_task_status()
         self._metadata["task_output"] = {}
         if self.analysis:
-            self._metadata["analysis_info"]["path"] = str(self.analysis.path)
+            self._metadata["alignment_info"]["path"] = str(self.analysis.path)
             self._metadata["experiment_info"]["name"] = self.analysis.experiment
         if self.analysis.run:
             self._metadata["run_info"]["path"] = str(self.analysis.run.path)
