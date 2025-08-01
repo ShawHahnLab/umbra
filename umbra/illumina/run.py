@@ -133,8 +133,8 @@ class Run:
             return None
         try:
             aln = init_analysis_obj(path, self, self.analysis_callback)
-        except ValueError:
-            warnings.warn(f"Analysis dir not recognized: {path}")
+        except ValueError as err:
+            warnings.warn(f"Analysis dir not recognized: {path} (\"{str(err)}\")")
             return None
         return aln
 

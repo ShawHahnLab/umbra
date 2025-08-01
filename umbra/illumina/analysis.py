@@ -4,6 +4,7 @@ within a run.
 """
 
 import re
+import json
 from pathlib import Path
 from datetime import datetime
 from abc import ABC, abstractmethod
@@ -234,6 +235,42 @@ class AnalysisClassic(Analysis):
 
 class AnalysisMiSeqi100Plus(Analysis):
     """Analysis directory for a MiSeq i100 Plus run."""
+
+    def __init__(self, path, run=None, completion_callback=None):
+        self._run = run
+        path = Path(path).resolve()
+        self._path = path
+        self._completion_callback = completion_callback
+        self.__paths = {}
+        self.__paths["sample_sheet"] = (path/"inputs/SampleSheet.csv").resolve(strict=True)
+        # TODO is this the correct location for fastq.gz or just fastq.ora?
+        self.__paths["fastq"] = (path/"Data/BCLConvert/ora_fastq").resolve()
+        self._sample_sheet = load_sample_sheet(self.__paths["sample_sheet"])
+        self.__analysis_results = {}
+        # We need fastq.gz, not fastq.ora
+        if self._sample_sheet.get("BCLConvert_Settings", {}).get(\
+                "FastqCompressionFormat") == "dragen":
+            raise ValueError("DRAGEN ORA compression not supported")
+        self.refresh()
+
+    path = property(lambda self: self._path)
+    sample_sheet = property(lambda self: self._sample_sheet)
+    sample_sheet_path = property(lambda self: self.__paths["sample_sheet"])
+    run = property(lambda self: self._run)
+    _fastq_attrs = property(lambda self: self.__fastq_attrs[:])
+
+    def refresh(self):
+        self.__fastq_attrs = load_sample_filenames(self.__paths["fastq"])
+        if (self.run is None or self.run.complete) and not self.complete:
+            if (path := self.path/"analysisResults.json").exists():
+                with open(path, encoding="UTF8") as f_in:
+                    self.__analysis_results = json.load(f_in)
+            if self.complete and self._completion_callback:
+                self._completion_callback(self)
+
+    @property
+    def complete(self):
+        return self.__analysis_results.get("AnalysisStatus") == "Succeeded"
 
 
 class AnalysisNextSeq2000(Analysis):
