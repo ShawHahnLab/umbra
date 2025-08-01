@@ -1,0 +1,21 @@
+[Header]
+Local Run Manager Analysis Id,106106
+Experiment Name,MiniSeqTest
+Date,2025-01-01
+Module,GenerateFASTQ - 2.0.1
+Workflow,GenerateFASTQ
+Library Prep Kit,Custom
+Chemistry,Amplicon
+
+[Reads]
+151
+151
+
+[Settings]
+
+[Data]
+Sample_ID,Sample_Name,Description,index,I7_Index_ID,index2,I5_Index_ID,Sample_Project
+1,sample1,,TACCTGAC,TACCTGAC,ACCTAGTA,ACCTAGTA,
+2,sample2,,CCACGGCC,CCACGGCC,ACCTAGTA,ACCTAGTA,
+3,sample3,,AGGACCGC,AGGACCGC,ACCTAGTA,ACCTAGTA,
+4,sample4,,GATCATTC,GATCATTC,ACCTAGTA,ACCTAGTA,
