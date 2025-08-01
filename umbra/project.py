@@ -85,7 +85,7 @@ class ProjectData:
             else:
                 sample_paths = None
                 try:
-                    sample_paths = analysis.sample_paths()
+                    sample_paths = analysis.sample_paths_by_name()
                 except FileNotFoundError as exception:
                     # In this case there's a mismatch in the data files expected
                     # from the Analysis directory's metadata and the data files

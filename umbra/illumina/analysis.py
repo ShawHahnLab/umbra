@@ -110,17 +110,47 @@ class Analysis(ABC):
         """Alias for run_name"""
         return self.run_name
 
+    @property
     @abstractmethod
-    def sample_paths(self):
+    def _fastq_attrs(self):
+        """List of dictionaries describing the fastq.gz files present."""
+
+    def sample_paths_by_name(self, strict=True):
         """Create dictionary mapping each sample name to list of file paths.
 
         If Sample_Name is not present in the sample sheet, Sample_ID is used
         instead.
 
         NOTE: Sample names are not guaranteed to be unique in a given
-        alignment, so we should not rely on this to behave as expected.  This
-        function will be removed in a later release.
+        alignment, so we should not rely on this to behave as expected if
+        Sample_Name was specified.  This function may be removed in a later
+        release.
         """
+        data_section = self.sample_sheet.get("BCLConvert_Data", self.sample_sheet.get("Data"))
+        sample_names = [row.get("Sample_Name", row.get("Sample_ID")) for row in data_section]
+        return dict(zip(sample_names, self.sample_paths(strict)))
+
+    def sample_paths(self, strict=True):
+        """Create list of R1/R2 file path sets for each sample in order.
+        """
+        # Illumina documentation states the samples are numbered in the order
+        # in which they are listed in the sample sheet, and those numbers were
+        # used in the output filenames, so we should be able to safely assume
+        # the order will match up here.
+        #
+        # https://help.basespace.illumina.com/files-used-by-basespace/fastq-files
+        reads = ["R1", "R2"] if len(self.sample_sheet["Reads"]) > 1 else ["R1"]
+        fps = defaultdict(list)
+        data_section = self.sample_sheet.get("BCLConvert_Data", self.sample_sheet.get("Data"))
+        for attrs in self._fastq_attrs:
+            if attrs["read"] in reads:
+                fps[attrs["sample_num"]].append(Path(attrs["path"]).resolve(strict=strict))
+        paths = [fps.get(idx+1, []) for idx in range(len(data_section))]
+        if strict and any(len(vals) < len(reads) for vals in paths):
+            # we should have either R1 or R1 & R2 for each sample.  If not and
+            # if strict=True, raise an exception.
+            raise FileNotFoundError
+        return paths
 
 
 class AnalysisClassic(Analysis):
@@ -133,13 +163,13 @@ class AnalysisClassic(Analysis):
         self._path = path
         self._completion_callback = completion_callback
         # Absolute path to various files within the Alignment directory
-        self._paths = {}
+        self.__paths = {}
         try:
             try:
                 # MiSeq, directly in Alignment folder
-                self._paths["sample_sheet"] = (path/"SampleSheetUsed.csv").resolve(strict=True)
-                self._paths["fastq"] = (path / "..").resolve()
-                self._paths["checkpoint"] = path/"Checkpoint.txt"
+                self.__paths["sample_sheet"] = (path/"SampleSheetUsed.csv").resolve(strict=True)
+                self.__paths["fastq"] = (path / "..").resolve()
+                self.__paths["checkpoint"] = path/"Checkpoint.txt"
             except FileNotFoundError as err:
                 # MiniSeq, within timstamped subfolder
                 filt = lambda p: re.match("[0-9]{8}_[0-9]{6}", p.name)
@@ -148,32 +178,33 @@ class AnalysisClassic(Analysis):
                 if not dirs:
                     raise ValueError(f'Not a recognized Illumina alignment: "{path}"') from err
                 try:
-                    self._paths["sample_sheet"] = (
+                    self.__paths["sample_sheet"] = (
                         dirs[0]/"SampleSheetUsed.csv").resolve(strict=True)
                 # If both possible sample sheet paths threw FileNotFound, we won't
                 # consider this input path to be an alignment directory.
                 except FileNotFoundError as err2:
                     raise ValueError(f'Not a recognized Illumina alignment: "{path}"') from err2
-                self._paths["fastq"] = dirs[0] / "Fastq"
-                self._paths["checkpoint"] = dirs[0]/"Checkpoint.txt"
+                self.__paths["fastq"] = dirs[0] / "Fastq"
+                self.__paths["checkpoint"] = dirs[0]/"Checkpoint.txt"
         except PermissionError as err:
             # I'm seeing this happen sporadically with the updated MiSeq
             # software.  Looks like the permissions are restricted temporarily,
             # I'm thinking until the alignment dir is ready?
             raise ValueError(f"Permission error accessing {path}") from err
-        self._sample_sheet = load_sample_sheet(self._paths["sample_sheet"])
+        self._sample_sheet = load_sample_sheet(self.__paths["sample_sheet"])
         self.__fastq_first_checked = None
         self.refresh()
 
     path = property(lambda self: self._path)
     sample_sheet = property(lambda self: self._sample_sheet)
-    sample_sheet_path = property(lambda self: self._paths["sample_sheet"])
+    sample_sheet_path = property(lambda self: self.__paths["sample_sheet"])
     run = property(lambda self: self._run)
+    _fastq_attrs = property(lambda self: self.__fastq_attrs[:])
 
     def refresh(self):
-        self.__path_attrs = load_sample_filenames(self._paths["fastq"])
+        self.__fastq_attrs = load_sample_filenames(self.__paths["fastq"])
         if (self.run is None or self.run.complete) and not self.complete:
-            self.checkpoint = load_checkpoint(self._paths["checkpoint"])
+            self.checkpoint = load_checkpoint(self.__paths["checkpoint"])
             if self.complete:
                 try:
                     if not self.__fastq_first_checked:
@@ -200,20 +231,6 @@ class AnalysisClassic(Analysis):
         checkpoint = getattr(self, "checkpoint", None)
         return checkpoint[0] == 3 if checkpoint else False
 
-    def sample_paths(self, strict=True):
-        reads = ["R1", "R2"] if len(self._sample_sheet["Reads"]) > 1 else ["R1"]
-        fps = defaultdict(list)
-        for attrs in self.__path_attrs:
-            if attrs["read"] in reads:
-                fps[attrs["sample_num"]].append(Path(attrs["path"]).resolve(strict=strict))
-        sample_names = [row.get("Sample_Name") for row in self._sample_sheet["Data"]]
-        sample_paths = {s_name: fps.get(idx+1, []) for idx, s_name in enumerate(sample_names)}
-        if strict and any(len(vals) < len(reads) for vals in sample_paths.values()):
-            # we should have either R1 or R1 & R2 for each sample.  If not and
-            # if strict=True, raise an exception.
-            raise FileNotFoundError
-        return sample_paths
-
 
 class AnalysisMiSeqi100Plus(Analysis):
     """Analysis directory for a MiSeq i100 Plus run."""
@@ -227,41 +244,28 @@ class AnalysisNextSeq2000(Analysis):
         path = Path(path).resolve()
         self._path = path
         self._completion_callback = completion_callback
-        self._paths = {}
-        self._paths["sample_sheet"] = (path/"Data/Reports/SampleSheet.csv").resolve(strict=True)
-        self._paths["fastq"] = (path/"Data/fastq").resolve()
-        self._sample_sheet = load_sample_sheet(self._paths["sample_sheet"])
-        self._fastq_complete = None
+        self.__paths = {}
+        self.__paths["sample_sheet"] = (path/"Data/Reports/SampleSheet.csv").resolve(strict=True)
+        self.__paths["fastq"] = (path/"Data/fastq").resolve()
+        self._sample_sheet = load_sample_sheet(self.__paths["sample_sheet"])
+        self.__fastq_complete = None
         self.refresh()
 
     path = property(lambda self: self._path)
     sample_sheet = property(lambda self: self._sample_sheet)
-    sample_sheet_path = property(lambda self: self._paths["sample_sheet"])
+    sample_sheet_path = property(lambda self: self.__paths["sample_sheet"])
     run = property(lambda self: self._run)
+    _fastq_attrs = property(lambda self: self.__fastq_attrs[:])
 
     def refresh(self):
-        self.__path_attrs = load_sample_filenames(self._paths["fastq"])
+        self.__fastq_attrs = load_sample_filenames(self.__paths["fastq"])
         if (self.run is None or self.run.complete) and not self.complete:
             if (path := self.path/"Data/fastq/Logs/FastqComplete.txt").exists():
                 with open(path, encoding="UTF8") as f_in:
-                    self._fastq_complete = f_in.read()
+                    self.__fastq_complete = f_in.read()
             if self.complete and self._completion_callback:
                 self._completion_callback(self)
 
     @property
     def complete(self):
-        return self._fastq_complete and "Fastq generation complete" in self._fastq_complete
-
-    def sample_paths(self, strict=True):
-        reads = ["R1", "R2"] if len(self._sample_sheet["Reads"]) > 1 else ["R1"]
-        fps = defaultdict(list)
-        for attrs in self.__path_attrs:
-            if attrs["read"] in reads:
-                fps[attrs["sample_num"]].append(Path(attrs["path"]).resolve(strict=strict))
-        sample_names = [row["Sample_ID"] for row in self._sample_sheet["BCLConvert_Data"]]
-        sample_paths = {s_name: fps.get(idx+1, []) for idx, s_name in enumerate(sample_names)}
-        if strict and any(len(vals) < len(reads) for vals in sample_paths.values()):
-            # we should have either R1 or R1 & R2 for each sample.  If not and
-            # if strict=True, raise an exception.
-            raise FileNotFoundError
-        return sample_paths
+        return self.__fastq_complete and "Fastq generation complete" in self.__fastq_complete

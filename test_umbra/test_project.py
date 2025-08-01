@@ -233,7 +233,7 @@ class TestProjectDataFromAnalysis(TestBaseHeavy):
             experiment="Experiment",
             index=0,
             path=fqgz_path / "Alignment",
-            sample_paths=lambda: sample_paths,
+            sample_paths_by_name=lambda: sample_paths,
             run=Mock(
                 run_id="runid",
                 flowcell="000000000-XXXXX",
