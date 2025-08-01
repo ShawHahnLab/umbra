@@ -10,7 +10,7 @@ import logging
 import time
 from pathlib import Path
 from .util import load_xml, load_rta_complete, load_bcl_stats
-from .analysis import init_analysis_obj
+from .analysis import init_analysis_obj, AnalysisError, UnsupportedAnalysis
 
 LOGGER = logging.getLogger(__name__)
 
@@ -35,21 +35,18 @@ class Run:
         # so we'll use that to define a Run (finished or not).
         try:
             self.rundata["run_info"] = load_xml(path/"RunInfo.xml")
-        except FileNotFoundError:
-            msg = 'Not a recognized Illumina run: "%s"' % path
+        except FileNotFoundError as err:
+            msg = f'Not a recognized Illumina run: "{path}"'
             # strict behavior: raise an error
             if strict or strict is None:
-                raise ValueError(msg)
-            else:
-                warnings.warn(msg)
-                self.invalid = True
-                return
+                raise ValueError(msg) from err
+            warnings.warn(msg)
+            self.invalid = True
+            return
         info_run_id = self.run_info.find('Run').attrib["Id"]
         if info_run_id != path.name:
             if strict:
-                args = (path.name, info_run_id)
-                msg = 'Run directory does not match Run ID: %s / %s' % args
-                warnings.warn(msg)
+                warnings.warn(f'Run directory does not match Run ID: {path.name} / {info_run_id}')
 
         # Also load RunParameters.xml as that provides some things like
         # sequencer model
@@ -61,12 +58,11 @@ class Run:
                 # used a lowercased filename
                 self.rundata["run_parameters"] = load_xml(path/"runParameters.xml")
             except FileNotFoundError as err:
-                msg = 'RunParameters.xml missing for run: "%s"' % path
+                msg = f'RunParameters.xml missing for run: "{path}"'
                 # strict behavior: raise an error
                 if strict or strict is None:
                     raise ValueError(msg) from err
-                else:
-                    warnings.warn(msg)
+                warnings.warn(msg)
         # Load in RTA completion status and available analysis directories.
         self.rundata["rta_complete"] = None
         self.analyses = []
@@ -107,8 +103,7 @@ class Run:
         al_loc = [path.resolve() for path in al_loc]
         # Filter out those already loaded and process new ones
         al_loc_known = [aln.path for aln in self.analyses]
-        is_new = lambda d: not d in al_loc_known
-        al_loc = [d for d in al_loc if is_new(d)]
+        al_loc = [d for d in al_loc if d not in al_loc_known]
         aln = [self._analysis_setup(d) for d in al_loc]
         # Filter out any blanks.  These were either not recognized as analyses
         # or skipped as too new and potentially unfinished (and logged
@@ -132,9 +127,14 @@ class Run:
                 self.path.name, path.name)
             return None
         try:
-            aln = init_analysis_obj(path, self, self.analysis_callback)
-        except ValueError as err:
-            warnings.warn(f"Analysis dir not recognized: {path} (\"{str(err)}\")")
+            try:
+                aln = init_analysis_obj(path, self, self.analysis_callback)
+            except UnsupportedAnalysis:
+                # Just quietly ignore if we don't support some aspect of the
+                # analysis from this dir
+                return None
+        except AnalysisError as err:
+            warnings.warn(f"Analysis could not be loaded: {path} (\"{str(err)}\")")
             return None
         return aln
 

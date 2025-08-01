@@ -11,6 +11,19 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from .util import load_sample_sheet, load_checkpoint, load_sample_filenames
 
+class AnalysisError(Exception):
+    """Any sort of Analysis-related exception."""
+
+class UnrecognizedAnalysis(AnalysisError):
+    """The given directory doesn't look like an Analysis dir."""
+
+class UnrecognizedInstrument(AnalysisError):
+    """The instrument type for the containing run directory is not recognized."""
+
+class UnsupportedAnalysis(AnalysisError):
+    """Some aspect of the Analysis workflow is unsupported (e.g. .ora output)."""
+
+
 def init_analysis_obj(path, run, completion_callback=None):
     """Initialize a new Analysis object, inferring class from the given run
 
@@ -28,7 +41,7 @@ def init_analysis_obj(path, run, completion_callback=None):
     try:
         cls = analysis_by_instr[run.instrument_type]
     except KeyError as err:
-        raise ValueError(
+        raise UnrecognizedInstrument(
             f"Instrument type \"{run.instrument_type}\" not "
             "recognized for Analysis setup") from err
     analysis = cls(path, run, completion_callback)
@@ -160,7 +173,7 @@ class AnalysisClassic(Analysis):
     def __init__(self, path, run=None, completion_callback=None):
         self._run = run
         # Absolute path to the Alignment directory itself
-        path = Path(path).resolve()
+        path = Path(path).resolve(strict=True)
         self._path = path
         self._completion_callback = completion_callback
         # Absolute path to various files within the Alignment directory
@@ -177,21 +190,23 @@ class AnalysisClassic(Analysis):
                 dirs = [d for d in path.glob("*") if d.is_dir() and filt(d)]
                 # If there are no subdirectories this doesn't look like a MiniSeq alignment
                 if not dirs:
-                    raise ValueError(f'Not a recognized Illumina alignment: "{path}"') from err
+                    raise UnrecognizedAnalysis(
+                        f'Not a recognized Illumina alignment: "{path}"') from err
                 try:
                     self.__paths["sample_sheet"] = (
                         dirs[0]/"SampleSheetUsed.csv").resolve(strict=True)
                 # If both possible sample sheet paths threw FileNotFound, we won't
                 # consider this input path to be an alignment directory.
                 except FileNotFoundError as err2:
-                    raise ValueError(f'Not a recognized Illumina alignment: "{path}"') from err2
+                    raise UnrecognizedAnalysis(
+                        f'Not a recognized Illumina alignment: "{path}"') from err2
                 self.__paths["fastq"] = dirs[0] / "Fastq"
                 self.__paths["checkpoint"] = dirs[0]/"Checkpoint.txt"
         except PermissionError as err:
             # I'm seeing this happen sporadically with the updated MiSeq
             # software.  Looks like the permissions are restricted temporarily,
             # I'm thinking until the alignment dir is ready?
-            raise ValueError(f"Permission error accessing {path}") from err
+            raise AnalysisError(f"Permission error accessing {path}") from err
         self._sample_sheet = load_sample_sheet(self.__paths["sample_sheet"])
         self.__fastq_first_checked = None
         self.refresh()
@@ -238,7 +253,7 @@ class AnalysisMiSeqi100Plus(Analysis):
 
     def __init__(self, path, run=None, completion_callback=None):
         self._run = run
-        path = Path(path).resolve()
+        path = Path(path).resolve(strict=True)
         self._path = path
         self._completion_callback = completion_callback
         self.__paths = {}
@@ -250,7 +265,7 @@ class AnalysisMiSeqi100Plus(Analysis):
         # We need fastq.gz, not fastq.ora
         if self._sample_sheet.get("BCLConvert_Settings", {}).get(\
                 "FastqCompressionFormat") == "dragen":
-            raise ValueError("DRAGEN ORA compression not supported")
+            raise UnsupportedAnalysis("DRAGEN ORA compression not supported")
         self.refresh()
 
     path = property(lambda self: self._path)
@@ -278,7 +293,7 @@ class AnalysisNextSeq2000(Analysis):
 
     def __init__(self, path, run=None, completion_callback=None):
         self._run = run
-        path = Path(path).resolve()
+        path = Path(path).resolve(strict=True)
         self._path = path
         self._completion_callback = completion_callback
         self.__paths = {}
