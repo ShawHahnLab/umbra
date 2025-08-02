@@ -130,7 +130,7 @@ class Analysis(ABC):
         """List of dictionaries describing the fastq.gz files present."""
 
     def sample_paths_by_name(self, strict=True):
-        """Create dictionary mapping each sample name to list of file paths.
+        """Create dictionary mapping each sample name to tuple of file paths.
 
         If Sample_Name is not present in the sample sheet, Sample_ID is used
         instead.
@@ -145,7 +145,7 @@ class Analysis(ABC):
         return dict(zip(sample_names, self.sample_paths(strict)))
 
     def sample_paths(self, strict=True):
-        """Create list of R1/R2 file path sets for each sample in order.
+        """Create tuple of R1/R2 file path sets for each sample in order.
         """
         # Illumina documentation states the samples are numbered in the order
         # in which they are listed in the sample sheet, and those numbers were
@@ -159,7 +159,7 @@ class Analysis(ABC):
         for attrs in self._fastq_attrs:
             if attrs["read"] in reads:
                 fps[attrs["sample_num"]].append(Path(attrs["path"]).resolve(strict=strict))
-        paths = [fps.get(idx+1, []) for idx in range(len(data_section))]
+        paths = [tuple(fps.get(idx+1, [])) for idx in range(len(data_section))]
         if strict and any(len(vals) < len(reads) for vals in paths):
             # we should have either R1 or R1 & R2 for each sample.  If not and
             # if strict=True, raise an exception.

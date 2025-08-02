@@ -8,6 +8,9 @@ of an Illumina run directory on disk.
 
 from unittest.mock import Mock
 from abc import ABC, abstractmethod
+from tempfile import TemporaryDirectory
+from pathlib import Path
+from shutil import copytree
 from umbra.illumina import analysis
 from ..test_common import TestBase
 
@@ -83,18 +86,52 @@ class TestAnalysisClassicMiniSeq(TestAnalysis, TestBase):
     """Test AnalysisClassic class for a MiniSeq run's Alignment dir"""
 
     def setUp(self):
-        self.run = Mock(instrument_type="MiniSeq")
+        self.run = Mock(
+            instrument_type="MiniSeq",
+            analyses=[])
         self.analysis = analysis.AnalysisClassic(
-            self.path/"rundir/Alignment_1/20250101_000000", self.run)
+            self.path/"rundir/Alignment_1", self.run)
 
     def test_refresh(self):
         self.fail("not yet implemented")
 
     def test_index(self):
-        self.fail("not yet implemented")
+        # If the analysis isn't in the run's list yet, assume it's about to be
+        # appended as the latest one
+        self.assertEqual(self.analysis.index, 0)
+        self.run.analyses = ["A", "B", "C"]
+        self.assertEqual(self.analysis.index, 3)
+        # If it is in the list, just give that index
+        self.run.analyses = ["A", self.analysis, "C"]
+        self.assertEqual(self.analysis.index, 1)
+        # If no run object was given index is just None
+        self.assertIsNone(
+            analysis.AnalysisClassic(self.path/"rundir/Alignment_1").index)
 
     def test_complete(self):
-        self.fail("not yet implemented")
+        # as the test dir is set up by default, it should show up as complete.
+        self.assertTrue(self.analysis.complete)
+        with TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            copytree(self.path/"rundir", tmp/"rundir")
+            checkpoint_path = tmp/"rundir/Alignment_1/20250101_000000/Checkpoint.txt"
+            checkpoint_path.unlink()
+            def checkpoint(txt):
+                with open(checkpoint_path, "w", encoding="ASCII") as f_out:
+                    f_out.write(txt)
+            def setup():
+                return analysis.AnalysisClassic(tmp/"rundir/Alignment_1", self.run)
+            self.assertFalse(
+                setup().complete,
+                "complete should be False with missing Checkpoint.txt")
+            checkpoint("1\r\n\r\n")
+            self.assertFalse(
+                setup().complete,
+                "complete should be False with unexpected content in Checkpoint.txt")
+            checkpoint("3\r\n\r\n")
+            self.assertTrue(
+                setup().complete,
+                "complete should be True with expected content in Checkpoint.txt")
 
     def test_run(self):
         self.assertEqual(
@@ -104,7 +141,7 @@ class TestAnalysisClassicMiniSeq(TestAnalysis, TestBase):
     def test_path(self):
         self.assertEqual(
             self.analysis.path,
-            self.path.resolve()/"rundir/Alignment_1/20250101_000000")
+            self.path.resolve()/"rundir/Alignment_1")
 
     def test_sample_sheet_path(self):
         self.assertEqual(
@@ -122,9 +159,35 @@ class TestAnalysisClassicMiniSeq(TestAnalysis, TestBase):
         self.assertEqual(self.analysis.experiment, "MiniSeqTest")
 
     def test_sample_paths_by_name(self):
+        expected = {
+            "sample1": (
+                "20250101_000000/Fastq/sample1_S1_L001_R1_001.fastq.gz",
+                "20250101_000000/Fastq/sample1_S1_L001_R2_001.fastq.gz"),
+            "sample2": (
+                "20250101_000000/Fastq/sample2_S2_L001_R1_001.fastq.gz",
+                "20250101_000000/Fastq/sample2_S2_L001_R2_001.fastq.gz"),
+            "sample3": (
+                "20250101_000000/Fastq/sample3_S3_L001_R1_001.fastq.gz",
+                "20250101_000000/Fastq/sample3_S3_L001_R2_001.fastq.gz"),
+            "sample4": (
+                "20250101_000000/Fastq/sample4_S4_L001_R1_001.fastq.gz",
+                "20250101_000000/Fastq/sample4_S4_L001_R2_001.fastq.gz")}
+        root = self.path.resolve()/"rundir/Alignment_1"
+        expected = {key: (root/p[0], root/p[1]) for key, p in expected.items()}
         obs = self.analysis.sample_paths_by_name(strict=False)
-        self.assertEqual(obs, {})
+        self.assertEqual(obs, expected)
 
     def test_sample_paths(self):
+        expected = [
+            ("20250101_000000/Fastq/sample1_S1_L001_R1_001.fastq.gz",
+             "20250101_000000/Fastq/sample1_S1_L001_R2_001.fastq.gz"),
+            ("20250101_000000/Fastq/sample2_S2_L001_R1_001.fastq.gz",
+             "20250101_000000/Fastq/sample2_S2_L001_R2_001.fastq.gz"),
+            ("20250101_000000/Fastq/sample3_S3_L001_R1_001.fastq.gz",
+             "20250101_000000/Fastq/sample3_S3_L001_R2_001.fastq.gz"),
+            ("20250101_000000/Fastq/sample4_S4_L001_R1_001.fastq.gz",
+             "20250101_000000/Fastq/sample4_S4_L001_R2_001.fastq.gz")]
+        root = self.path.resolve()/"rundir/Alignment_1"
+        expected = [(root/p[0], root/p[1]) for p in expected]
         obs = self.analysis.sample_paths(strict=False)
-        self.assertEqual(obs, [])
+        self.assertEqual(obs, expected)
