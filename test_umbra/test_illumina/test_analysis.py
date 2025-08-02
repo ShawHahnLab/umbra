@@ -7,7 +7,6 @@ of an Illumina run directory on disk.
 """
 
 from unittest.mock import Mock
-from abc import ABC, abstractmethod
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from shutil import copytree
@@ -34,68 +33,21 @@ class TestAnalysisInit(TestBase):
             analysis.Analysis() # pylint: disable=abstract-class-instantiated
 
 
-def for_all_methods(decorator):
-    """Apply decorator to every callable in a class"""
-    # https://stackoverflow.com/a/6307868
-    def decorate(cls):
-        for attr in vars(cls):
-            if callable(getattr(cls, attr)):
-                setattr(cls, attr, decorator(getattr(cls, attr)))
-        return cls
-    return decorate
-
-@for_all_methods(abstractmethod)
-class TestAnalysis(ABC):
+class TestAnalysis:
     """Framework of tests for any concrete Analysis class (see below)"""
+    # (I'm trying to avoid repeating the same test code over and over with
+    # slight variations in the underlying data, and to make sure I test the
+    # same things for each case.  This works, but with the downside that I'm
+    # referencing all sorts of methods that don't get defined until the "real"
+    # test classes below.)
+    # pylint: disable=no-member
 
     def test_refresh(self):
         """Test that the refresh method loads the latest data from disk"""
-
-    def test_index(self):
-        """Test that the index property gives the index of this Analysis for the run"""
-
-    def test_complete(self):
-        """Test that the complete property reports completion of the Analysis"""
-
-    def test_run(self):
-        """Test that run property points to the associated Run object"""
-
-    def test_path(self):
-        """Test that path property points to Analysis directory path"""
-
-    def test_sample_sheet_path(self):
-        """Test that sample_sheet_path property contains full path to sample sheet"""
-
-    def test_sample_sheet(self):
-        """Test that sample_sheet property contains parsed sample sheet data"""
-
-    def test_run_name(self):
-        """Test that the run_name property points to RunName from the sample sheet"""
-
-    def test_experiment(self):
-        """Test that "experiment" is an alias for run_name"""
-
-    def test_sample_paths_by_name(self):
-        """Test making a dictionary of sample names to sets of fastq.gz paths"""
-
-    def test_sample_paths(self):
-        """Test making a list of sets of fastq.gz paths for each sample"""
-
-
-class TestAnalysisClassicMiniSeq(TestAnalysis, TestBase):
-    """Test AnalysisClassic class for a MiniSeq run's Alignment dir"""
-
-    def setUp(self):
-        self.run = Mock(
-            instrument_type="MiniSeq",
-            analyses=[])
-        self.analysis = analysis.AnalysisClassic(
-            self.path/"rundir/Alignment_1", self.run)
-
-    def test_refresh(self):
         self.fail("not yet implemented")
 
     def test_index(self):
+        """Test that the index property gives the index of this Analysis for the run"""
         # If the analysis isn't in the run's list yet, assume it's about to be
         # appended as the latest one
         self.assertEqual(self.analysis.index, 0)
@@ -106,21 +58,79 @@ class TestAnalysisClassicMiniSeq(TestAnalysis, TestBase):
         self.assertEqual(self.analysis.index, 1)
         # If no run object was given index is just None
         self.assertIsNone(
-            analysis.AnalysisClassic(self.path/"rundir/Alignment_1").index)
+            type(self.analysis)(
+                self.path/self.expected["dir"]).index)
+
+    def test_complete(self):
+        """Test that the complete property reports completion of the Analysis"""
+        self.fail("not yet implemented")
+
+    def test_run(self):
+        """Test that run property points to the associated Run object"""
+        self.assertEqual(
+            self.analysis.run,
+            self.run)
+
+    def test_path(self):
+        """Test that path property points to Analysis directory path"""
+        self.assertEqual(self.analysis.path, self.path.resolve()/self.expected["dir"])
+
+    def test_sample_sheet_path(self):
+        """Test that sample_sheet_path property contains full path to sample sheet"""
+        self.assertEqual(
+            self.analysis.sample_sheet_path,
+            self.path.resolve()/self.expected["sample_sheet_path"])
+
+    def test_sample_sheet(self):
+        """Test that sample_sheet property contains parsed sample sheet data"""
+        self.assertEqual(
+            set(self.analysis.sample_sheet) & {"Header", "Reads"},
+            {"Header", "Reads"})
+
+    def test_run_name(self):
+        """Test that the run_name property points to RunName from the sample sheet"""
+        self.assertEqual(self.analysis.run_name, self.expected["run_name"])
+
+    def test_experiment(self):
+        """Test that "experiment" is an alias for run_name"""
+        self.assertEqual(self.analysis.experiment, self.expected["run_name"])
+
+    def test_sample_paths_by_name(self):
+        """Test making a dictionary of sample names to sets of fastq.gz paths"""
+        samples = [f"sample{x+1}" for x in range(4)]
+        exp = self.expected["sample_paths"]
+        root = self.path.resolve()/self.expected["dir"]
+        expected = {
+            samp: ((root/p[0]).resolve(), (root/p[1]).resolve()) for samp, p in zip(samples, exp)}
+        obs = self.analysis.sample_paths_by_name()
+        self.assertEqual(obs, expected)
+
+    def test_sample_paths(self):
+        """Test making a list of sets of fastq.gz paths for each sample"""
+        root = self.path.resolve()/self.expected["dir"]
+        expected = [
+            ((root/p[0]).resolve(), (root/p[1]).resolve()) for p in self.expected["sample_paths"]]
+        obs = self.analysis.sample_paths()
+        self.assertEqual(obs, expected)
+
+
+class TestAnalysisClassic(TestAnalysis):
+    """Test AnalysisClassic class, for MiSeq or MiniSeq"""
+    # pylint: disable=no-member
 
     def test_complete(self):
         # as the test dir is set up by default, it should show up as complete.
         self.assertTrue(self.analysis.complete)
         with TemporaryDirectory() as tmp:
             tmp = Path(tmp)
-            copytree(self.path/"rundir", tmp/"rundir")
-            checkpoint_path = tmp/"rundir/Alignment_1/20250101_000000/Checkpoint.txt"
+            copytree(self.path/self.expected["run_dir"], tmp/self.expected["run_dir"])
+            checkpoint_path = tmp/self.expected["sub_dir"]/"Checkpoint.txt"
             checkpoint_path.unlink()
             def checkpoint(txt):
                 with open(checkpoint_path, "w", encoding="ASCII") as f_out:
                     f_out.write(txt)
             def setup():
-                return analysis.AnalysisClassic(tmp/"rundir/Alignment_1", self.run)
+                return analysis.AnalysisClassic(tmp/self.expected["dir"], self.run)
             self.assertFalse(
                 setup().complete,
                 "complete should be False with missing Checkpoint.txt")
@@ -133,61 +143,143 @@ class TestAnalysisClassicMiniSeq(TestAnalysis, TestBase):
                 setup().complete,
                 "complete should be True with expected content in Checkpoint.txt")
 
-    def test_run(self):
-        self.assertEqual(
-            self.analysis.run,
-            self.run)
 
-    def test_path(self):
-        self.assertEqual(
-            self.analysis.path,
-            self.path.resolve()/"rundir/Alignment_1")
+class TestAnalysisClassicMiSeq(TestAnalysisClassic, TestBase):
+    """Test AnalysisClassic class for a MiSeq run's Alignment dir"""
 
-    def test_sample_sheet_path(self):
-        self.assertEqual(
-            self.analysis.sample_sheet_path,
-            self.path.resolve()/"rundir/Alignment_1/20250101_000000/SampleSheetUsed.csv")
+    def setUp(self):
+        self.run = Mock(
+            instrument_type="MiSeq",
+            analyses=[])
+        self.analysis = analysis.AnalysisClassic(
+            self.path/"250708_M05588_0825_000000000-GRBN9/Alignment_1", self.run)
+        self.expected = {
+            "run_name": "MiSeqTest",
+            "dir": "250708_M05588_0825_000000000-GRBN9/Alignment_1",
+            "sub_dir": "250708_M05588_0825_000000000-GRBN9/Alignment_1/20250709_055347",
+            "run_dir": "250708_M05588_0825_000000000-GRBN9",
+            "sample_sheet_path": "250708_M05588_0825_000000000-GRBN9/Alignment_1/"
+                "20250709_055347/SampleSheetUsed.csv",
+            "sample_paths": [
+            ("20250709_055347/Fastq/sample1_S1_L001_R1_001.fastq.gz",
+             "20250709_055347/Fastq/sample1_S1_L001_R2_001.fastq.gz"),
+            ("20250709_055347/Fastq/sample2_S2_L001_R1_001.fastq.gz",
+             "20250709_055347/Fastq/sample2_S2_L001_R2_001.fastq.gz"),
+            ("20250709_055347/Fastq/sample3_S3_L001_R1_001.fastq.gz",
+             "20250709_055347/Fastq/sample3_S3_L001_R2_001.fastq.gz"),
+            ("20250709_055347/Fastq/sample4_S4_L001_R1_001.fastq.gz",
+             "20250709_055347/Fastq/sample4_S4_L001_R2_001.fastq.gz")]}
 
-    def test_sample_sheet(self):
-        self.assertEqual(
-            self.analysis.sample_sheet["Header"]["Experiment Name"], "MiniSeqTest")
 
-    def test_run_name(self):
-        self.assertEqual(self.analysis.run_name, "MiniSeqTest")
+class TestAnalysisClassicMiSeqOld(TestAnalysisClassic, TestBase):
+    """Test AnalysisClassic class for a MiSeq run's Alignment dir, circa 2021
 
-    def test_experiment(self):
-        self.assertEqual(self.analysis.experiment, "MiniSeqTest")
+    This tests the Alignment directory output structure from the older Illumina
+    software in use on one of our MiSeqs until 2021 or so.  I'm still bothering
+    to test that here to make sure we can still process old data if needed.
+    """
 
-    def test_sample_paths_by_name(self):
-        expected = {
-            "sample1": (
-                "20250101_000000/Fastq/sample1_S1_L001_R1_001.fastq.gz",
-                "20250101_000000/Fastq/sample1_S1_L001_R2_001.fastq.gz"),
-            "sample2": (
-                "20250101_000000/Fastq/sample2_S2_L001_R1_001.fastq.gz",
-                "20250101_000000/Fastq/sample2_S2_L001_R2_001.fastq.gz"),
-            "sample3": (
-                "20250101_000000/Fastq/sample3_S3_L001_R1_001.fastq.gz",
-                "20250101_000000/Fastq/sample3_S3_L001_R2_001.fastq.gz"),
-            "sample4": (
-                "20250101_000000/Fastq/sample4_S4_L001_R1_001.fastq.gz",
-                "20250101_000000/Fastq/sample4_S4_L001_R2_001.fastq.gz")}
-        root = self.path.resolve()/"rundir/Alignment_1"
-        expected = {key: (root/p[0], root/p[1]) for key, p in expected.items()}
-        obs = self.analysis.sample_paths_by_name(strict=False)
-        self.assertEqual(obs, expected)
+    def setUp(self):
+        self.run = Mock(
+            instrument_type="MiSeq",
+            analyses=[])
+        self.analysis = analysis.AnalysisClassic(
+            self.path/"210802_M00281_0060_000000000-DCT7T"/
+            "Data/Intensities/BaseCalls/Alignment", self.run)
+        self.expected = {
+            "run_name": "MiSeqTestOld",
+            "dir": "210802_M00281_0060_000000000-DCT7T/Data/Intensities/BaseCalls/Alignment",
+            "sub_dir": "210802_M00281_0060_000000000-DCT7T/Data/Intensities/BaseCalls/Alignment",
+            "run_dir": "210802_M00281_0060_000000000-DCT7T",
+            "sample_sheet_path": "210802_M00281_0060_000000000-DCT7T/Data/Intensities/"
+                "BaseCalls/Alignment/SampleSheetUsed.csv",
+            "sample_paths": [
+            ("../sample1_S1_L001_R1_001.fastq.gz",
+             "../sample1_S1_L001_R2_001.fastq.gz"),
+            ("../sample2_S2_L001_R1_001.fastq.gz",
+             "../sample2_S2_L001_R2_001.fastq.gz"),
+            ("../sample3_S3_L001_R1_001.fastq.gz",
+             "../sample3_S3_L001_R2_001.fastq.gz"),
+            ("../sample4_S4_L001_R1_001.fastq.gz",
+             "../sample4_S4_L001_R2_001.fastq.gz")]}
 
-    def test_sample_paths(self):
-        expected = [
-            ("20250101_000000/Fastq/sample1_S1_L001_R1_001.fastq.gz",
-             "20250101_000000/Fastq/sample1_S1_L001_R2_001.fastq.gz"),
-            ("20250101_000000/Fastq/sample2_S2_L001_R1_001.fastq.gz",
-             "20250101_000000/Fastq/sample2_S2_L001_R2_001.fastq.gz"),
-            ("20250101_000000/Fastq/sample3_S3_L001_R1_001.fastq.gz",
-             "20250101_000000/Fastq/sample3_S3_L001_R2_001.fastq.gz"),
-            ("20250101_000000/Fastq/sample4_S4_L001_R1_001.fastq.gz",
-             "20250101_000000/Fastq/sample4_S4_L001_R2_001.fastq.gz")]
-        root = self.path.resolve()/"rundir/Alignment_1"
-        expected = [(root/p[0], root/p[1]) for p in expected]
-        obs = self.analysis.sample_paths(strict=False)
-        self.assertEqual(obs, expected)
+
+class TestAnalysisClassicMiniSeq(TestAnalysisClassic, TestBase):
+    """Test AnalysisClassic class for a MiniSeq run's Alignment dir"""
+
+    def setUp(self):
+        self.run = Mock(
+            instrument_type="MiniSeq",
+            analyses=[])
+        self.analysis = analysis.AnalysisClassic(
+            self.path/"250606_MN00123_0517_A000H7WW75/Alignment_1", self.run)
+        self.expected = {
+            "run_name": "MiniSeqTest",
+            "dir": "250606_MN00123_0517_A000H7WW75/Alignment_1",
+            "sub_dir": "250606_MN00123_0517_A000H7WW75/Alignment_1/20250607_055807",
+            "run_dir": "250606_MN00123_0517_A000H7WW75",
+            "sample_sheet_path": "250606_MN00123_0517_A000H7WW75/Alignment_1/"
+                "20250607_055807/SampleSheetUsed.csv",
+            "sample_paths": [
+            ("20250607_055807/Fastq/sample1_S1_L001_R1_001.fastq.gz",
+             "20250607_055807/Fastq/sample1_S1_L001_R2_001.fastq.gz"),
+            ("20250607_055807/Fastq/sample2_S2_L001_R1_001.fastq.gz",
+             "20250607_055807/Fastq/sample2_S2_L001_R2_001.fastq.gz"),
+            ("20250607_055807/Fastq/sample3_S3_L001_R1_001.fastq.gz",
+             "20250607_055807/Fastq/sample3_S3_L001_R2_001.fastq.gz"),
+            ("20250607_055807/Fastq/sample4_S4_L001_R1_001.fastq.gz",
+             "20250607_055807/Fastq/sample4_S4_L001_R2_001.fastq.gz")]}
+
+
+class TestAnalysisNextSeq2000(TestAnalysis, TestBase):
+    """Test AnalysisNextSeq2000 class"""
+
+    def setUp(self):
+        self.run = Mock(
+            instrument_type="NextSeq2000",
+            analyses=[])
+        self.analysis = analysis.AnalysisNextSeq2000(
+            self.path/"250304_VH01673_47_2227MWWNX/Analysis/1", self.run)
+        self.expected = {
+            "run_name": "NextSeq2000Test",
+            "dir": "250304_VH01673_47_2227MWWNX/Analysis/1",
+            "sub_dir": "250304_VH01673_47_2227MWWNX/Analysis/1",
+            "run_dir": "250304_VH01673_47_2227MWWNX",
+            "sample_sheet_path": ("250304_VH01673_47_2227MWWNX/Analysis/1/"
+                "Data/Reports/SampleSheet.csv"),
+            "sample_paths": [
+            ("Data/fastq/sample1_S1_L001_R1_001.fastq.gz",
+             "Data/fastq/sample1_S1_L001_R2_001.fastq.gz"),
+            ("Data/fastq/sample2_S2_L001_R1_001.fastq.gz",
+             "Data/fastq/sample2_S2_L001_R2_001.fastq.gz"),
+            ("Data/fastq/sample3_S3_L001_R1_001.fastq.gz",
+             "Data/fastq/sample3_S3_L001_R2_001.fastq.gz"),
+            ("Data/fastq/sample4_S4_L001_R1_001.fastq.gz",
+             "Data/fastq/sample4_S4_L001_R2_001.fastq.gz")]}
+
+    def test_complete(self):
+        self.assertTrue(self.analysis.complete)
+        with TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            copytree(self.path/self.expected["run_dir"], tmp/self.expected["run_dir"])
+            fqcomp_path = tmp/self.expected["sub_dir"]/"Data/fastq/Logs/FastqComplete.txt"
+            with open(fqcomp_path, encoding="ASCII") as f_in:
+                orig = f_in.read()
+            fqcomp_path.unlink()
+            def fqcomp(txt):
+                with open(fqcomp_path, "w", encoding="ASCII") as f_out:
+                    f_out.write(txt)
+            def setup():
+                return analysis.AnalysisNextSeq2000(tmp/
+                    self.expected["dir"], self.run)
+            self.assertFalse(
+                setup().complete,
+                "complete should be False with missing FastqComplete.txt")
+            fqcomp("ERR")
+            self.assertFalse(
+                setup().complete,
+                "complete should be False with unexpected content in FastqComplete.txt")
+            fqcomp(orig)
+            self.assertTrue(
+                setup().complete,
+                "complete should be True with expected content in FastqComplete.txt")

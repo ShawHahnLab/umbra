@@ -1,0 +1,22 @@
+[Header]
+Local Run Manager Analysis Id,303303
+Experiment Name,MiSeqTest
+Date,2025-07-09
+Module,GenerateFASTQ - 3.0.1
+Workflow,GenerateFASTQ
+Library Prep Kit,Custom
+Index Kit,Custom
+Chemistry,Amplicon
+
+[Reads]
+151
+151
+
+[Settings]
+
+[Data]
+Sample_ID,Sample_Name,Description,I7_Index_ID,index,I5_Index_ID,index2,Sample_Project
+1,sample1,,TACCTGAC,TACCTGAC,TACTAGGT,TACTAGGT,
+2,sample2,,CCACGGCC,CCACGGCC,TACTAGGT,TACTAGGT,
+3,sample3,,AGGACCGC,AGGACCGC,TACTAGGT,TACTAGGT,
+4,sample4,,GATCATTC,GATCATTC,TACTAGGT,TACTAGGT,

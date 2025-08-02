@@ -180,12 +180,12 @@ class AnalysisClassic(Analysis):
         self.__paths = {}
         try:
             try:
-                # MiSeq, directly in Alignment folder
+                # Old MiSeq, directly in Alignment folder
                 self.__paths["sample_sheet"] = (path/"SampleSheetUsed.csv").resolve(strict=True)
                 self.__paths["fastq"] = (path / "..").resolve()
                 self.__paths["checkpoint"] = path/"Checkpoint.txt"
             except FileNotFoundError as err:
-                # MiniSeq, within timstamped subfolder
+                # newer MiSeq and MiniSeq, within timstamped subfolder
                 filt = lambda p: re.match("[0-9]{8}_[0-9]{6}", p.name)
                 dirs = [d for d in path.glob("*") if d.is_dir() and filt(d)]
                 # If there are no subdirectories this doesn't look like a MiniSeq alignment
