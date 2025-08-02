@@ -53,7 +53,7 @@ class TestAnalysis(ABC):
         """
         # The Analysis object from setUp() should have already had the
         # completion callback called.
-        self.callback.asert_called_once()
+        self.callback.assert_called_once()
         # But what about one that's incomplete to start with?
         callback = Mock()
         with TemporaryDirectory() as tmp:
