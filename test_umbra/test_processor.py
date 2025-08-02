@@ -8,15 +8,14 @@ coordinates simultaneous processing between multiple projects.
 """
 
 import unittest
-import copy
 import io
 import re
 import warnings
 import threading
 import logging
+from copy import deepcopy
 from pathlib import Path
-from distutils.dir_util import copy_tree, remove_tree, mkpath
-from distutils.file_util import copy_file
+from shutil import copytree, rmtree, copy
 from tempfile import TemporaryDirectory
 import umbra.processor
 from umbra.processor import IlluminaProcessor
@@ -83,7 +82,7 @@ class TestIlluminaProcessor(TestBaseHeavy):
         # This is different from refresh() because it will fully load in the
         # current data.  If a run directory is gone, for example, it won't be
         # in the list anymore.
-        remove_tree(str(self.path_run), verbose=True)
+        rmtree(str(self.path_run))
         self.proc.load(wait=True)
         self.assertEqual(
             len(self.proc.seqinfo["runs"]),
@@ -96,8 +95,8 @@ class TestIlluminaProcessor(TestBaseHeavy):
         # Start with one run missing, stashed elsewhere
         with TemporaryDirectory() as stash:
             run_stash = str(Path(stash)/self.expected["run_id"])
-            copy_tree(str(self.path_run), run_stash)
-            remove_tree(self.path_run)
+            copytree(str(self.path_run), run_stash)
+            rmtree(self.path_run)
             # Start with an empty set
             self.assertEqual(self.proc.seqinfo["runs"], set())
             proj_exp = {"active": set(), "inactive": set(), "completed": set()}
@@ -111,7 +110,7 @@ class TestIlluminaProcessor(TestBaseHeavy):
             self.assertEqual(len(self.proc.seqinfo["runs"]), self.expected["num_runs"] - 1)
             self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             # Copy run directory back
-            copy_tree(run_stash, str(self.path_run))
+            copytree(run_stash, str(self.path_run))
             # Now, we should load a new Run with refresh()
             self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             self.proc.start()
@@ -214,8 +213,8 @@ class TestIlluminaProcessor(TestBaseHeavy):
         with TemporaryDirectory() as stash:
             align_orig = str(path_run/"Data"/"Intensities"/"BaseCalls"/"Alignment")
             align_stash = str(Path(stash)/"Alignment")
-            copy_tree(align_orig, align_stash)
-            remove_tree(align_orig)
+            copytree(align_orig, align_stash)
+            rmtree(align_orig)
             # Refresh loads all Runs to start with.
             #with self.assertWarns(Warning) as cm:
             #    self.proc.refresh()
@@ -225,7 +224,7 @@ class TestIlluminaProcessor(TestBaseHeavy):
             self.assertEqual(len(get_al()), 0)
             # Create empty Alignment directory, as if it's just starting off
             # and hasn't received any data yet
-            mkpath(align_orig)
+            Path(align_orig).mkdir(parents=True)
             with self.assertWarns(Warning) as _:
                 self.proc.refresh()
             # Third run still has no alignments since the sample sheet isn't
@@ -233,13 +232,13 @@ class TestIlluminaProcessor(TestBaseHeavy):
             # complete or no.
             self.assertEqual(len(get_al()), 0)
             # OK, now there's a sample sheet so the alignment should load.
-            copy_file(Path(align_stash)/"SampleSheetUsed.csv", align_orig)
+            copy(Path(align_stash)/"SampleSheetUsed.csv", align_orig)
             self.proc.refresh(wait=True)
             # Now there's an incomplete alignment, right?
             self.assertEqual(len(get_al()), 1)
             self.assertTrue(not get_al()[0].complete)
             # Once Checkpoint.txt shows up, the alignment is presumed complete.
-            copy_file(Path(align_stash)/"Checkpoint.txt", align_orig)
+            copy(Path(align_stash)/"Checkpoint.txt", align_orig)
             self.proc.refresh(wait=True)
             self.assertEqual(len(get_al()), 1)
             self.assertTrue(get_al()[0].complete)
@@ -253,7 +252,7 @@ class TestIlluminaProcessorDuplicateRun(TestIlluminaProcessor):
         # when the project data is loaded.
         run_orig = str(self.paths["runs"]/"180102_M00000_0000_000000000-XXXXX")
         run_dup = str(self.paths["runs"]/"run-files-custom-name")
-        copy_tree(run_orig, run_dup)
+        copytree(run_orig, run_dup)
         self.proc = IlluminaProcessor(self.paths["top"], self.config)
 
     def set_up_vars(self):
@@ -310,7 +309,7 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
     worker threads aren't run."""
 
     def set_up_config(self):
-        self.config = copy.deepcopy(CONFIG)
+        self.config = deepcopy(CONFIG)
         self.config["readonly"] = True
 
     def set_up_vars(self):
@@ -325,8 +324,8 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
         they get marked inactive."""
         with TemporaryDirectory() as stash:
             run_stash = str(Path(stash)/self.expected["run_id"])
-            copy_tree(str(self.path_run), run_stash)
-            remove_tree(self.path_run)
+            copytree(str(self.path_run), run_stash)
+            rmtree(self.path_run)
             # Start with an empty set
             self.assertEqual(self.proc.seqinfo["runs"], set())
             proj_exp = {"active": set(), "inactive": set(), "completed": set()}
@@ -340,7 +339,7 @@ class TestIlluminaProcessorReadonly(TestIlluminaProcessor):
             self.assertEqual(len(self.proc.seqinfo["runs"]), self.expected["num_runs"] - 1)
             self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             # Copy run directory back
-            copy_tree(run_stash, str(self.path_run))
+            copytree(run_stash, str(self.path_run))
             # Now, we should load a new Run with refresh()
             self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             self.proc.refresh(wait=True)
@@ -355,7 +354,7 @@ class TestIlluminaProcessorReportConfig(TestIlluminaProcessor):
     """Test customization of the report configuration."""
 
     def set_up_config(self):
-        self.config = copy.deepcopy(CONFIG)
+        self.config = deepcopy(CONFIG)
         self.config["save_report"] = {}
         path = Path(self.tmpdir.name) / "report.csv"
         self.config["save_report"]["path"] = path
@@ -381,7 +380,7 @@ class TestIlluminaProcessorMinRunAge(TestIlluminaProcessor):
     directory) will be skipped."""
 
     def set_up_config(self):
-        self.config = copy.deepcopy(CONFIG)
+        self.config = deepcopy(CONFIG)
         self.config["min_age"] = 60 # seconds
 
     def set_up_vars(self):
@@ -398,8 +397,8 @@ class TestIlluminaProcessorMinRunAge(TestIlluminaProcessor):
         """
         with TemporaryDirectory() as stash:
             run_stash = str(Path(stash)/self.expected["run_id"])
-            copy_tree(str(self.path_run), run_stash)
-            remove_tree(self.path_run)
+            copytree(str(self.path_run), run_stash)
+            rmtree(self.path_run)
             # Start with an empty set
             self.assertEqual(self.proc.seqinfo["runs"], set())
             proj_exp = {"active": set(), "inactive": set(), "completed": set()}
@@ -417,7 +416,7 @@ class TestIlluminaProcessorMinRunAge(TestIlluminaProcessor):
             self.assertEqual(self.proc.seqinfo["runs"], set())
             self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             # Copy run directory back
-            copy_tree(run_stash, str(self.path_run))
+            copytree(run_stash, str(self.path_run))
             # Now, we should load a new Run with refresh()
             self.assertEqual(self.proc.seqinfo["projects"], proj_exp)
             self.proc.start()
@@ -438,7 +437,7 @@ class TestIlluminaProcessorMinRunAgeZero(TestIlluminaProcessor):
     filter."""
 
     def set_up_config(self):
-        self.config = copy.deepcopy(CONFIG)
+        self.config = deepcopy(CONFIG)
         self.config["min_age"] = 0
 
 
@@ -451,7 +450,7 @@ class TestIlluminaProcessorMaxRunAgeZero(TestIlluminaProcessorMinRunAge):
     max-age."""
 
     def set_up_config(self):
-        self.config = copy.deepcopy(CONFIG)
+        self.config = deepcopy(CONFIG)
         self.config["max_age"] = 0
 
 
@@ -462,7 +461,7 @@ class TestIlluminaProcessorMaxRunAge(TestIlluminaProcessorMinRunAgeZero):
     filter."""
 
     def set_up_config(self):
-        self.config = copy.deepcopy(CONFIG)
+        self.config = deepcopy(CONFIG)
         self.config["max_age"] = 60
 
 
@@ -474,7 +473,7 @@ class TestIlluminaProcessorFailure(TestIlluminaProcessor):
     ProjectData.FAILED.  (The processor then moves on with no interruption.)"""
 
     def set_up_config(self):
-        self.config = copy.deepcopy(CONFIG)
+        self.config = deepcopy(CONFIG)
         self.config["mailer"]["to_addrs_on_error"] = ["admin@example.com"]
 
     def setUp(self):

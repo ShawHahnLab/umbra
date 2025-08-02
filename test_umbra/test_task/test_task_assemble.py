@@ -2,7 +2,7 @@
 Test TaskAssemble.
 """
 
-from distutils.dir_util import copy_tree
+from shutil import copytree
 from pathlib import Path
 from umbra import task
 from . import test_task
@@ -17,7 +17,7 @@ class TestTaskAssemble(test_task.TestTask):
         # into the temp processing dir
         dir_input = self.path / "input"
         dir_proc = Path(self.tmpdir.name) / "proc"
-        copy_tree(str(dir_input), str(dir_proc))
+        copytree(str(dir_input), str(dir_proc))
 
     def test_name(self):
         self.assertEqual(self.thing.name, "assemble")
