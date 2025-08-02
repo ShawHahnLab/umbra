@@ -8,6 +8,7 @@ of an Illumina run directory on disk.
 
 from unittest.mock import Mock
 from tempfile import TemporaryDirectory
+from abc import ABC, abstractmethod
 from pathlib import Path
 from shutil import copytree
 from umbra.illumina import analysis
@@ -33,18 +34,42 @@ class TestAnalysisInit(TestBase):
             analysis.Analysis() # pylint: disable=abstract-class-instantiated
 
 
-class TestAnalysis:
+class TestAnalysis(ABC):
     """Framework of tests for any concrete Analysis class (see below)"""
     # (I'm trying to avoid repeating the same test code over and over with
     # slight variations in the underlying data, and to make sure I test the
     # same things for each case.  This works, but with the downside that I'm
     # referencing all sorts of methods that don't get defined until the "real"
     # test classes below.)
+    #
     # pylint: disable=no-member
 
     def test_refresh(self):
-        """Test that the refresh method loads the latest data from disk"""
-        self.fail("not yet implemented")
+        """Test that the refresh method loads the latest data from disk
+
+        At first the callback function should not have been called at all for
+        an incomplete Analysis.  Only when it's complete *and* refresh is
+        called should the callback be called.
+        """
+        # The Analysis object from setUp() should have already had the
+        # completion callback called.
+        self.callback.asert_called_once()
+        # But what about one that's incomplete to start with?
+        callback = Mock()
+        with TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            copytree(self.path/self.expected["run_dir"], tmp/self.expected["run_dir"])
+            self.reset_complete(tmp)
+            analysis2 = type(self.analysis)(tmp/self.expected["dir"], self.run, callback)
+            callback.assert_not_called()
+            analysis2.refresh()
+            callback.assert_not_called()
+            self.make_complete(tmp)
+            callback.assert_not_called()
+            analysis2.refresh()
+            callback.assert_called_once()
+            analysis2.refresh()
+            callback.assert_called_once()
 
     def test_index(self):
         """Test that the index property gives the index of this Analysis for the run"""
@@ -63,7 +88,30 @@ class TestAnalysis:
 
     def test_complete(self):
         """Test that the complete property reports completion of the Analysis"""
-        self.fail("not yet implemented")
+        self.assertTrue(self.analysis.complete)
+        with TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            copytree(self.path/self.expected["run_dir"], tmp/self.expected["run_dir"])
+            self.reset_complete(tmp)
+            def setup():
+                return type(self.analysis)(tmp/self.expected["dir"], self.run)
+            self.assertFalse(setup().complete)
+            self.make_incomplete(tmp)
+            self.assertFalse(setup().complete)
+            self.make_complete(tmp)
+            self.assertTrue(setup().complete)
+
+    @abstractmethod
+    def make_complete(self, tmp):
+        """Modify a temporary copy of the alignment data to look complete"""
+
+    @abstractmethod
+    def make_incomplete(self, tmp):
+        """Modify a temporary copy of the alignment data to look still incomplete"""
+
+    @abstractmethod
+    def reset_complete(self, tmp):
+        """Modify a temporary copy of the alignment data to not yet complete"""
 
     def test_run(self):
         """Test that run property points to the associated Run object"""
@@ -118,30 +166,20 @@ class TestAnalysisClassic(TestAnalysis):
     """Test AnalysisClassic class, for MiSeq or MiniSeq"""
     # pylint: disable=no-member
 
-    def test_complete(self):
-        # as the test dir is set up by default, it should show up as complete.
-        self.assertTrue(self.analysis.complete)
-        with TemporaryDirectory() as tmp:
-            tmp = Path(tmp)
-            copytree(self.path/self.expected["run_dir"], tmp/self.expected["run_dir"])
-            checkpoint_path = tmp/self.expected["sub_dir"]/"Checkpoint.txt"
+    def make_complete(self, tmp):
+        checkpoint_path = tmp/self.expected["sub_dir"]/"Checkpoint.txt"
+        with open(checkpoint_path, "w", encoding="ASCII") as f_out:
+            f_out.write("3\r\n\r\n")
+
+    def make_incomplete(self, tmp):
+        checkpoint_path = tmp/self.expected["sub_dir"]/"Checkpoint.txt"
+        with open(checkpoint_path, "w", encoding="ASCII") as f_out:
+            f_out.write("1\r\n\r\n")
+
+    def reset_complete(self, tmp):
+        checkpoint_path = tmp/self.expected["sub_dir"]/"Checkpoint.txt"
+        if checkpoint_path.exists():
             checkpoint_path.unlink()
-            def checkpoint(txt):
-                with open(checkpoint_path, "w", encoding="ASCII") as f_out:
-                    f_out.write(txt)
-            def setup():
-                return analysis.AnalysisClassic(tmp/self.expected["dir"], self.run)
-            self.assertFalse(
-                setup().complete,
-                "complete should be False with missing Checkpoint.txt")
-            checkpoint("1\r\n\r\n")
-            self.assertFalse(
-                setup().complete,
-                "complete should be False with unexpected content in Checkpoint.txt")
-            checkpoint("3\r\n\r\n")
-            self.assertTrue(
-                setup().complete,
-                "complete should be True with expected content in Checkpoint.txt")
 
 
 class TestAnalysisClassicMiSeq(TestAnalysisClassic, TestBase):
@@ -151,8 +189,9 @@ class TestAnalysisClassicMiSeq(TestAnalysisClassic, TestBase):
         self.run = Mock(
             instrument_type="MiSeq",
             analyses=[])
+        self.callback = Mock()
         self.analysis = analysis.AnalysisClassic(
-            self.path/"250708_M05588_0825_000000000-GRBN9/Alignment_1", self.run)
+            self.path/"250708_M05588_0825_000000000-GRBN9/Alignment_1", self.run, self.callback)
         self.expected = {
             "run_name": "MiSeqTest",
             "dir": "250708_M05588_0825_000000000-GRBN9/Alignment_1",
@@ -183,9 +222,10 @@ class TestAnalysisClassicMiSeqOld(TestAnalysisClassic, TestBase):
         self.run = Mock(
             instrument_type="MiSeq",
             analyses=[])
+        self.callback = Mock()
         self.analysis = analysis.AnalysisClassic(
             self.path/"210802_M00281_0060_000000000-DCT7T"/
-            "Data/Intensities/BaseCalls/Alignment", self.run)
+            "Data/Intensities/BaseCalls/Alignment", self.run, self.callback)
         self.expected = {
             "run_name": "MiSeqTestOld",
             "dir": "210802_M00281_0060_000000000-DCT7T/Data/Intensities/BaseCalls/Alignment",
@@ -211,8 +251,9 @@ class TestAnalysisClassicMiniSeq(TestAnalysisClassic, TestBase):
         self.run = Mock(
             instrument_type="MiniSeq",
             analyses=[])
+        self.callback = Mock()
         self.analysis = analysis.AnalysisClassic(
-            self.path/"250606_MN00123_0517_A000H7WW75/Alignment_1", self.run)
+            self.path/"250606_MN00123_0517_A000H7WW75/Alignment_1", self.run, self.callback)
         self.expected = {
             "run_name": "MiniSeqTest",
             "dir": "250606_MN00123_0517_A000H7WW75/Alignment_1",
@@ -238,8 +279,9 @@ class TestAnalysisNextSeq2000(TestAnalysis, TestBase):
         self.run = Mock(
             instrument_type="NextSeq2000",
             analyses=[])
+        self.callback = Mock()
         self.analysis = analysis.AnalysisNextSeq2000(
-            self.path/"250304_VH01673_47_2227MWWNX/Analysis/1", self.run)
+            self.path/"250304_VH01673_47_2227MWWNX/Analysis/1", self.run, self.callback)
         self.expected = {
             "run_name": "NextSeq2000Test",
             "dir": "250304_VH01673_47_2227MWWNX/Analysis/1",
@@ -257,29 +299,23 @@ class TestAnalysisNextSeq2000(TestAnalysis, TestBase):
             ("Data/fastq/sample4_S4_L001_R1_001.fastq.gz",
              "Data/fastq/sample4_S4_L001_R2_001.fastq.gz")]}
 
-    def test_complete(self):
-        self.assertTrue(self.analysis.complete)
-        with TemporaryDirectory() as tmp:
-            tmp = Path(tmp)
-            copytree(self.path/self.expected["run_dir"], tmp/self.expected["run_dir"])
-            fqcomp_path = tmp/self.expected["sub_dir"]/"Data/fastq/Logs/FastqComplete.txt"
-            with open(fqcomp_path, encoding="ASCII") as f_in:
-                orig = f_in.read()
+    def make_complete(self, tmp):
+        fqcomp_path = tmp/self.expected["sub_dir"]/"Data/fastq/Logs/FastqComplete.txt"
+        content = "".join(f"{line}\n" for line in [
+            "/opt/edico/bin/dragen Version"
+            "2025-03-05T19:12:53Z,Fastq generation complete"])
+        with open(fqcomp_path, "w", encoding="ASCII") as f_out:
+            f_out.write(content)
+
+    def make_incomplete(self, tmp):
+        fqcomp_path = tmp/self.expected["sub_dir"]/"Data/fastq/Logs/FastqComplete.txt"
+        content = "".join(f"{line}\n" for line in [
+            "/opt/edico/bin/dragen Version"
+            "2025-03-05T19:12:53Z,ERR"])
+        with open(fqcomp_path, "w", encoding="ASCII") as f_out:
+            f_out.write(content)
+
+    def reset_complete(self, tmp):
+        fqcomp_path = tmp/self.expected["sub_dir"]/"Data/fastq/Logs/FastqComplete.txt"
+        if fqcomp_path.exists():
             fqcomp_path.unlink()
-            def fqcomp(txt):
-                with open(fqcomp_path, "w", encoding="ASCII") as f_out:
-                    f_out.write(txt)
-            def setup():
-                return analysis.AnalysisNextSeq2000(tmp/
-                    self.expected["dir"], self.run)
-            self.assertFalse(
-                setup().complete,
-                "complete should be False with missing FastqComplete.txt")
-            fqcomp("ERR")
-            self.assertFalse(
-                setup().complete,
-                "complete should be False with unexpected content in FastqComplete.txt")
-            fqcomp(orig)
-            self.assertTrue(
-                setup().complete,
-                "complete should be True with expected content in FastqComplete.txt")
