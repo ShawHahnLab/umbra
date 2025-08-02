@@ -1,6 +1,6 @@
 """Copy the run directory into the processing directory."""
 
-from distutils.dir_util import copy_tree
+from shutil import copytree
 from umbra import task
 
 class TaskCopy(task.Task):
@@ -13,4 +13,4 @@ class TaskCopy(task.Task):
         src = str(self.proj.analysis.run.path)
         dest = str(self.task_dir_parent(self.name) /
                    self.proj.analysis.run.run_id)
-        copy_tree(src, dest)
+        copytree(src, dest)
