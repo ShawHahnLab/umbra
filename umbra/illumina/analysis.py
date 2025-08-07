@@ -257,7 +257,13 @@ class AnalysisMiSeqi100Plus(Analysis):
         self._path = path
         self._completion_callback = completion_callback
         self.__paths = {}
-        self.__paths["sample_sheet"] = (path/"inputs/SampleSheet.csv").resolve(strict=True)
+        try:
+            self.__paths["sample_sheet"] = (
+                path/"inputs/SampleSheet.csv").resolve(strict=True)
+        except FileNotFoundError as err:
+            raise UnrecognizedAnalysis(
+                'Not a recognized MiSeq i100 Plus analysis without expected sample sheet: '
+                f"\"{path/'inputs/SampleSheet.csv'}\"") from err
         # TODO is this the correct location for fastq.gz or just fastq.ora?
         self.__paths["fastq"] = (path/"Data/BCLConvert/ora_fastq").resolve()
         self._sample_sheet = load_sample_sheet(self.__paths["sample_sheet"])
@@ -297,7 +303,13 @@ class AnalysisNextSeq2000(Analysis):
         self._path = path
         self._completion_callback = completion_callback
         self.__paths = {}
-        self.__paths["sample_sheet"] = (path/"Data/Reports/SampleSheet.csv").resolve(strict=True)
+        try:
+            self.__paths["sample_sheet"] = (
+                path/"Data/Reports/SampleSheet.csv").resolve(strict=True)
+        except FileNotFoundError as err:
+            raise UnrecognizedAnalysis(
+                'Not a recognized NextSeq 2000 analysis without expected sample sheet: '
+                f"\"{path/'Data/Reports/SampleSheet.csv'}\"") from err
         self.__paths["fastq"] = (path/"Data/fastq").resolve()
         self._sample_sheet = load_sample_sheet(self.__paths["sample_sheet"])
         self.__fastq_complete = None
