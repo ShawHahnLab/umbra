@@ -264,8 +264,7 @@ class AnalysisMiSeqi100Plus(Analysis):
             raise UnrecognizedAnalysis(
                 'Not a recognized MiSeq i100 Plus analysis without expected sample sheet: '
                 f"\"{path/'inputs/SampleSheet.csv'}\"") from err
-        # TODO is this the correct location for fastq.gz or just fastq.ora?
-        self.__paths["fastq"] = (path/"Data/BCLConvert/ora_fastq").resolve()
+        self.__paths["fastq"] = (path/"Data/BCLConvert/fastq").resolve()
         self._sample_sheet = load_sample_sheet(self.__paths["sample_sheet"])
         self.__analysis_results = {}
         # We need fastq.gz, not fastq.ora

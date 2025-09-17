@@ -272,6 +272,49 @@ class TestAnalysisClassicMiniSeq(TestAnalysisClassic, TestBase):
              "20250607_055807/Fastq/sample4_S4_L001_R2_001.fastq.gz")]}
 
 
+class TestAnalysisMiSeqi100Plus(TestAnalysis, TestBase):
+    """Test AnalysisMiSeqi100Plus class"""
+
+    def setUp(self):
+        self.run = Mock(
+            instrument_type="MiSeqi100Plus",
+            analyses=[])
+        self.callback = Mock()
+        self.analysis = analysis.AnalysisMiSeqi100Plus(
+            self.path/"20250818_SH00364_0003_ASC2128532-SC3/Analysis/1", self.run, self.callback)
+        self.expected = {
+            "run_name": "MiSeqi100PlusTest",
+            "dir": "20250818_SH00364_0003_ASC2128532-SC3/Analysis/1",
+            "sub_dir": "20250818_SH00364_0003_ASC2128532-SC3/Analysis/1",
+            "run_dir": "20250818_SH00364_0003_ASC2128532-SC3",
+            "sample_sheet_path": ("20250818_SH00364_0003_ASC2128532-SC3/Analysis/1/"
+                "inputs/SampleSheet.csv"),
+            "sample_paths": [
+            ("Data/BCLConvert/fastq/sample1_S1_L001_R1_001.fastq.gz",
+             "Data/BCLConvert/fastq/sample1_S1_L001_R2_001.fastq.gz"),
+            ("Data/BCLConvert/fastq/sample2_S2_L001_R1_001.fastq.gz",
+             "Data/BCLConvert/fastq/sample2_S2_L001_R2_001.fastq.gz"),
+            ("Data/BCLConvert/fastq/sample3_S3_L001_R1_001.fastq.gz",
+             "Data/BCLConvert/fastq/sample3_S3_L001_R2_001.fastq.gz"),
+            ("Data/BCLConvert/fastq/sample4_S4_L001_R1_001.fastq.gz",
+             "Data/BCLConvert/fastq/sample4_S4_L001_R2_001.fastq.gz")]}
+
+    def make_complete(self, tmp):
+        with open(self.path/self.expected["sub_dir"]/
+                  "analysisResults.json", encoding="UTF8") as f_in, \
+            open(tmp/self.expected["sub_dir"]/
+                 "analysisResults.json", "w", encoding="UTF8") as f_out:
+            f_out.write(f_in.read())
+
+    def make_incomplete(self, tmp):
+        path = tmp/self.expected["sub_dir"]/"analysisResults.json"
+        if path.exists():
+            path.unlink()
+
+    def reset_complete(self, tmp):
+        self.make_incomplete(tmp)
+
+
 class TestAnalysisNextSeq2000(TestAnalysis, TestBase):
     """Test AnalysisNextSeq2000 class"""
 
