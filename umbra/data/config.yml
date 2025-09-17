@@ -110,8 +110,8 @@ task_options:
 
         ========================================
 
-          Run: {self.proj.alignment.run.run_id}
-          Experiment: {self.proj.alignment.experiment}
+          Run: {self.proj.analysis.run.run_id}
+          Experiment: {self.proj.analysis.experiment}
           Processing Status: {self.proj.path}
       template_html: |
         Hello,
@@ -125,8 +125,8 @@ task_options:
         <br><br>
 
         <small style="font-family: monospace; white-space: pre; color: gray;">
-          Run: {self.proj.alignment.run.run_id}
-          Experiment: {self.proj.alignment.experiment}
+          Run: {self.proj.analysis.run.run_id}
+          Experiment: {self.proj.analysis.experiment}
           Processing Status: {self.proj.path}
         </small>
 

@@ -12,7 +12,8 @@ setuptools.setup(
     url="https://github.com/ShawHahnLab/umbra",
     install_requires=[
         "biopython>=1.79",
-        "boxsdk>=3.1.0",
+        # https://github.com/box/box-python-sdk/blob/sdk-gen/migration-guides/from-box-python-sdk-gen-v1-to-box-python-sdk-v10.md
+        "boxsdk>=3.1.0,<10",
         "pyopenssl", # required for boxsdk but not always pulled in
         "cutadapt>=4.0",
         "pyyaml>=5.1"

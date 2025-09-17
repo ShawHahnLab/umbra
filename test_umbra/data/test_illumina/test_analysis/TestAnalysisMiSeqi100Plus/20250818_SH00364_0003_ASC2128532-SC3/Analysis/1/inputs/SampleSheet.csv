@@ -1,0 +1,37 @@
+[Header],
+FileFormatVersion,2
+RunName,MiSeqi100PlusTest
+InstrumentPlatform,MiSeqi100Series
+IndexOrientation,Forward
+
+[Reads]
+Read1Cycles,151
+Read2Cycles,151
+Index1Cycles,8
+Index2Cycles,8
+
+[Sequencing_Settings]
+InputContainerIdentifier,SC2128532-SC3
+
+[BCLConvert_Settings]
+SoftwareVersion,4.3.13
+OverrideCycles,R1:Y151;I1:I8;I2:I8;R2:Y151
+FastqCompressionFormat,gzip
+
+[BCLConvert_Data]
+Sample_ID,Index,Index2
+sample1,TACCTGAC,TACTAGGT
+sample2,CCACGGCC,TACTAGGT
+sample3,AGGACCGC,TACTAGGT
+sample4,GATCATTC,TACTAGGT
+
+[Cloud_Settings]
+GeneratedVersion,2.8.0.202410292211
+
+[Cloud_Data]
+Sample_ID,ProjectName,LibraryName,LibraryPrepKitName,IndexAdapterKitName
+sample1,Test Project,A19X035_w20_1A03_TACCTGAC_TACTAGGT,,
+sample2,Test Project,A19X035_w20_1D07_CCACGGCC_TACTAGGT,,
+sample3,Test Project,A19X035_w20_1D09_AGGACCGC_TACTAGGT,,
+sample4,Test Project,A19X035_w20_1E03_GATCATTC_TACTAGGT,,
+

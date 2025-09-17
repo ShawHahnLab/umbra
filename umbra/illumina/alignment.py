@@ -1,7 +1,7 @@
 """
 A read-only interface to an Illumina "Alignment" directory within a run.
 
-See the Alignment class for usage.
+DEPRECATED.  Use the equivalent functionality in the analysis module instead.
 """
 
 import gzip

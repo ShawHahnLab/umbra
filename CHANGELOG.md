@@ -4,6 +4,9 @@
 
 ### Added
 
+ * Support for Illumina NextSeq 2000 and MiSeq i100 Plus runs ([#145])
+ * New family of `Analysis` classes for Illumina Analysis directories to
+   supersede the old `Alignment` class ([#145])
  * `instrument_type` property for `Run` class to identify the sequencer model
    of a given run ([#143])
  * Illumina's "v2" sample sheets, used by newer instruments like the MiSeq i100
@@ -13,6 +16,7 @@
 
  * Python from 3.9 to 3.11 is supported ([#140])
 
+[#145]: https://github.com/ShawHahnLab/umbra/pull/145
 [#143]: https://github.com/ShawHahnLab/umbra/pull/143
 [#142]: https://github.com/ShawHahnLab/umbra/pull/142
 [#140]: https://github.com/ShawHahnLab/umbra/pull/140

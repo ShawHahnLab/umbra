@@ -22,7 +22,7 @@ class TestRun(TestBase):
         self.aln_callback = Mock()
         self.run = Run(
             self.path / "180101_M00000_0000_000000000-XXXXX",
-            alignment_callback=self.aln_callback)
+            analysis_callback=self.aln_callback)
 
     def test_rta_complete(self):
         """Test the rta_complete property.
@@ -51,7 +51,7 @@ class TestRun(TestBase):
         """Test the refresh method.
 
         This should refresh the basic run data from disk, load any new
-        alignments, and refresh any existing alignments.
+        analysis directories, and refresh any existing analyses.
 
         For a complete run, refresh has no effect.
         """
@@ -120,7 +120,7 @@ class TestRunIncomplete(TestRun):
         self.aln_callback = Mock()
         self.run = Run(
             self.path / "180101_M00000_0000_000000000-XXXXX",
-            alignment_callback=self.aln_callback)
+            analysis_callback=self.aln_callback)
 
     def test_rta_complete(self):
         """Test the rta_complete property.
@@ -134,7 +134,7 @@ class TestRunIncomplete(TestRun):
         self.assertFalse(self.run.complete)
 
     def test_refresh(self):
-        """For an incomplete run the alignent callback should not be called."""
+        """For an incomplete run the analysis callback should not be called."""
         self.aln_callback.assert_not_called()
         self.run.refresh()
         self.aln_callback.assert_not_called()
@@ -152,13 +152,13 @@ class TestRunToComplete(TestBase):
         self.aln_callback = Mock()
         self.run = Run(
             self.path / "180101_M00000_0000_000000000-XXXXX",
-            alignment_callback=self.aln_callback)
+            analysis_callback=self.aln_callback)
 
     def tearDown(self):
         self.reset_complete()
 
     def make_complete(self):
-        """Create a RTAComplete.txt file so the alignment is complete"""
+        """Create a RTAComplete.txt file so the analysis is complete"""
         rta = self.run.path / "RTAComplete.txt"
         with open(rta, "wt") as f_out:
             f_out.write("1/1/2018,06:21:31.705,Illumina RTA 1.18.54\r\n")
@@ -189,9 +189,9 @@ class TestRunToComplete(TestBase):
     def test_refresh(self):
         """Does run refresh catch completion?
 
-        At first the alignment callback function should not have been called at
-        all, whatever state of the alignment.  Only when both the run and
-        alignment are complete *and* refresh is called should the callback be
+        At first the analysis callback function should not have been called at
+        all, whatever state of the analysis.  Only when both the run and
+        analysis are complete *and* refresh is called should the callback be
         called.
         """
         self.aln_callback.assert_not_called()
@@ -224,7 +224,7 @@ class TestRunSingle(TestBase):
         self.aln_callback = Mock()
         self.run = Run(
             self.path / "180105_M00000_0000_000000000-XXXXX",
-            alignment_callback=self.aln_callback)
+            analysis_callback=self.aln_callback)
 
     def test_run_id(self):
         """Test the run_id str property."""
@@ -290,7 +290,7 @@ class TestRunMiniSeq(TestBase):
         self.aln_callback = Mock()
         self.run = Run(
             self.path / "180103_M000000_0000_0000000000",
-            alignment_callback=self.aln_callback)
+            analysis_callback=self.aln_callback)
 
     def test_rta_complete(self):
         """Test the rta_complete property."""
@@ -348,7 +348,7 @@ class TestRunMisnamed(TestRun):
         TestBase.setUp(self)
         self.path_run = self.path / "run-files-custom-name"
         self.aln_callback = Mock()
-        self.run = Run(self.path_run, alignment_callback=self.aln_callback)
+        self.run = Run(self.path_run, analysis_callback=self.aln_callback)
 
     def test_init(self):
         """Test that we get the expected warning during Run initialization."""
@@ -389,10 +389,10 @@ class TestRunInvalid(TestBase):
             self.assertTrue(run.invalid)
 
 
-class TestRunMinAlignmentAge(TestBase):
-    """Test case for a Run set to ignore too-new alignment directories.
+class TestRunMinAnalysisAge(TestBase):
+    """Test case for a Run set to ignore too-new analysis directories.
 
-    This should not warn about empty alignment directories if they're newer (by
+    This should not warn about empty analysis directories if they're newer (by
     ctime) than a certain age."""
 
     def setUp(self):
@@ -401,21 +401,21 @@ class TestRunMinAlignmentAge(TestBase):
         self.run = Run(self.path_run)
 
     def test_init(self):
-        """Does Run instantiation respect min_alignment_dir_age?"""
-        orig_als = self.run.alignments
-        # min_alignment_dir_age should make the Run object skip the "too new"
-        # alignment directories.  We'll use a one-second setting for this test,
+        """Does Run instantiation respect min_analysis_dir_age?"""
+        orig_als = self.run.analyses
+        # min_analysis_dir_age should make the Run object skip the "too new"
+        # analysis directories.  We'll use a one-second setting for this test,
         # and will touch the directory to reset the ctime.
-        self.run.alignments[0].path.touch()
+        self.run.analyses[0].path.touch()
         with self.assertLogs(level="DEBUG") as log_context:
-            self.run = Run(self.path_run, min_alignment_dir_age=0.2)
-        # That alignment shouldn't have been added to the list yet.  No
+            self.run = Run(self.path_run, min_analysis_dir_age=0.2)
+        # That analysis shouldn't have been added to the list yet.  No
         # warnings should have been generated, just a debug log message about
         # the skip.
         self.assertEqual(len(log_context.output), 1)
-        self.assertEqual(len(self.run.alignments), len(orig_als)-1)
+        self.assertEqual(len(self.run.analyses), len(orig_als)-1)
         # After enough time has passed it should be loaded.
         time.sleep(0.5)
-        self.assertEqual(len(self.run.alignments), len(orig_als)-1)
+        self.assertEqual(len(self.run.analyses), len(orig_als)-1)
         self.run.refresh()
-        self.assertEqual(len(self.run.alignments), len(orig_als))
+        self.assertEqual(len(self.run.analyses), len(orig_als))

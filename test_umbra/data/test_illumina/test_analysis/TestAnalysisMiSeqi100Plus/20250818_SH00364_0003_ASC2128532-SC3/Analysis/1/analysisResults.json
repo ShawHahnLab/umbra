@@ -1,0 +1,23 @@
+{
+    "AnalysisName": "DRAGEN BCL Convert",
+    "AnalysisVersion": "4.3.13",
+    "AnalysisStatus": "Succeeded",
+    "AnalysisDatasets": [
+        
+    ],
+    "SampleAnalysisDatasets": [
+        
+    ],
+    "ReportFiles": [
+        {
+            "lang": "en",
+            "title": "Demultiplex Report",
+            "relativePath": "Data/Demux/AggregateReports/report.html"
+        },
+        {
+            "lang": "en",
+            "title": "DRAGEN BCL Convert Report",
+            "relativePath": "Data/BCLConvert/AggregateReports/report.html"
+        }
+    ]
+}
