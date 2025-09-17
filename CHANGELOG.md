@@ -1,6 +1,6 @@
 # Changelog
 
-## dev
+## 0.0.8 - 2025-09-17
 
 ### Added
 
