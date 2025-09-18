@@ -114,7 +114,7 @@ class Alignment:
 
         None if there is no XML file or Error entry.
         """
-        if self.completed_job_info:
+        if self.completed_job_info is not None:
             elem = self.completed_job_info.find("Error")
             if elem is not None:
                 return elem.text

@@ -1,99 +1,22 @@
 """
 Tests for Mailer objects.
-
-This uses a temporary SMTP server to receive and check "sent" messages.
 """
 
 import pwd
 import socket
 import os
-import re
-# smtpd has been removed as of Python 3.12; will need to use aiosmtpd instead
-# https://aiosmtpd.aio-libs.org/en/latest/migrating.html
-import smtpd
 import smtplib
-import asyncore
-import threading
+from email import message_from_string
+from unittest.mock import patch
 from umbra.mailer import Mailer
 from .test_common import TestBase
-
-
-class StubSMTP(smtpd.SMTPServer):
-    """Fake SMTP server to receive test messages."""
-
-    @property
-    def message_parsed(self):
-        """Received message parsed into a dict."""
-        data = self.message.decode("UTF-8")
-        return StubSMTP.parse(data)
-
-    @property
-    def message_pretty(self):
-        """Received message pretty-printed as a string."""
-        return self._prettify(self.message_parsed)
-
-    @staticmethod
-    def parse(data):
-        """Parse a message section from a string into a dict.
-
-        This calls itself recursively on multipart meessages, creating a nested
-        dictionary structure corresponding to the message structure.
-        """
-        # locate double-newline between header and body of message
-        i = data.find('\n\n')
-        # split
-        header = data[0:i]
-        body = data[(i+2):len(data)]
-        header = StubSMTP.parse_header(header)
-        if "multipart" in header.get("Content-Type", ""):
-            msg = re.search('boundary="(.*)"', header["Content-Type"])
-            boundary = msg.group(1)
-            body = re.split("\n?--"+boundary+"(?:--)?\n?", body)
-            body = [StubSMTP.parse(b) for b in body if b]
-        else:
-            body = [body]
-        return {"header": header, "body": body}
-
-    @staticmethod
-    def parse_header(header):
-        """Parse the header from message text into a simple dictionary."""
-        # unwrap
-        header = re.sub("\n ", " ", header)
-        # split keys/vals
-        header = header.split("\n")
-        # This is a little roundabout to handle empty fields.
-        header = [h.split(":") for h in header]
-        header = [[h[0], h[1].lstrip()] for h in header]
-        header = {h[0]: h[1] for h in header}
-        return header
-
-    def _prettify(self, data=None, indent=""):
-        output = ""
-        if not data:
-            data = self.message_parsed
-        try:
-            for key in data["header"]:
-                output += "%s%s: %s\n" % (indent, key, data["header"][key])
-            for chunk in data["body"]:
-                output += self._prettify(chunk, indent + "  ")
-        except TypeError:
-            data = "\n".join([indent + c for c in data.split("\n")])
-            output += data + "\n"
-        return output
-
-    def process_message(self, peer, mailfrom, rcpttos, data, **kwargs):
-        # pylint: disable=attribute-defined-outside-init
-        self.message = data
-        self.rcpttos = rcpttos
 
 
 class TestMailer(TestBase):
     """ Test Mailer with a typical use case."""
 
     def setUp(self):
-        self.set_up_smtp()
-        conf = {"host": self.host, "port": self.port}
-        self.mailer = Mailer(conf)
+        self.mailer = Mailer({"host": "127.0.0.1", "port": 0})
         self.set_up_vars()
 
     def set_up_vars(self):
@@ -119,31 +42,10 @@ class TestMailer(TestBase):
         exp_args = self.expected["mail_args"]
         exp_args["to_addrs"] = [exp_args["to_addrs"]]
 
-    def tearDown(self):
-        # we need to explicitly clean up the socket or we'll get OSError:
-        # [Errno 98] Address already in use
-        asyncore.close_all()
-        if hasattr(self, "smtpd"):
-            self.smtpd.close()
-        if hasattr(self, "thread"):
-            self.thread.join()
-
-    def set_up_smtp(self):
-        """Initialize fake SMTP server to receive messages."""
-        self.host = "127.0.0.1"
-        # select an arbitrary open port for the temporary SMTP server.
-        self.port = 0
-        self.smtpd = StubSMTP((self.host, self.port), (None, None))
-        self.port = self.smtpd.socket.getsockname()[1]
-        kwargs = {"timeout": 0}
-        self.thread = threading.Thread(
-            target=asyncore.loop,
-            kwargs=kwargs,
-            daemon=True)
-        self.thread.start()
-
-    def check_mail(self):
-        """Compare SMTPD-received message to expected message."""
+    def check_mail(self, mock_smtp):
+        """Compare intercepted message to expected message."""
+        # The mock equivalent of the `... as smtp` as used in Mailer
+        smtp_mgr = mock_smtp.return_value.__enter__.return_value
         # Test recipients
         # This should be a list of the To addresses and CC addresses (if
         # present)
@@ -153,26 +55,31 @@ class TestMailer(TestBase):
         msg = None
         # If it looks like no message was received, just return here.  But fail
         # if that was unexpected.
-        if not hasattr(self.smtpd, "rcpttos"):
+        try:
+            smtp_mgr.sendmail.assert_called()
+        except AssertionError as err:
             if self.expected["sent"]:
-                self.fail("SMTPD did not receive a message")
+                raise err
             return msg
         recipients = to_addrs + cc_addrs
-        self.assertEqual(self.smtpd.rcpttos, recipients)
+        obs_from_addr, obs_recipients, obs_msg = smtp_mgr.sendmail.call_args[0]
+        self.assertEqual(obs_recipients, recipients)
         # Test message attributes
-        msg = self.smtpd.message_parsed
-        self.assertEqual(msg["header"]["Subject"], exp["subject"])
-        self.assertEqual(msg["header"]["From"], exp["from_addr"])
+        msg = message_from_string(obs_msg)
+        self.assertEqual(msg["Subject"], exp["subject"])
+        self.assertEqual(msg["From"], exp["from_addr"])
+        self.assertEqual(obs_from_addr, exp["from_addr"])
         if to_addrs:
-            self.assertEqual(msg["header"].get("To"), ", ".join(to_addrs))
+            self.assertEqual(msg.get("To"), ", ".join(to_addrs))
         if cc_addrs:
-            self.assertEqual(msg["header"].get("CC"), ", ".join(cc_addrs))
+            self.assertEqual(msg.get("CC"), ", ".join(cc_addrs))
+        body = {item.get_content_type(): item.get_payload() for item in msg.walk()}
         if "msg_html" in self.mail_args_sent:
-            self.assertEqual(msg["body"][0]["body"][0], exp["msg_body"])
-            self.assertEqual(msg["body"][1]["body"][0], exp["msg_html"])
+            self.assertEqual(body["text/plain"], exp["msg_body"])
+            self.assertEqual(body["text/html"], exp["msg_html"])
         else:
-            self.assertEqual(msg["body"][0], exp["msg_body"])
-            self.assertEqual(len(msg["body"]), 1)
+            self.assertEqual(body["text/plain"], exp["msg_body"])
+            self.assertEqual(len(body), 1)
         return msg
 
     def test_mail(self):
@@ -185,19 +92,19 @@ class TestMailer(TestBase):
         failure = None
         message = None
         try:
-            if self.expected["sent"]:
-                self.mailer.mail(**self.mail_args_sent)
-            else:
-                # There should be a complaint in this case
-                with self.assertLogs(level="ERROR") as logging_context:
+            with patch("smtplib.SMTP", autospec=True) as mock_smtp:
+                if self.expected["sent"]:
                     self.mailer.mail(**self.mail_args_sent)
-                self.assertEqual(len(logging_context.output), 1)
-            message = self.check_mail()
+                else:
+                    # There should be a complaint in this case
+                    with self.assertLogs(level="ERROR") as logging_context:
+                        self.mailer.mail(**self.mail_args_sent)
+                    self.assertEqual(len(logging_context.output), 1)
+                message = self.check_mail(mock_smtp)
         except smtplib.SMTPException:
             failure = "SMTP Failure"
         if failure:
             self.fail(failure)
-        return message
 
 
 class TestMailerDefaultFrom(TestMailer):
@@ -211,7 +118,7 @@ class TestMailerDefaultFrom(TestMailer):
         del self.mail_args_sent["from_addr"]
         user = pwd.getpwuid(os.getuid())[0]
         host = socket.getfqdn()
-        self.expected["mail_args"]["from_addr"] = "%s@%s" % (user, host)
+        self.expected["mail_args"]["from_addr"] = f"{user}@{host}"
 
 
 class TestMailerNoHTML(TestMailer):
@@ -240,9 +147,8 @@ class TestMailerCCAddrs(TestMailer):
     """ Test Mailer giving a single address for cc_addrs."""
 
     def setUp(self):
-        self.set_up_smtp()
         cc_addrs = "admin@example.com"
-        conf = {"host": self.host, "port": self.port, "cc_addrs": cc_addrs}
+        conf = {"host": "127.0.0.1", "port": 0, "cc_addrs": cc_addrs}
         self.mailer = Mailer(conf)
         self.set_up_vars()
         self.expected["mail_args"]["cc_addrs"] = [cc_addrs]
@@ -253,9 +159,8 @@ class TestMailerCCAddrsMulti(TestMailer):
     """ Test Mailer giving multiple addresses for cc_addrs."""
 
     def setUp(self):
-        self.set_up_smtp()
         cc_addrs = ["admin@example.com", "office@example.com"]
-        conf = {"host": self.host, "port": self.port, "cc_addrs": cc_addrs}
+        conf = {"host": "127.0.0.1", "port": 0, "cc_addrs": cc_addrs}
         self.mailer = Mailer(conf)
         self.set_up_vars()
         self.expected["mail_args"]["cc_addrs"] = cc_addrs
@@ -283,9 +188,8 @@ class TestMailerOnlyCC(TestMailer):
     "To:" field and with a warning logged."""
 
     def setUp(self):
-        self.set_up_smtp()
         cc_addrs = "admin@example.com"
-        conf = {"host": self.host, "port": self.port, "cc_addrs": cc_addrs}
+        conf = {"host": "127.0.0.1", "port": 0, "cc_addrs": cc_addrs}
         self.mailer = Mailer(conf)
         self.set_up_vars()
         self.mail_args_sent["to_addrs"] = []
@@ -294,25 +198,25 @@ class TestMailerOnlyCC(TestMailer):
 
     def test_mail(self):
         # There should be a complaint about the lack of to_addrs
-        with self.assertLogs(level="WARNING") as logging_context:
-            self.mailer.mail(**self.mail_args_sent)
-        self.assertEqual(len(logging_context.output), 1)
-        self.check_mail()
+        with patch("smtplib.SMTP", autospec=True) as mock_smtp:
+            with self.assertLogs(level="WARNING") as logging_context:
+                self.mailer.mail(**self.mail_args_sent)
+            self.assertEqual(len(logging_context.output), 1)
+            self.check_mail(mock_smtp)
 
 
 class TestMailerReplyTo(TestMailer):
     """ Test Mailer giving a Reply-To address."""
 
     def setUp(self):
-        self.set_up_smtp()
         reply_to = "technician@example.com"
-        conf = {"host": self.host, "port": self.port, "reply_to": reply_to}
+        conf = {"host": "127.0.0.1", "port": 0, "reply_to": reply_to}
         self.mailer = Mailer(conf)
         self.set_up_vars()
         self.expected["mail_args"]["reply_to"] = reply_to
 
-    def test_mail(self):
-        message = super().test_mail()
+    def check_mail(self, mock_smtp):
+        message = super().check_mail(mock_smtp)
         self.assertEqual(
-            message["header"].get("Reply-To"),
+            message.get("Reply-To"),
             self.expected["mail_args"]["reply_to"])

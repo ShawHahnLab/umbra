@@ -1,5 +1,13 @@
 # Changelog
 
+## dev
+
+### Changed
+
+ * Python from 3.9 to 3.13 is supported ([#147])
+
+[#147]: https://github.com/ShawHahnLab/umbra/pull/147
+
 ## 0.0.8 - 2025-09-17
 
 ### Added

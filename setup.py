@@ -18,9 +18,7 @@ setuptools.setup(
         "cutadapt>=4.0",
         "pyyaml>=5.1"
         ],
-    # Python 3.12 dropped smtpd from the standard library; probably need to
-    # migrate the unit tests to aiosmtpd instead.
-    python_requires='>=3.9,<3.12',
+    python_requires='>=3.9,<3.14',
     packages=setuptools.find_packages(exclude=["test_*"]),
     include_package_data=True,
     entry_points={'console_scripts': [
