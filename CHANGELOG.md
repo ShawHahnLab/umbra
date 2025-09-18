@@ -8,7 +8,7 @@
 
 [#147]: https://github.com/ShawHahnLab/umbra/pull/147
 
-## dev (release-0.0.8)
+## 0.0.8 - 2025-09-17
 
 ### Added
 
