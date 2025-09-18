@@ -7,79 +7,20 @@ This uses a temporary SMTP server to receive and check "sent" messages.
 import pwd
 import socket
 import os
-import re
 # smtpd has been removed as of Python 3.12; will need to use aiosmtpd instead
+# or just switch to using a mock approach
 # https://aiosmtpd.aio-libs.org/en/latest/migrating.html
 import smtpd
 import smtplib
 import asyncore
 import threading
+from email import message_from_bytes
 from umbra.mailer import Mailer
 from .test_common import TestBase
 
 
 class StubSMTP(smtpd.SMTPServer):
     """Fake SMTP server to receive test messages."""
-
-    @property
-    def message_parsed(self):
-        """Received message parsed into a dict."""
-        data = self.message.decode("UTF-8")
-        return StubSMTP.parse(data)
-
-    @property
-    def message_pretty(self):
-        """Received message pretty-printed as a string."""
-        return self._prettify(self.message_parsed)
-
-    @staticmethod
-    def parse(data):
-        """Parse a message section from a string into a dict.
-
-        This calls itself recursively on multipart meessages, creating a nested
-        dictionary structure corresponding to the message structure.
-        """
-        # locate double-newline between header and body of message
-        i = data.find('\n\n')
-        # split
-        header = data[0:i]
-        body = data[(i+2):len(data)]
-        header = StubSMTP.parse_header(header)
-        if "multipart" in header.get("Content-Type", ""):
-            msg = re.search('boundary="(.*)"', header["Content-Type"])
-            boundary = msg.group(1)
-            body = re.split("\n?--"+boundary+"(?:--)?\n?", body)
-            body = [StubSMTP.parse(b) for b in body if b]
-        else:
-            body = [body]
-        return {"header": header, "body": body}
-
-    @staticmethod
-    def parse_header(header):
-        """Parse the header from message text into a simple dictionary."""
-        # unwrap
-        header = re.sub("\n ", " ", header)
-        # split keys/vals
-        header = header.split("\n")
-        # This is a little roundabout to handle empty fields.
-        header = [h.split(":") for h in header]
-        header = [[h[0], h[1].lstrip()] for h in header]
-        header = {h[0]: h[1] for h in header}
-        return header
-
-    def _prettify(self, data=None, indent=""):
-        output = ""
-        if not data:
-            data = self.message_parsed
-        try:
-            for key in data["header"]:
-                output += "%s%s: %s\n" % (indent, key, data["header"][key])
-            for chunk in data["body"]:
-                output += self._prettify(chunk, indent + "  ")
-        except TypeError:
-            data = "\n".join([indent + c for c in data.split("\n")])
-            output += data + "\n"
-        return output
 
     def process_message(self, peer, mailfrom, rcpttos, data, **kwargs):
         # pylint: disable=attribute-defined-outside-init
@@ -160,19 +101,20 @@ class TestMailer(TestBase):
         recipients = to_addrs + cc_addrs
         self.assertEqual(self.smtpd.rcpttos, recipients)
         # Test message attributes
-        msg = self.smtpd.message_parsed
-        self.assertEqual(msg["header"]["Subject"], exp["subject"])
-        self.assertEqual(msg["header"]["From"], exp["from_addr"])
+        msg = message_from_bytes(self.smtpd.message)
+        self.assertEqual(msg["Subject"], exp["subject"])
+        self.assertEqual(msg["From"], exp["from_addr"])
         if to_addrs:
-            self.assertEqual(msg["header"].get("To"), ", ".join(to_addrs))
+            self.assertEqual(msg.get("To"), ", ".join(to_addrs))
         if cc_addrs:
-            self.assertEqual(msg["header"].get("CC"), ", ".join(cc_addrs))
+            self.assertEqual(msg.get("CC"), ", ".join(cc_addrs))
+        body = {item.get_content_type(): item.get_payload() for item in msg.walk()}
         if "msg_html" in self.mail_args_sent:
-            self.assertEqual(msg["body"][0]["body"][0], exp["msg_body"])
-            self.assertEqual(msg["body"][1]["body"][0], exp["msg_html"])
+            self.assertEqual(body["text/plain"], exp["msg_body"])
+            self.assertEqual(body["text/html"], exp["msg_html"])
         else:
-            self.assertEqual(msg["body"][0], exp["msg_body"])
-            self.assertEqual(len(msg["body"]), 1)
+            self.assertEqual(body["text/plain"], exp["msg_body"])
+            self.assertEqual(len(body), 1)
         return msg
 
     def test_mail(self):
@@ -211,7 +153,7 @@ class TestMailerDefaultFrom(TestMailer):
         del self.mail_args_sent["from_addr"]
         user = pwd.getpwuid(os.getuid())[0]
         host = socket.getfqdn()
-        self.expected["mail_args"]["from_addr"] = "%s@%s" % (user, host)
+        self.expected["mail_args"]["from_addr"] = f"{user}@{host}"
 
 
 class TestMailerNoHTML(TestMailer):
@@ -314,5 +256,5 @@ class TestMailerReplyTo(TestMailer):
     def test_mail(self):
         message = super().test_mail()
         self.assertEqual(
-            message["header"].get("Reply-To"),
+            message.get("Reply-To"),
             self.expected["mail_args"]["reply_to"])
