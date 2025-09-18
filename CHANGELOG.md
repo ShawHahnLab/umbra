@@ -1,6 +1,6 @@
 # Changelog
 
-## dev
+## dev (release-0.0.8)
 
 ### Added
 
