@@ -105,7 +105,6 @@ class TestMailer(TestBase):
             failure = "SMTP Failure"
         if failure:
             self.fail(failure)
-        return message
 
 
 class TestMailerDefaultFrom(TestMailer):
@@ -216,8 +215,8 @@ class TestMailerReplyTo(TestMailer):
         self.set_up_vars()
         self.expected["mail_args"]["reply_to"] = reply_to
 
-    def test_mail(self):
-        message = super().test_mail()
+    def check_mail(self, mock_smtp):
+        message = super().check_mail(mock_smtp)
         self.assertEqual(
             message.get("Reply-To"),
             self.expected["mail_args"]["reply_to"])
