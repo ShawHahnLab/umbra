@@ -26,8 +26,9 @@ Requirements:
 
 Limitations/assumptions:
 
- * Tested with MiniSeq and MiSeq output
- * Assumes the GenerateFASTQ workflow is enabled on the sequencer
+ * Tested with MiniSeq, MiSeq, and MiSeq i100 Plus output
+ * Assumes the GenerateFASTQ workflow is enabled on the sequencer with fastq.gz
+   output (.ora not supported)
 
 [Box]: https://www.box.com/
 [SPAdes]: http://cab.spbu.ru/software/spades/
