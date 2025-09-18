@@ -6,6 +6,9 @@ version: 2.1
 
 jobs:
   main:
+    parameters:
+      python-version:
+        type: string
     # Using a machine executor instead of a docker image because we need to
     # interact with systemd to run a full test, which doesn't play nicely with
     # docker.
@@ -17,7 +20,7 @@ jobs:
       # Initial setup
       - checkout
       - restore_cache:
-          key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}
+          key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}-python<< parameters.python-version >>
       - run:
           name: Set up conda environment
           working_directory: ..
@@ -30,9 +33,10 @@ jobs:
             export PATH="$HOME/miniconda/bin:$PATH"
             conda config --set always_yes yes --set changeps1 no
             conda update -q conda
-            conda env update --file project/.circleci/env.yml
+            sed 's/^  - python=.*/  - python=<< parameters.python-version >>/' < project/.circleci/env.yml > env.yml
+            conda env update --file env.yml
       - save_cache:
-          key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}
+          key: conda-{{ checksum "setup.py" }}-{{ checksum "/home/circleci/project/.circleci/env.yml" }}-python<< parameters.python-version >>
           paths:
             - ../miniconda
       - run:
@@ -125,4 +129,7 @@ jobs:
 workflows:
   main:
     jobs:
-      - main
+      - main:
+          matrix:
+            parameters:
+              python-version: ["3.9", "3.10", "3.11"]

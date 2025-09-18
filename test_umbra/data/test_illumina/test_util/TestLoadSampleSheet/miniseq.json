@@ -1,0 +1,40 @@
+{
+   "Data" : [
+      {
+         "I5_Index_ID" : "N502",
+         "I7_Index_ID" : "N701",
+         "Sample_ID" : "TL3833_2_3-308308",
+         "Sample_Name" : "TL3833_2_3",
+         "index" : "TAAGGCGA",
+         "index2" : "ATAGAGAG"
+      },
+      {
+         "I5_Index_ID" : "N502",
+         "I7_Index_ID" : "N702",
+         "Sample_ID" : "TL3843_2_2-308308",
+         "Sample_Name" : "TL3843_2_2",
+         "index" : "CGTACTAG",
+         "index2" : "ATAGAGAG"
+      },
+      {
+         "I5_Index_ID" : "N502",
+         "I7_Index_ID" : "N703",
+         "Sample_ID" : "TL3843_2_4-308308",
+         "Sample_Name" : "TL3843_2_4",
+         "index" : "AGGCAGAA",
+         "index2" : "ATAGAGAG"
+      }
+   ],
+   "Header" : {
+      "Chemistry" : "Amplicon",
+      "Date" : "8/3/2018",
+      "Description" : "Auto generated sample sheet.  Used by workflow module to kick off Isis analysis",
+      "Experiment Name" : "test",
+      "Local Run Manager Analysis Id" : "308308",
+      "Workflow" : "GenerateFastQWorkflow"
+   },
+   "Reads" : [
+      151,
+      151
+   ]
+}

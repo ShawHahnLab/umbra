@@ -1,0 +1,63 @@
+{
+   "BCLConvert_Data" : [
+      {
+         "Index" : "AATGTATCCA",
+         "Index2" : "AATGAGCTTA",
+         "Sample_ID" : "SHIV-V3-VDJ"
+      },
+      {
+         "Index" : "CTCCTTTAGA",
+         "Index2" : "GACATAGCTC",
+         "Sample_ID" : "MRNA-V3-VDJ"
+      },
+      {
+         "Index" : "GTCCCATCAA",
+         "Index2" : "CGAACGTGAC",
+         "Sample_ID" : "SHIV-GCB-VDJ"
+      }
+   ],
+   "BCLConvert_Settings" : {
+      "FastqCompressionFormat" : "gzip",
+      "NoLaneSplitting" : "true",
+      "OverrideCycles" : "Y28;I10;I10;Y90",
+      "SoftwareVersion" : "4.2.7"
+   },
+   "Cloud_Data" : [
+      {
+         "IndexAdapterKitName" : "",
+         "LibraryName" : "SHIV-V3-VDJ_AATGTATCCA_AATGAGCTTA",
+         "LibraryPrepKitName" : "",
+         "ProjectName" : "AI011",
+         "Sample_ID" : "SHIV-V3-VDJ"
+      },
+      {
+         "IndexAdapterKitName" : "",
+         "LibraryName" : "MRNA-V3-VDJ_CTCCTTTAGA_GACATAGCTC",
+         "LibraryPrepKitName" : "",
+         "ProjectName" : "AI011",
+         "Sample_ID" : "MRNA-V3-VDJ"
+      },
+      {
+         "IndexAdapterKitName" : "",
+         "LibraryName" : "SHIV-GCB-VDJ_GTCCCATCAA_CGAACGTGAC",
+         "LibraryPrepKitName" : "",
+         "ProjectName" : "AI011",
+         "Sample_ID" : "SHIV-GCB-VDJ"
+      }
+   ],
+   "Cloud_Settings" : {
+      "GeneratedVersion" : "1.14.0.202408061842"
+   },
+   "Header" : {
+      "FileFormatVersion" : "2",
+      "IndexOrientation" : "Forward",
+      "InstrumentPlatform" : "NextSeq1k2k",
+      "RunName" : "test"
+   },
+   "Reads" : {
+      "Index1Cycles" : "10",
+      "Index2Cycles" : "10",
+      "Read1Cycles" : "28",
+      "Read2Cycles" : "90"
+   }
+}

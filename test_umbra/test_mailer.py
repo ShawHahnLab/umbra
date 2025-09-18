@@ -8,6 +8,8 @@ import pwd
 import socket
 import os
 import re
+# smtpd has been removed as of Python 3.12; will need to use aiosmtpd instead
+# https://aiosmtpd.aio-libs.org/en/latest/migrating.html
 import smtpd
 import smtplib
 import asyncore

@@ -7,7 +7,7 @@ import time
 import unittest
 import logging
 from tempfile import TemporaryDirectory
-from distutils.dir_util import copy_tree
+from shutil import copytree
 from pathlib import Path
 import hashlib
 import sys
@@ -101,7 +101,7 @@ class TestBaseHeavy(TestBase):
     def set_up_tmpdir(self):
         """Make a full copy of the demo testdata to a temporary location."""
         self.tmpdir = TemporaryDirectory()
-        copy_tree(str(PATH_DATA / "demo"), self.tmpdir.name)
+        copytree(str(PATH_DATA / "demo"), self.tmpdir.name, dirs_exist_ok=True)
         self.paths = {
             "top":  Path(self.tmpdir.name),
             "runs": Path(self.tmpdir.name) / "runs",

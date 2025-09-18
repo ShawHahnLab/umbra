@@ -1,0 +1,65 @@
+{
+   "SomeUnknownApp_Data" : [
+      {
+         "Index" : "TACCTGAC",
+         "Index2" : "TACTAGGT",
+         "Sample_ID" : "16_095_w40_1A01"
+      },
+      {
+         "Index" : "CCACGGCC",
+         "Index2" : "TACTAGGT",
+         "Sample_ID" : "16_095_w40_1A04"
+      },
+      {
+         "Index" : "AGGACCGC",
+         "Index2" : "TACTAGGT",
+         "Sample_ID" : "16_095_w40_1A05"
+      }
+   ],
+   "SomeUnknownApp_Settings" : {
+      "FastqCompressionFormat" : "dragen",
+      "OverrideCycles" : "R1:Y151;I1:I8;I2:I8;R2:Y151",
+      "SoftwareVersion" : "4.3.13"
+   },
+   "Cloud_Data" : [
+      {
+         "IndexAdapterKitName" : "",
+         "LibraryName" : "16_095_w40_1A01_TACCTGAC_TACTAGGT",
+         "LibraryPrepKitName" : "",
+         "ProjectName" : "test_2025-03-19T15_39_46_11d78cc",
+         "Sample_ID" : "16_095_w40_1A01"
+      },
+      {
+         "IndexAdapterKitName" : "",
+         "LibraryName" : "16_095_w40_1A04_CCACGGCC_TACTAGGT",
+         "LibraryPrepKitName" : "",
+         "ProjectName" : "test_2025-03-19T15_39_46_11d78cc",
+         "Sample_ID" : "16_095_w40_1A04"
+      },
+      {
+         "IndexAdapterKitName" : "",
+         "LibraryName" : "16_095_w40_1A05_AGGACCGC_TACTAGGT",
+         "LibraryPrepKitName" : "",
+         "ProjectName" : "test_2025-03-19T15_39_46_11d78cc",
+         "Sample_ID" : "16_095_w40_1A05"
+      }
+   ],
+   "Cloud_Settings" : {
+      "GeneratedVersion" : "2.8.0.202410292211"
+   },
+   "Header" : {
+      "FileFormatVersion" : "2",
+      "IndexOrientation" : "Forward",
+      "InstrumentPlatform" : "MiSeqi100Series",
+      "RunName" : "test"
+   },
+   "Reads" : {
+      "Index1Cycles" : "8",
+      "Index2Cycles" : "8",
+      "Read1Cycles" : "151",
+      "Read2Cycles" : "151"
+   },
+   "Sequencing_Settings" : {
+      "InputContainerIdentifier" : "SC2090902-SC3"
+   }
+}
